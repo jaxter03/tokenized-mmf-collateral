@@ -1,0 +1,33 @@
+flowchart TD
+    P0["0 · Launch fund<br/>create_fund · init_registry · roles<br/>launch · first NAV"]
+    P1["1 · Onboard holders<br/>register_holder (Pending, frozen)<br/>KYC attestation → approve_holder (thaw)"]
+    P2["2 · Subscribe (DvP)<br/>cash into escrow → settle<br/>units minted to buyer, cash to treasury"]
+    P3["3 · Daily running<br/>publish_daily(NAV, yield)<br/>accrual on every balance change<br/>transfers between approved holders"]
+    P4["4 · Collateral agreement<br/>propose + sign<br/>haircut · cure · grace · caps"]
+    P5["5 · Margin call<br/>update_exposure → call Open"]
+    D1{"Giver pledges<br/>before cure deadline?"}
+    P6["6 · Pledge (lien)<br/>units locked in giver's account<br/>call Met, yield still to giver"]
+    P7["7 · Adjust<br/>release · substitute"]
+    P8["8 · Default<br/>mark_defaulted"]
+    D2{"Disputed or<br/>compliance hold?"}
+    BLK["Enforcement blocked<br/>until resolved / lifted"]
+    P9["9 · Enforce<br/>governance moves shortfall units<br/>giver → taker, permanent record"]
+    P10["10 · Monthly distribution<br/>close_cycle → distribute<br/>units minted or cash paid"]
+    P11["11 · Redeem (DvP)<br/>units to escrow (lien checked)<br/>burn, cash paid, daily gate"]
+    P12["12 · Reconcile<br/>register + pledge roots<br/>three-way tie-out"]
+    P13["13 · Wind down<br/>all redeemed → close_mint"]
+    CMP["Compliance, any time<br/>freeze · suspend · pause<br/>hold · seize (24h timelock)"]
+
+    P0 --> P1 --> P2 --> P3 --> P4 --> P5 --> D1
+    D1 -->|yes| P6 --> P7
+    P7 -->|exposure rises again| P5
+    D1 -->|no| P8 --> D2
+    D2 -->|yes| BLK
+    BLK -->|resolved| D2
+    D2 -->|no| P9
+    P7 --> P10
+    P9 --> P10
+    P3 -.->|every month| P10
+    P10 --> P11 --> P12 --> P13
+    CMP -.-> P3
+    CMP -.-> D2

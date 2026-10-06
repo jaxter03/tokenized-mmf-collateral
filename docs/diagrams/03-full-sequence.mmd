@@ -1,0 +1,99 @@
+sequenceDiagram
+    autonumber
+    participant ISS as Issuer / Admin
+    participant CO as Compliance
+    participant B as Bob (giver)
+    participant G as Bank Green (taker)
+    participant K as Keeper
+    participant F as fund
+    participant D as dvp_settlement
+    participant C as collateral
+    participant GV as governance
+    participant H as compliance_hook
+    participant T as Token-2022
+
+    rect rgba(120,160,255,0.12)
+    Note over ISS,T: Phase 0 · Launch
+    ISS->>F: create_fund(terms)
+    F->>T: create mint + hook, frozen default, permanent delegate
+    ISS->>H: init_registry + extra account list
+    ISS->>GV: set roles (admin, compliance, keeper)
+    ISS->>F: launch() → Open
+    ISS->>F: publish_daily(NAV 1.00)
+    end
+
+    rect rgba(120,220,160,0.12)
+    Note over ISS,T: Phase 1 · Onboard
+    B->>H: register_holder → Pending (account frozen)
+    G->>H: register_holder → Pending
+    CO->>H: approve_holder(Bob, KYC attestation) → thaw
+    CO->>H: approve_holder(Green, KYC attestation) → thaw
+    end
+
+    rect rgba(255,200,120,0.14)
+    Note over ISS,T: Phase 2 · Subscribe $2M
+    B->>D: create_instruction(Subscription, 2,000,000 units)
+    B->>D: affirm_and_fund($2M USDC) [durable nonce]
+    K->>D: settle()
+    D->>F: mint_for_subscription(2,000,000)
+    F->>T: mint to escrow
+    D->>T: escrow → Bob
+    T->>H: execute: Bob approved, accrue
+    D->>T: cash → fund treasury
+    end
+
+    rect rgba(200,160,255,0.12)
+    Note over ISS,T: Phase 3 · Daily running
+    ISS->>F: publish_daily(NAV, yield) → accrual index up
+    Note over H: Yield settled lazily on each balance change (~$246/day for Bob)
+    end
+
+    rect rgba(120,160,255,0.12)
+    Note over ISS,T: Phase 4 · Agreement, call, pledge
+    B->>C: propose_agreement(lien, 2% haircut, 4h cure, 2h grace)
+    G->>C: sign_agreement → Active
+    G->>C: update_exposure($1M) → call Open
+    B->>C: pledge(1,020,409 units)
+    C->>H: set_lien(Bob, +1,020,409)
+    Note over B,T: No tokens move. Call Met. Bob still earns on all units
+    B-xT: try to transfer > 979,591 unlocked
+    T->>H: execute → rejected (PledgedUnitsLocked)
+    end
+
+    rect rgba(255,140,140,0.14)
+    Note over ISS,T: Phase 5 · Default and enforce (day 20)
+    G->>C: issue_call($500k)
+    K->>C: mark_defaulted (deadline passed)
+    opt Compliance hold (sanctions / court / error)
+        CO->>C: place_hold → enforce blocked until lifted
+    end
+    G->>C: enforce(510,204 units) after grace
+    C->>GV: execute_enforcement(call)
+    GV->>T: transfer Bob → Green as permanent delegate
+    T->>H: execute: lien bypass, Green approved, accrue
+    GV-->>GV: ActionRecord(Enforcement, CollateralDefault)
+    C->>H: set_lien(Bob, −510,204)
+    end
+
+    rect rgba(120,220,160,0.12)
+    Note over ISS,T: Phase 6 · Monthly distribution
+    ISS->>F: close_cycle (freeze index)
+    K->>F: distribute(holder) for each holder
+    F->>T: mint yield units (or pay cash)
+    end
+
+    rect rgba(255,200,120,0.14)
+    Note over ISS,T: Phase 7 · Redeem
+    G->>D: create_instruction(Redemption, 510,204)
+    G->>D: affirm_and_fund(units → escrow)
+    T->>H: execute: lien check, approved
+    K->>D: settle()
+    D->>F: burn_for_redemption (daily gate)
+    D->>G: cash = units × NAV
+    end
+
+    rect rgba(200,160,255,0.12)
+    Note over ISS,T: Phase 8 · Reconcile and wind down
+    K->>GV: commit_register_root (auditor-checked)
+    ISS->>F: wind_down → close_mint when supply = 0
+    end
