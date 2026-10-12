@@ -332,7 +332,7 @@ can; pause and show no transfer succeeds; unpause and show transfers work (spec 
   - a KYC-expired holder can't send or receive (US3-6), and after renewal it can (US3-7);
   - a jurisdiction change on renewal is re-checked (`JurisdictionNotAllowed`);
   - FR-032 / SC-002: suspend, pause, approve and unpause each take effect for a transfer in the very next transaction, with no clock change
-- [ ] T063 [US3] Add record tests to `tests/tests/us3_suspend_pause.rs`:
+- [X] T063 [US3] Add record tests to `tests/tests/us3_suspend_pause.rs`:
   - every suspension, reinstatement, revocation, pause and unpause emits an event with `reason`, `case_ref_hash`, `actor`, `fund`, `slot` and `unix_ts` (US3-8, FR-033);
   - for a holder taken through register → approve → suspend → reinstate → renew → revoke, the status history rebuilt from `HolderRegistered`, `HolderApproved` and `HolderStatusChanged` alone equals the actual sequence (FR-034, SC-003)
 - [ ] T064 [P] [US3] Add pause and suspension combinations to `tests/tests/hook_order.rs`:

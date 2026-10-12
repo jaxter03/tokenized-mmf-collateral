@@ -463,3 +463,133 @@ fn compliance_actions_take_effect_in_the_next_transaction() {
         HookError::SenderNotApproved,
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// T063: permanent records and status history (FR-033, FR-034, SC-003, US3-8)
+// ---------------------------------------------------------------------------------------------
+
+use compliance_hook::events::{HolderRegistered, HolderStatusChanged, TransfersPaused};
+use tests::events::cpi_events;
+use tests::TxMeta;
+
+#[test]
+fn every_compliance_action_leaves_a_record() {
+    // US3-8, FR-033: reason, case reference, actor, fund, slot and time on each record.
+    let (mut h, ctx, _alice, bob) = two_investors();
+    let b = bob.pubkey();
+    let actor = ctx.compliance.pubkey();
+    clock::set_unix_timestamp(&mut h.svm, 1_900_000_000);
+    let now = clock::now(&h.svm);
+
+    let check = |meta: &TxMeta, from: HolderStatus, to: HolderStatus| {
+        let ev = one_cpi_event::<HolderStatusChanged>(meta);
+        assert_eq!((ev.fund, ev.owner, ev.actor), (ctx.fund_state(), b, actor));
+        assert_eq!((ev.from, ev.to), (from.as_u8(), to.as_u8()));
+        assert_eq!(
+            (ev.reason, ev.case_ref_hash, ev.unix_ts),
+            (SANCTIONS, CASE, now)
+        );
+    };
+    check(
+        &suspend(&mut h, &ctx, &b).unwrap(),
+        HolderStatus::Approved,
+        HolderStatus::Suspended,
+    );
+    check(
+        &reinstate(&mut h, &ctx, &b).unwrap(),
+        HolderStatus::Suspended,
+        HolderStatus::Approved,
+    );
+    check(
+        &revoke(&mut h, &ctx, &b).unwrap(),
+        HolderStatus::Approved,
+        HolderStatus::Revoked,
+    );
+
+    let meta = pause(&mut h, &ctx).unwrap();
+    let ev = one_cpi_event::<TransfersPaused>(&meta);
+    assert_eq!(
+        (ev.fund, ev.paused, ev.reason, ev.case_ref_hash, ev.actor),
+        (ctx.fund_state(), true, SANCTIONS, CASE, actor)
+    );
+    let meta = unpause(&mut h, &ctx).unwrap();
+    let ev = one_cpi_event::<TransfersPaused>(&meta);
+    assert_eq!(
+        (ev.paused, ev.reason),
+        (false, ReasonCode::OperationalError as u8)
+    );
+}
+
+#[test]
+fn status_history_can_be_rebuilt_from_records_alone() {
+    // FR-034, SC-003: register → approve → suspend → reinstate → renew → revoke.
+    let mut h = Harness::new();
+    let ctx = fixtures::launched_fund(&mut h, 0);
+    let inst = h.funded_keypair();
+    let o = inst.pubkey();
+    let m = ctx.m();
+    let mut metas: Vec<TxMeta> = Vec::new();
+
+    metas.push(
+        h.send(&[ix_hook::register_holder(&o, &o, &m, &o, 0)], &[&inst])
+            .unwrap(),
+    );
+    let first = fixtures::signed_statement(&ctx, &o, *b"US", clock::now(&h.svm) + fixtures::YEAR);
+    let approve =
+        ix_hook::approve_investor(&ctx.compliance.pubkey(), &m, &o, first.attestation_hash);
+    metas.push(
+        h.send(&[first.ix.clone(), approve], &[&ctx.compliance])
+            .unwrap(),
+    );
+    metas.push(suspend(&mut h, &ctx, &o).unwrap());
+    metas.push(reinstate(&mut h, &ctx, &o).unwrap());
+    let second =
+        fixtures::signed_statement(&ctx, &o, *b"GB", clock::now(&h.svm) + 2 * fixtures::YEAR);
+    metas.push(renew(&mut h, &ctx, &o, &second).unwrap());
+    metas.push(revoke(&mut h, &ctx, &o).unwrap());
+
+    // Rebuild from the three record types only.
+    let mut history: Vec<(u8, &'static str)> = Vec::new();
+    for meta in &metas {
+        if cpi_events::<HolderRegistered>(meta)
+            .iter()
+            .any(|e| e.owner == o)
+        {
+            history.push((HolderStatus::Pending.as_u8(), "registered"));
+        }
+        for ev in cpi_events::<HolderApproved>(meta)
+            .into_iter()
+            .filter(|e| e.owner == o)
+        {
+            history.push((
+                HolderStatus::Approved.as_u8(),
+                if ev.renewal { "renewed" } else { "approved" },
+            ));
+        }
+        for ev in cpi_events::<HolderStatusChanged>(meta)
+            .into_iter()
+            .filter(|e| e.owner == o)
+        {
+            assert_eq!(
+                Some(ev.from),
+                history.last().map(|x| x.0),
+                "records chain without gaps"
+            );
+            history.push((ev.to, "status change"));
+        }
+    }
+    let statuses: Vec<u8> = history.iter().map(|x| x.0).collect();
+    let (p, a, s, r) = (
+        HolderStatus::Pending.as_u8(),
+        HolderStatus::Approved.as_u8(),
+        HolderStatus::Suspended.as_u8(),
+        HolderStatus::Revoked.as_u8(),
+    );
+    assert_eq!(statuses, vec![p, a, s, a, a, r]);
+    assert_eq!(history[4].1, "renewed");
+    assert_eq!(
+        statuses.last().copied(),
+        Some(status(&h, &ctx, &o)),
+        "history ends at the actual status"
+    );
+}
