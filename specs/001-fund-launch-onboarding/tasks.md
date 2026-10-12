@@ -189,7 +189,7 @@ roles and status (spec US1).
     4. the same with `account_index: 2`, writable;
     5. governance `["delegate", mint]` PDA, literal, read-only.
   - Emit `RegistryInitialized`
-- [ ] T038 [P] [US1] Implement `set_rules` in `programs/compliance_hook/src/instructions/set_rules.rs`. Checks, in order: `Unauthorized`; `FundNotInSetup`; `DuplicateProvider` (non-default providers must be distinct); `UnknownJurisdiction` (`mmf_common::jurisdiction::valid_set`). Replace the rules and emit `RegisterRulesSet`
+- [X] T038 [P] [US1] Implement `set_rules` in `programs/compliance_hook/src/instructions/set_rules.rs`. Checks, in order: `Unauthorized`; `FundNotInSetup`; `DuplicateProvider` (non-default providers must be distinct); `UnknownJurisdiction` (`mmf_common::jurisdiction::valid_set`). Replace the rules and emit `RegisterRulesSet`
 - [ ] T039 [US1] Add `launched_fund(&mut Harness, cap: u32) -> FundCtx` to `tests/src/fixtures.rs`. It returns the issuer, mint, five distinct role keypairs and one mock KYC provider key, with rules allowing `US` and `GB`. Then run `cargo test -p tests --test us1_launch --test mint_config --test direct_token_calls --test layouts` and confirm all pass
 
 **Checkpoint**: US1's independent test passes. A fund can be created, configured and launched,
