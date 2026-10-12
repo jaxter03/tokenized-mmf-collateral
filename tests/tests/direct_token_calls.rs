@@ -160,3 +160,29 @@ fn issuer_key_cannot_update_metadata() {
         TokenMetadataError::IncorrectUpdateAuthority as u32
     );
 }
+
+/// FR-035, research R3: an approved investor can't destroy its own units. Token-2022 rejects an
+/// ordinary burn on a permissioned-burn mint with TokenError::InvalidInstruction.
+#[test]
+fn holder_cannot_burn_its_own_units() {
+    let mut h = Harness::new();
+    let (ctx, alice) = fixtures::fund_with_investor_units(&mut h, 0, 1_000);
+    let m = ctx.m();
+    let ata = mmf_sdk::pda::holding_account(&alice.pubkey(), &m);
+    let burn =
+        t22::instruction::burn(&TOKEN_2022_PROGRAM_ID, &ata, &m, &alice.pubkey(), &[], 10).unwrap();
+    assert_token_error(&h.send(&[burn], &[&alice]), TokenError::InvalidInstruction);
+    let burn = t22::instruction::burn_checked(
+        &TOKEN_2022_PROGRAM_ID,
+        &ata,
+        &m,
+        &alice.pubkey(),
+        &[],
+        10,
+        6,
+    )
+    .unwrap();
+    assert_token_error(&h.send(&[burn], &[&alice]), TokenError::InvalidInstruction);
+    assert_eq!(tests::units::balance(&h, &m, &alice.pubkey()), 1_000);
+    assert_eq!(tests::units::supply(&h, &m), 1_000);
+}

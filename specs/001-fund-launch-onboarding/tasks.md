@@ -259,7 +259,7 @@ show every invalid statement and every unapproved receiver is rejected (spec US2
   - the treasury is never counted; cap 0 means no limit;
   - assert `holder_count` and each `last_balance` after every step (FR-024, I10);
   - FR-026 order: frozen receiver plus KYC-expired sender → `AccountFrozen`; expired sender plus expired receiver → `SenderNotApproved`; expired receiver at cap → `ReceiverNotApproved`
-- [ ] T050 [P] [US2] Add owner-burn tests to `tests/tests/direct_token_calls.rs`: an approved investor holding units calls `Burn` and `BurnChecked` on its thawed ATA; both fail and its balance is unchanged (FR-035, R3)
+- [X] T050 [P] [US2] Add owner-burn tests to `tests/tests/direct_token_calls.rs`: an approved investor holding units calls `Burn` and `BurnChecked` on its thawed ATA; both fail and its balance is unchanged (FR-035, R3)
 
 ### Implementation for User Story 2
 
