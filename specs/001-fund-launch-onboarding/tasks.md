@@ -142,7 +142,7 @@ roles and status (spec US1).
   - `MissingTermsUri` (all zero; invalid UTF-8);
   - `InvalidName` (empty; 33 bytes);
   - `InvalidSymbol` (empty; 11 bytes)
-- [ ] T029 [US1] Add setup and launch rejection tests to `tests/tests/us1_launch.rs`:
+- [X] T029 [US1] Add setup and launch rejection tests to `tests/tests/us1_launch.rs`:
   - `init_roles`: without the mint signature (Anchor `AccountNotSigner`); `FundAlreadyExists`;
   - `init_registry`: `Unauthorized`, `FundNotInSetup`;
   - `set_rules`: `Unauthorized`, `FundNotInSetup` after Open (FR-009), `DuplicateProvider`, `UnknownJurisdiction` (unassigned `AA` bit; a bit ≥ 676);

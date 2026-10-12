@@ -78,3 +78,24 @@ pub fn read<T: AccountDeserialize>(h: &Harness, key: &Pubkey) -> T {
     let data = h.data(key);
     T::try_deserialize(&mut data.as_slice()).expect("deserialize account")
 }
+
+/// Rewrites an Anchor account in place. Only for tests of conditions no instruction can reach
+/// (documented exception, quickstart.md FR-023); each caller says why in a comment.
+pub fn patch<T: AccountDeserialize + anchor_lang::AccountSerialize>(
+    h: &mut Harness,
+    key: &Pubkey,
+    edit: impl FnOnce(&mut T),
+) {
+    let mut acc = h.account(key).expect("account to patch");
+    let mut value = T::try_deserialize(&mut acc.data.as_slice()).expect("deserialize");
+    edit(&mut value);
+    let mut out = Vec::with_capacity(acc.data.len());
+    value.try_serialize(&mut out).expect("serialize");
+    assert_eq!(
+        out.len(),
+        acc.data.len(),
+        "patch must not change the account size"
+    );
+    acc.data = out;
+    h.svm.set_account(*key, acc).expect("set_account");
+}

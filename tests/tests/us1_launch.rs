@@ -410,3 +410,279 @@ fn checks_terms_in_contract_order() {
         FundError::ZeroTargetNav,
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// T029: setup and launch rejections (FR-005, FR-006, FR-008, FR-009, FR-010 basic).
+// ---------------------------------------------------------------------------------------------
+
+use anchor_lang::error::ErrorCode as AnchorError;
+use compliance_hook::HookError;
+use governance::GovernanceError;
+use mmf_common::jurisdiction::{self as jur, SET_WORDS};
+use tests::assert::custom_error;
+
+impl Ctx {
+    fn m(&self) -> Pubkey {
+        self.mint.pubkey()
+    }
+
+    fn fund_key(&self) -> Pubkey {
+        pda::fund_state(&self.m()).0
+    }
+
+    /// init_roles + create_fund with standard terms.
+    fn created(mut self) -> Self {
+        let terms = fixtures::standard_terms(self.cash_mint);
+        attempt(&mut self, terms, FUND_NAME, FUND_SYMBOL).expect("create fund");
+        self
+    }
+
+    fn with_registry(mut self) -> Self {
+        let ix = ix_hook::init_registry(&self.issuer.pubkey(), &self.m());
+        self.h.send(&[ix], &[&self.issuer]).expect("init_registry");
+        self
+    }
+
+    fn set_rules(&mut self, providers: [Pubkey; 4], allowed: [u64; SET_WORDS]) -> TxResult {
+        let ix = ix_hook::set_rules(&self.issuer.pubkey(), &self.m(), providers, allowed, 0);
+        self.h.send(&[ix], &[&self.issuer])
+    }
+
+    fn with_rules(mut self) -> Self {
+        let providers = [
+            Pubkey::new_unique(),
+            Pubkey::default(),
+            Pubkey::default(),
+            Pubkey::default(),
+        ];
+        self.set_rules(providers, fixtures::jurisdictions(&[*b"US"]))
+            .expect("set_rules");
+        self
+    }
+
+    fn with_roles(mut self) -> Self {
+        let ix = ix_governance::set_roles(&self.issuer.pubkey(), &self.m(), &distinct_roles());
+        self.h.send(&[ix], &[&self.issuer]).expect("set_roles");
+        self
+    }
+
+    fn launch_by(&mut self, signer: &Keypair) -> TxResult {
+        let ix = ix_fund::launch(&signer.pubkey(), &self.m());
+        self.h.send(&[ix], &[signer])
+    }
+
+    fn launched(mut self) -> Self {
+        let issuer = self.issuer.insecure_clone();
+        self.launch_by(&issuer).expect("launch");
+        self
+    }
+
+    fn status(&self) -> u8 {
+        read::<FundState>(&self.h, &self.fund_key()).status
+    }
+}
+
+#[test]
+fn init_roles_requires_the_mint_signature() {
+    let mut c = ctx();
+    let mut ix = ix_governance::init_roles(&c.issuer.pubkey(), &c.m());
+    ix.accounts[1].is_signer = false; // mint
+    let res = c.h.send(&[ix], &[&c.issuer]);
+    assert_anchor_error(&res, AnchorError::AccountNotSigner);
+}
+
+#[test]
+fn init_roles_cannot_run_twice_for_a_mint() {
+    let mut c = ctx().created();
+    let res = c.h.send(
+        &[ix_governance::init_roles(&c.issuer.pubkey(), &c.m())],
+        &[&c.issuer, &c.mint],
+    );
+    // The role registry already exists, so account creation fails (system program "account already
+    // in use" = custom 0) before the handler runs.
+    assert_eq!(custom_error(&res).1, 0);
+}
+
+#[test]
+fn init_roles_rejects_existing_fund_state() {
+    // Unreachable through instructions (a fund always has a role registry, so the init above fails
+    // first); the FundState is planted directly to prove the defensive check fires.
+    let mut c = ctx();
+    let key = c.fund_key();
+    c.h.svm
+        .set_account(
+            key,
+            solana_account::Account {
+                lamports: 1_000_000,
+                data: vec![1; 16],
+                owner: mmf_common::ids::FUND_PROGRAM_ID,
+                executable: false,
+                rent_epoch: 0,
+            },
+        )
+        .unwrap();
+    let res = c.h.send(
+        &[ix_governance::init_roles(&c.issuer.pubkey(), &c.m())],
+        &[&c.issuer, &c.mint],
+    );
+    assert_anchor_error(&res, GovernanceError::FundAlreadyExists);
+}
+
+#[test]
+fn init_registry_only_by_issuer_in_setup() {
+    let mut c = ctx().created();
+    let other = c.h.funded_keypair();
+    let res = c.h.send(
+        &[ix_hook::init_registry(&other.pubkey(), &c.m())],
+        &[&other],
+    );
+    assert_anchor_error(&res, HookError::Unauthorized);
+
+    // FundNotInSetup is unreachable here (an Open fund already has a registry), so the fund's
+    // status is patched to Open to prove the check fires.
+    let key = c.fund_key();
+    fixtures::patch::<FundState>(&mut c.h, &key, |f| f.status = FundStatus::Open.as_u8());
+    let res = c.h.send(
+        &[ix_hook::init_registry(&c.issuer.pubkey(), &c.m())],
+        &[&c.issuer],
+    );
+    assert_anchor_error(&res, HookError::FundNotInSetup);
+}
+
+#[test]
+fn set_rules_rejections() {
+    let mut c = ctx().created().with_registry();
+    let p = Pubkey::new_unique();
+    let us = fixtures::jurisdictions(&[*b"US"]);
+
+    let other = c.h.funded_keypair();
+    let ix = ix_hook::set_rules(
+        &other.pubkey(),
+        &c.m(),
+        [p, Pubkey::default(), Pubkey::default(), Pubkey::default()],
+        us,
+        0,
+    );
+    assert_anchor_error(&c.h.send(&[ix], &[&other]), HookError::Unauthorized);
+
+    let res = c.set_rules([p, Pubkey::default(), p, Pubkey::default()], us);
+    assert_anchor_error(&res, HookError::DuplicateProvider);
+
+    let mut unassigned = us;
+    let aa = jur::index(*b"AA").unwrap();
+    unassigned[aa / 64] |= 1 << (aa % 64);
+    assert_anchor_error(
+        &c.set_rules([p].repeat_to4(), unassigned),
+        HookError::UnknownJurisdiction,
+    );
+
+    let mut beyond = us;
+    beyond[10] |= 1 << (676 % 64);
+    assert_anchor_error(
+        &c.set_rules([p].repeat_to4(), beyond),
+        HookError::UnknownJurisdiction,
+    );
+
+    // Empty provider slots (default pubkeys) are not duplicates of each other.
+    c.set_rules(
+        [p, Pubkey::default(), Pubkey::default(), Pubkey::default()],
+        us,
+    )
+    .expect("valid rules");
+}
+
+/// Pads one provider with empty slots.
+trait RepeatTo4 {
+    fn repeat_to4(self) -> [Pubkey; 4];
+}
+
+impl RepeatTo4 for [Pubkey; 1] {
+    fn repeat_to4(self) -> [Pubkey; 4] {
+        [
+            self[0],
+            Pubkey::default(),
+            Pubkey::default(),
+            Pubkey::default(),
+        ]
+    }
+}
+
+#[test]
+fn rules_and_roles_are_fixed_once_open() {
+    let mut c = ctx()
+        .created()
+        .with_registry()
+        .with_rules()
+        .with_roles()
+        .launched();
+    let res = c.set_rules(
+        [Pubkey::new_unique()].repeat_to4(),
+        fixtures::jurisdictions(&[*b"GB"]),
+    );
+    assert_anchor_error(&res, HookError::FundNotInSetup); // FR-009
+    let ix = ix_governance::set_roles(&c.issuer.pubkey(), &c.m(), &distinct_roles());
+    assert_anchor_error(
+        &c.h.send(&[ix], &[&c.issuer]),
+        GovernanceError::FundNotInSetup,
+    ); // US4-4
+}
+
+#[test]
+fn set_roles_rejections() {
+    let mut c = ctx().created();
+    let other = c.h.funded_keypair();
+    let ix = ix_governance::set_roles(&other.pubkey(), &c.m(), &distinct_roles());
+    assert_anchor_error(&c.h.send(&[ix], &[&other]), GovernanceError::Unauthorized);
+
+    let mut r = distinct_roles();
+    r.auditor = Pubkey::default();
+    let ix = ix_governance::set_roles(&c.issuer.pubkey(), &c.m(), &r);
+    assert_anchor_error(
+        &c.h.send(&[ix], &[&c.issuer]),
+        GovernanceError::RoleUnassigned,
+    );
+}
+
+#[test]
+fn only_the_issuer_can_launch() {
+    // US1-3: status unchanged after a rejected launch.
+    let mut c = ctx().created().with_registry().with_rules().with_roles();
+    let other = c.h.funded_keypair();
+    assert_anchor_error(&c.launch_by(&other), FundError::Unauthorized);
+    assert_eq!(c.status(), FundStatus::Setup.as_u8());
+}
+
+#[test]
+fn an_open_fund_cannot_be_launched_again() {
+    let mut c = ctx()
+        .created()
+        .with_registry()
+        .with_rules()
+        .with_roles()
+        .launched(); // US1-6
+    let issuer = c.issuer.insecure_clone();
+    assert_anchor_error(&c.launch_by(&issuer), FundError::FundNotInSetup);
+}
+
+#[test]
+fn launch_requires_roles_and_register_rules() {
+    // US1-4, FR-006, in contract order.
+    let mut c = ctx().created().with_registry().with_rules();
+    let issuer = c.issuer.insecure_clone();
+    assert_anchor_error(&c.launch_by(&issuer), FundError::RolesIncomplete);
+
+    let mut c = ctx().created().with_roles();
+    let issuer = c.issuer.insecure_clone();
+    assert_anchor_error(&c.launch_by(&issuer), FundError::RegisterNotInitialized);
+
+    let mut c = ctx().created().with_roles().with_registry();
+    let issuer = c.issuer.insecure_clone();
+    assert_anchor_error(&c.launch_by(&issuer), FundError::NoKycProvider);
+
+    let mut c = ctx().created().with_roles().with_registry();
+    c.set_rules([Pubkey::new_unique()].repeat_to4(), [0; SET_WORDS])
+        .expect("providers only");
+    let issuer = c.issuer.insecure_clone();
+    assert_anchor_error(&c.launch_by(&issuer), FundError::NoAllowedJurisdiction);
+    assert_eq!(c.status(), FundStatus::Setup.as_u8());
+}
