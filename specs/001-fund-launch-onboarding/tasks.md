@@ -263,7 +263,7 @@ show every invalid statement and every unapproved receiver is rejected (spec US2
 
 ### Implementation for User Story 2
 
-- [ ] T051 [P] [US2] Implement statement verification in `programs/compliance_hook/src/statement.rs`, applying [contracts/kyc-statement.md](contracts/kyc-statement.md) checks 1–12 in order:
+- [X] T051 [P] [US2] Implement statement verification in `programs/compliance_hook/src/statement.rs`, applying [contracts/kyc-statement.md](contracts/kyc-statement.md) checks 1–12 in order:
   1. the `instructions` account key is the Instructions sysvar, and the instruction at `load_current_index − 1` is owned by the Ed25519 program;
   2. `num_signatures == 1`; all three `*_instruction_index == u16::MAX`; offsets and sizes stay inside the instruction's data; message length 95;
   3. the domain;

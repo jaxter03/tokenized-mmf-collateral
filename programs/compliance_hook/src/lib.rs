@@ -8,6 +8,7 @@ pub mod extra_metas;
 pub mod hook;
 pub mod instructions;
 pub mod state;
+pub mod statement;
 
 pub use errors::HookError;
 pub use hook::*;
