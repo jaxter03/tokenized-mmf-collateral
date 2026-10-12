@@ -1,5 +1,6 @@
 pub mod approve_fund_account;
 pub mod approve_investor;
+pub mod common;
 pub mod init_registry;
 pub mod register_holder;
 pub mod set_rules;
