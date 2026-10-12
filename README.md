@@ -27,6 +27,142 @@ The specification, plan and design are in [specs/001-fund-launch-onboarding/](sp
 the rules every feature follows are in the [constitution](.specify/memory/constitution.md) and
 [docs/shared-model.md](docs/shared-model.md).
 
+## Architecture
+
+### Programs, accounts and authorities
+
+Three Anchor programs share one Token-2022 mint. Every authority over the mint is a program PDA, so
+no person's key can mint, freeze or reconfigure the token.
+
+```mermaid
+flowchart LR
+    subgraph People["Signers"]
+        ISS["Issuer"]
+        CMP["Compliance<br/>(Squads multisig vault)"]
+        INST["Institution<br/>(via its custodian)"]
+        KYC["KYC provider<br/>(signs statements off-chain)"]
+    end
+
+    subgraph FUND["fund program"]
+        FS["FundState PDA<br/>terms · status<br/>mint, burn, close and metadata authority"]
+    end
+
+    subgraph GOV["governance program"]
+        RR["RoleRegistry PDA<br/>issuer + 5 roles"]
+        HA["hook-admin PDA<br/>signs status / pause CPIs"]
+        TA["token-admin PDA<br/>transfer-hook authority (unused until F007)"]
+        DL["delegate PDA<br/>permanent delegate (unused until F005)"]
+    end
+
+    subgraph HOOK["compliance_hook program"]
+        REG["Registry PDA<br/>KYC providers · allowed countries<br/>holder cap · holder count · pause flag<br/>freeze authority"]
+        HS["HolderState PDA<br/>one per owner: status · class<br/>country · KYC expiry · last balance"]
+        EAML["ExtraAccountMetaList PDA"]
+        EX["execute: transfer hook"]
+    end
+
+    MINT[("Token-2022 fund mint<br/>transfer hook · frozen by default<br/>permanent delegate · metadata<br/>permissioned burn · close authority")]
+
+    ISS -->|"init_roles, set_roles"| RR
+    ISS -->|"create_fund, launch"| FS
+    ISS -->|"init_registry, set_rules"| REG
+    FS -->|"creates, owns authorities"| MINT
+    INST -->|"register_holder"| HS
+    CMP -->|"approve_investor + KYC statement<br/>approve_fund_account"| HS
+    KYC -.->|"ed25519 statement"| CMP
+    CMP -->|"suspend · reinstate · revoke<br/>pause · unpause"| GOV
+    HA -->|"CPI set_status / set_paused"| HOOK
+    MINT -->|"every transfer_checked"| EX
+    EAML -.->|"resolves Registry, FundState,<br/>both HolderStates, delegate"| EX
+    REG -->|"thaw_holding_account (signed by Registry PDA)"| MINT
+```
+
+### Onboarding: two transactions (SC-005)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant I as Institution
+    participant K as KYC provider
+    participant C as Compliance (Squads vault)
+    participant H as compliance_hook
+    participant T as Token-2022
+
+    I->>H: register_holder(owner = itself, class = Investor)
+    H-->>I: HolderState = Pending
+    K-->>C: signed 95-byte statement (owner, fund, country, investor type, expiry)
+    Note over C,T: one transaction
+    C->>T: create the owner's holding account (ATA) — starts frozen
+    C->>H: Ed25519 verify instruction (the statement)
+    C->>H: approve_investor(statement hash)
+    H->>H: 12 statement checks: provider, fund, owner, expiry, country, hash …
+    H-->>C: HolderState = Approved
+    C->>H: thaw_holding_account (permissionless)
+    H->>T: ThawAccount, signed by the Registry PDA
+    Note over I,T: the institution can now send and receive units
+```
+
+### Every transfer: the hook's fixed check order (FR-026)
+
+```mermaid
+flowchart TD
+    A["transfer_checked"] --> B{"Token-2022: source or<br/>destination frozen?"}
+    B -->|yes| X1["AccountFrozen"]
+    B -->|no| C{"Called inside a real transfer?"}
+    C -->|no| X2["NotTransferring"]
+    C -->|yes| D{"Accounts belong to this fund?"}
+    D -->|no| X3["WrongMint"]
+    D -->|yes| E{"Transfers paused?"}
+    E -->|yes| X4["TransfersPaused"]
+    E -->|no| F{"Sender Approved,<br/>KYC unexpired?"}
+    F -->|no| X5["SenderNotApproved"]
+    F -->|yes| G{"Receiver Approved, KYC unexpired,<br/>class and country allowed?"}
+    G -->|no| X6["ReceiverNotApproved"]
+    G -->|yes| H{"New investor holder while<br/>the cap is reached?"}
+    H -->|yes| X7["HolderCapReached"]
+    H -->|no| I["Update holder count and recorded balances<br/>emit TransferValidated"]
+```
+
+### Holder status
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: register_holder
+    Pending --> Approved: approve_investor (KYC statement)<br/>approve_fund_account (treasury)
+    Approved --> Approved: renew_investor (later expiry)
+    Approved --> Suspended: suspend_holder
+    Suspended --> Approved: reinstate_holder
+    Pending --> Revoked: revoke_holder
+    Approved --> Revoked: revoke_holder
+    Suspended --> Revoked: revoke_holder
+    Revoked --> [*]: final
+```
+
+Suspend, reinstate, revoke, pause and unpause each carry a reason code and emit a permanent event; a
+holder's full status history can be rebuilt from those events alone.
+
+## Tests
+
+**141 tests pass**: 110 program tests on LiteSVM (one rejection test per rule, each asserting the
+exact error — all 63 error variants covered), unit tests in the shared crates, 128 randomized
+operation sequences checked against a reference model, and a scale test showing the hook costs the
+same 15 449 compute units with 10 or 10 000 holders.
+
+![F001 program tests passing on LiteSVM](docs/images/tests-litesvm.png)
+
+The end-to-end script runs the full flow on a real validator (here a local
+`solana-test-validator` with the programs and the mainnet Token-2022 build loaded): 27 steps, each
+checked against its expected outcome, ending with each holder's status history rebuilt from
+on-chain records.
+
+![F001 end-to-end run on a local validator](docs/images/e2e-localnet.png)
+
+Transfers on a cluster move zero units: F001 deliberately has no way to create units (FR-035), and a
+zero-unit transfer still runs every hook check. Tests that move real units run on LiteSVM, which can
+place units in an account. **Devnet deployment is pending**; the same script runs there unchanged
+once the programs are deployed. Screenshots are rendered from the captured output with
+`scripts/render_terminal.py`.
+
 ## Repository layout
 
 ```text
