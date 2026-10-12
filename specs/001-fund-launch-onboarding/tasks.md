@@ -126,7 +126,7 @@ roles and status (spec US1).
 
 ### Tests for User Story 1 (write first; they must fail) ⚠️
 
-- [ ] T027 [US1] Write the US1 happy path in `tests/tests/us1_launch.rs`:
+- [X] T027 [US1] Write the US1 happy path in `tests/tests/us1_launch.rs`:
   - `init_roles` and `create_fund` in one transaction;
   - assert `FundState.terms` equal the input, `status == Setup`, and `RoleRegistry.issuer == creator` (FR-001, FR-002, FR-007);
   - `RolesInitialized` and `FundCreated` events are emitted;
