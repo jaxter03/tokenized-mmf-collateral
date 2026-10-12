@@ -314,7 +314,7 @@ can; pause and show no transfer succeeds; unpause and show transfers work (spec 
 
 ### Tests for User Story 3 (write first; they must fail) ⚠️
 
-- [ ] T060 [US3] Write status tests in `tests/tests/us3_suspend_pause.rs`:
+- [X] T060 [US3] Write status tests in `tests/tests/us3_suspend_pause.rs`:
   - suspend: Approved → Suspended; the holder can neither send (`SenderNotApproved`) nor receive (`ReceiverNotApproved`) (US3-1);
   - reinstate: Suspended → Approved and transfers work again (US3-2); after reinstatement KYC expiry still applies (FR-028);
   - revoke from Pending, Approved and Suspended → Revoked; after revocation, `approve_investor`, `renew_investor` and `reinstate_holder` → `HolderRevoked`, and `register_holder` → `HolderAlreadyRegistered` (US3-3, FR-029);
