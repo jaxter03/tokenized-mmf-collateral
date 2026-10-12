@@ -4635,6 +4635,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
+ "base64 0.22.1",
  "compliance_hook",
  "fund",
  "governance",
@@ -4642,6 +4643,8 @@ dependencies = [
  "mmf-common",
  "mmf-sdk",
  "proptest",
+ "serde_json",
+ "solana-account",
  "solana-ed25519-program",
  "solana-keypair",
  "solana-message",
