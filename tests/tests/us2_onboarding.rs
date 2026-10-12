@@ -729,7 +729,9 @@ fn thaw_only_the_approved_owners_holding_account() {
     assert!(units::is_frozen(&h, &other));
 
     // Anyone may thaw the real holding account once the owner is Approved.
-    let meta = h.send(&[thaw.clone()], &[]).expect("permissionless thaw");
+    let meta = h
+        .send(std::slice::from_ref(&thaw), &[])
+        .expect("permissionless thaw");
     assert!(!units::is_frozen(&h, &ata));
     let ev = one_cpi_event::<HoldingAccountThawed>(&meta);
     assert_eq!((ev.owner, ev.token_account, ev.signer), (o, ata, payer));
