@@ -371,7 +371,7 @@ from every party, and show only the right one succeeds (spec US4).
 
 ### Tests for User Story 4 (write first; they must fail) ⚠️
 
-- [ ] T071 [US4] Write role separation tests in `tests/tests/us4_roles.rs`:
+- [X] T071 [US4] Write role separation tests in `tests/tests/us4_roles.rs`:
   - `KeeperNotSeparate` when the keeper equals the issuer, fund_admin, transfer_agent, compliance or auditor (five cases);
   - `ComplianceIsIssuer`;
   - accepted overlaps: fund_admin == transfer_agent (US4-6); auditor == fund_admin;
