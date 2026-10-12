@@ -157,7 +157,7 @@ roles and status (spec US1).
   - MintCloseAuthority = `FundState`;
   - PermissionedBurn authority = `FundState`;
   - mint authority `FundState`, freeze authority `Registry` PDA, decimals 6
-- [ ] T031 [P] [US1] Write `tests/tests/direct_token_calls.rs`. Raw Token-2022 instructions signed by the issuer's key must all fail (FR-004, Principle II): `MintTo`; `SetAuthority` for each mint authority type; `UpdateTransferHook`; `UpdateDefaultAccountState`; metadata `UpdateField`
+- [X] T031 [P] [US1] Write `tests/tests/direct_token_calls.rs`. Raw Token-2022 instructions signed by the issuer's key must all fail (FR-004, Principle II): `MintTo`; `SetAuthority` for each mint authority type; `UpdateTransferHook`; `UpdateDefaultAccountState`; metadata `UpdateField`
 
 ### Implementation for User Story 1
 
