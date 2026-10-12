@@ -321,7 +321,7 @@ can; pause and show no transfer succeeds; unpause and show transfers work (spec 
   - a revoked holder's units stay put and can't move;
   - `InvalidHolderStatus`: suspend a Pending or Suspended holder; reinstate an Approved holder;
   - `Unauthorized` (non-compliance signer); `FundNotOpen` (pause in Setup)
-- [ ] T061 [US3] Add reason and pause tests to `tests/tests/us3_suspend_pause.rs`:
+- [X] T061 [US3] Add reason and pause tests to `tests/tests/us3_suspend_pause.rs`:
   - `InvalidReason` for codes 4, 5, 7 and 255 on each of the five actions (FR-031);
   - pause → every transfer fails `TransfersPaused`, including zero-unit and treasury transfers (US3-4); `AlreadyPaused`; unpause → transfers succeed (US3-5); `NotPaused`;
   - while paused, register, approve, renew, suspend, reinstate and revoke all succeed (FR-030);
