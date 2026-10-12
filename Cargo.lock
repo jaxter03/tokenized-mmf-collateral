@@ -1488,6 +1488,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
+ "mmf-common",
 ]
 
 [[package]]
@@ -1580,6 +1581,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "compliance_hook",
+ "mmf-common",
 ]
 
 [[package]]
