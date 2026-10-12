@@ -38,6 +38,14 @@ pub fn handle_approve_investor(
     approve(ctx, attestation_hash, false)
 }
 
+pub fn handle_renew_investor(
+    _ctx: Context<ApproveInvestor>,
+    _attestation_hash: [u8; 32],
+) -> Result<()> {
+    // Implemented in T067.
+    Ok(())
+}
+
 /// Shared by approval (Pending → Approved) and renewal (Approved → Approved, later expiry).
 pub fn approve(
     ctx: Context<ApproveInvestor>,

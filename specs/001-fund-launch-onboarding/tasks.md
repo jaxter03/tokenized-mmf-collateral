@@ -303,7 +303,7 @@ can; pause and show no transfer succeeds; unpause and show transfers work (spec 
 
 ### Interface stubs for User Story 3
 
-- [ ] T057 [US3] Add Accounts structs and stub handlers in `programs/compliance_hook/src/instructions/`:
+- [X] T057 [US3] Add Accounts structs and stub handlers in `programs/compliance_hook/src/instructions/`:
   - `set_status.rs`: `hook_admin` signer, `registry`, `holder_state` mut; args `action, reason, case_ref_hash, actor`;
   - `set_paused.rs`: args `paused, reason, case_ref_hash, actor`;
   - `renew_investor`, with arg `attestation_hash`, in `approve_investor.rs`.

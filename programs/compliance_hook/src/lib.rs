@@ -50,12 +50,38 @@ pub mod compliance_hook {
         instructions::approve_investor::handle_approve_investor(ctx, attestation_hash)
     }
 
+    pub fn renew_investor(ctx: Context<ApproveInvestor>, attestation_hash: [u8; 32]) -> Result<()> {
+        instructions::approve_investor::handle_renew_investor(ctx, attestation_hash)
+    }
+
     pub fn approve_fund_account(ctx: Context<ApproveFundAccount>) -> Result<()> {
         instructions::approve_fund_account::handle_approve_fund_account(ctx)
     }
 
     pub fn thaw_holding_account(ctx: Context<ThawHoldingAccount>) -> Result<()> {
         instructions::thaw_holding_account::handle_thaw_holding_account(ctx)
+    }
+
+    /// Governance only (`["hook-admin"]`): suspend, reinstate or revoke a holder.
+    pub fn set_status(
+        ctx: Context<SetStatus>,
+        action: u8,
+        reason: u8,
+        case_ref_hash: [u8; 32],
+        actor: Pubkey,
+    ) -> Result<()> {
+        instructions::set_status::handle_set_status(ctx, action, reason, case_ref_hash, actor)
+    }
+
+    /// Governance only (`["hook-admin"]`): pause or unpause all transfers.
+    pub fn set_paused(
+        ctx: Context<SetPaused>,
+        paused: bool,
+        reason: u8,
+        case_ref_hash: [u8; 32],
+        actor: Pubkey,
+    ) -> Result<()> {
+        instructions::set_paused::handle_set_paused(ctx, paused, reason, case_ref_hash, actor)
     }
 
     /// Token-2022 transfer hook entry point.
