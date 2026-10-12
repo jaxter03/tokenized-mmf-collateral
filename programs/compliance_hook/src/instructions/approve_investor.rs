@@ -38,12 +38,13 @@ pub fn handle_approve_investor(
     approve(ctx, attestation_hash, false)
 }
 
+/// `renew_investor` (FR-018): an Approved investor with a statement whose expiry is later than
+/// the recorded one (research R14); jurisdiction and investor type may change and are re-checked.
 pub fn handle_renew_investor(
-    _ctx: Context<ApproveInvestor>,
-    _attestation_hash: [u8; 32],
+    ctx: Context<ApproveInvestor>,
+    attestation_hash: [u8; 32],
 ) -> Result<()> {
-    // Implemented in T067.
-    Ok(())
+    approve(ctx, attestation_hash, true)
 }
 
 /// Shared by approval (Pending → Approved) and renewal (Approved → Approved, later expiry).
