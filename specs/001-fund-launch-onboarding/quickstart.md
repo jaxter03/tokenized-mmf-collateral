@@ -39,15 +39,18 @@ that no test asserts, and fails if the list isn't empty.
 
 ## Spike (task 1) — must pass before anything else
 
-`tests/tests/mint_config.rs`, under configuration B:
+`tests/tests/spike_toolchain.rs` (task T011), under configuration B. It uses raw Token-2022
+instructions, so it doesn't wait for `create_fund`:
 
-1. `create_fund` makes the mint with all seven mint-level settings (hook, frozen default, permanent
-   delegate, metadata pointer + metadata, close authority, permissioned burn) and the authorities in
-   the data model.
-2. An owner's `BurnChecked` on its thawed account fails.
+1. A mint is created with TransferHook, DefaultAccountState(Frozen), PermanentDelegate,
+   MetadataPointer, MintCloseAuthority and the hand-encoded PermissionedBurn, then initialized.
+2. An owner's `BurnChecked` on a thawed account with a balance fails.
 3. An Ed25519 verify instruction runs in LiteSVM (`precompiles` feature).
+4. The empty `fund` program can be invoked.
 
 If any of these can't be made to work, switch to configuration A and record it in research R8.
+`tests/tests/mint_config.rs` (T030) later checks that `create_fund` produces the same configuration
+with the authorities in the data model.
 
 ## Requirement → test map
 
