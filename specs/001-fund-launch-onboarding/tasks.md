@@ -224,7 +224,7 @@ show every invalid statement and every unapproved receiver is rejected (spec US2
 
 ### Tests for User Story 2 (write first; they must fail) ⚠️
 
-- [ ] T045 [US2] Write registration tests in `tests/tests/us2_onboarding.rs`:
+- [X] T045 [US2] Write registration tests in `tests/tests/us2_onboarding.rs`:
   - an institution registers itself → Pending, `HolderRegistered` (US2-1);
   - compliance registers an investor and a treasury at `["treasury", fund_state]`;
   - rejections: `FundNotOpen` (fund in Setup); `InvalidClass` (3); `Unauthorized` (a third party registers someone else); `SelfRegistrationClassNotAllowed` (self as treasury); `ClassNotAvailable` (escrow by compliance); `NotSystemControlled` (treasury with any other owner); `HolderAlreadyRegistered`, with the existing record byte-for-byte unchanged (US2-8, FR-014). The institution registering a different owner is covered by US2-9
