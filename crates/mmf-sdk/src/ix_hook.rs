@@ -57,3 +57,145 @@ pub fn set_rules(
         .data(),
     }
 }
+
+use mmf_common::ids::TOKEN_2022_PROGRAM_ID;
+
+use crate::kyc::SignedStatement;
+
+fn event_accounts() -> (Pubkey, Pubkey) {
+    (
+        pda::event_authority(&COMPLIANCE_HOOK_PROGRAM_ID).0,
+        COMPLIANCE_HOOK_PROGRAM_ID,
+    )
+}
+
+/// `register_holder`: `authority` is the owner itself (Investor only) or compliance.
+pub fn register_holder(
+    authority: &Pubkey,
+    payer: &Pubkey,
+    mint: &Pubkey,
+    owner: &Pubkey,
+    class: u8,
+) -> Instruction {
+    let fund_state = pda::fund_state(mint).0;
+    let (event_authority, program) = event_accounts();
+    let accounts = compliance_hook::accounts::RegisterHolder {
+        authority: *authority,
+        payer: *payer,
+        registry: pda::registry(mint).0,
+        fund_state,
+        role_registry: pda::role_registry(&fund_state).0,
+        holder_state: pda::holder(mint, owner).0,
+        system_program: system_program::ID,
+        event_authority,
+        program,
+    };
+    Instruction {
+        program_id: COMPLIANCE_HOOK_PROGRAM_ID,
+        accounts: accounts.to_account_metas(None),
+        data: compliance_hook::instruction::RegisterHolder {
+            owner: *owner,
+            class,
+        }
+        .data(),
+    }
+}
+
+/// `approve_investor`: must come immediately after the statement's Ed25519 instruction.
+pub fn approve_investor(
+    compliance: &Pubkey,
+    mint: &Pubkey,
+    owner: &Pubkey,
+    attestation_hash: [u8; 32],
+) -> Instruction {
+    let fund_state = pda::fund_state(mint).0;
+    let (event_authority, program) = event_accounts();
+    let accounts = compliance_hook::accounts::ApproveInvestor {
+        compliance: *compliance,
+        registry: pda::registry(mint).0,
+        fund_state,
+        role_registry: pda::role_registry(&fund_state).0,
+        holder_state: pda::holder(mint, owner).0,
+        instructions: solana_instructions_sysvar::ID,
+        event_authority,
+        program,
+    };
+    Instruction {
+        program_id: COMPLIANCE_HOOK_PROGRAM_ID,
+        accounts: accounts.to_account_metas(None),
+        data: compliance_hook::instruction::ApproveInvestor { attestation_hash }.data(),
+    }
+}
+
+/// `approve_fund_account`: compliance approves a fund treasury (or, from F003, escrow) record.
+pub fn approve_fund_account(compliance: &Pubkey, mint: &Pubkey, owner: &Pubkey) -> Instruction {
+    let fund_state = pda::fund_state(mint).0;
+    let (event_authority, program) = event_accounts();
+    let accounts = compliance_hook::accounts::ApproveFundAccount {
+        compliance: *compliance,
+        registry: pda::registry(mint).0,
+        fund_state,
+        role_registry: pda::role_registry(&fund_state).0,
+        holder_state: pda::holder(mint, owner).0,
+        event_authority,
+        program,
+    };
+    Instruction {
+        program_id: COMPLIANCE_HOOK_PROGRAM_ID,
+        accounts: accounts.to_account_metas(None),
+        data: compliance_hook::instruction::ApproveFundAccount {}.data(),
+    }
+}
+
+/// `thaw_holding_account` (permissionless) for `owner`'s ATA, or another `token_account` for
+/// rejection tests.
+pub fn thaw_holding_account(
+    payer: &Pubkey,
+    mint: &Pubkey,
+    owner: &Pubkey,
+    token_account: &Pubkey,
+) -> Instruction {
+    let (event_authority, program) = event_accounts();
+    let accounts = compliance_hook::accounts::ThawHoldingAccount {
+        payer: *payer,
+        registry: pda::registry(mint).0,
+        holder_state: pda::holder(mint, owner).0,
+        token_account: *token_account,
+        mint: *mint,
+        token_2022_program: TOKEN_2022_PROGRAM_ID,
+        event_authority,
+        program,
+    };
+    Instruction {
+        program_id: COMPLIANCE_HOOK_PROGRAM_ID,
+        accounts: accounts.to_account_metas(None),
+        data: compliance_hook::instruction::ThawHoldingAccount {}.data(),
+    }
+}
+
+/// Creates `owner`'s holding account (idempotent), paid by `payer`.
+pub fn create_holding_account(payer: &Pubkey, mint: &Pubkey, owner: &Pubkey) -> Instruction {
+    spl_associated_token_account_interface::instruction::create_associated_token_account_idempotent(
+        payer,
+        owner,
+        mint,
+        &TOKEN_2022_PROGRAM_ID,
+    )
+}
+
+/// Compliance's onboarding transaction (SC-005): `[create ATA, ed25519, approve_investor, thaw]`.
+/// The Ed25519 instruction sits immediately before `approve_investor`, as the program requires.
+pub fn onboarding_tx(
+    payer: &Pubkey,
+    compliance: &Pubkey,
+    mint: &Pubkey,
+    owner: &Pubkey,
+    signed: &SignedStatement,
+) -> Vec<Instruction> {
+    vec![
+        create_holding_account(payer, mint, owner),
+        signed.ix.clone(),
+        approve_investor(compliance, mint, owner, signed.attestation_hash),
+        thaw_holding_account(payer, mint, owner, &pda::holding_account(owner, mint)),
+    ]
+}
