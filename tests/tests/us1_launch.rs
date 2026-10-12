@@ -686,3 +686,49 @@ fn launch_requires_roles_and_register_rules() {
     assert_anchor_error(&c.launch_by(&issuer), FundError::NoAllowedJurisdiction);
     assert_eq!(c.status(), FundStatus::Setup.as_u8());
 }
+
+/// The extra-account list Token-2022 reads on every transfer (data-model.md, shared-model §4.1):
+/// five entries in order, with the Registry writable (research R5).
+#[test]
+fn init_registry_writes_the_extra_account_list() {
+    use spl_tlv_account_resolution::account::ExtraAccountMeta;
+    use spl_tlv_account_resolution::seeds::Seed;
+    use spl_tlv_account_resolution::state::ExtraAccountMetaList;
+    use spl_transfer_hook_interface::instruction::ExecuteInstruction;
+    use spl_type_length_value::state::TlvStateBorrowed;
+
+    let c = ctx().created().with_registry();
+    let m = c.m();
+    let data = c.h.data(&pda::extra_metas(&m).0);
+    let entries: Vec<ExtraAccountMeta> = ExtraAccountMetaList::unpack_with_tlv_state::<
+        ExecuteInstruction,
+    >(&TlvStateBorrowed::unpack(&data).unwrap())
+    .unwrap()
+    .to_vec();
+    let holder = |index: u8| {
+        ExtraAccountMeta::new_with_seeds(
+            &[
+                Seed::Literal {
+                    bytes: b"holder".to_vec(),
+                },
+                Seed::AccountKey { index: 1 },
+                Seed::AccountData {
+                    account_index: index,
+                    data_index: 32,
+                    length: 32,
+                },
+            ],
+            false,
+            true,
+        )
+        .unwrap()
+    };
+    let expected = vec![
+        ExtraAccountMeta::new_with_pubkey(&pda::registry(&m).0, false, true).unwrap(),
+        ExtraAccountMeta::new_with_pubkey(&c.fund_key(), false, false).unwrap(),
+        holder(0),
+        holder(2),
+        ExtraAccountMeta::new_with_pubkey(&pda::delegate(&m).0, false, false).unwrap(),
+    ];
+    assert_eq!(entries, expected);
+}
