@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc d2387d6700cdf7d833f144642219582981191084ea734542f515b3aa9fdaed95 # shrinks to ops = [Pause, Transfer { from: 2, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Renew { who: 0, days: 24 }, Reinstate(1), Warp { days: 115 }]
+cc 0f002afad9ba7f75c7d00db23cb7d7d658aa29e8dafe0f7589c838dcc7a2ee55 # shrinks to ops = [Warp { days: 302 }, Warp { days: 63 }, Transfer { from: 0, to: 1, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Warp { days: 3 }]
+cc 4544b420ef66dcb434ff77260a976973d2d1a71466f679ba92dc1b4889001f6b # shrinks to ops = [Transfer { from: 0, to: 1, amount: 109 }, Transfer { from: 0, to: 2, amount: 1 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }, Transfer { from: 0, to: 0, amount: 0 }]

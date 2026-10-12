@@ -5,6 +5,7 @@ pub mod clock;
 pub mod events;
 pub mod fixtures;
 pub mod harness;
+pub mod model;
 pub mod squads;
 pub mod units;
 

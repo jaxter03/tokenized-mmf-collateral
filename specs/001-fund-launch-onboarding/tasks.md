@@ -394,7 +394,7 @@ from every party, and show only the right one succeeds (spec US4).
 
 ## Phase 7: Polish & cross-cutting concerns
 
-- [ ] T075 [P] Write a reference model in `tests/src/model.rs` and `tests/tests/invariants_prop.rs`: a `proptest` over random sequences of register / approve / renew / suspend / reinstate / revoke / pause / unpause / transfer (random amounts, including zero) / clock warp, sent directly to LiteSVM. After every step, compare with the model and assert:
+- [X] T075 [P] Write a reference model in `tests/src/model.rs` and `tests/tests/invariants_prop.rs`: a `proptest` over random sequences of register / approve / renew / suspend / reinstate / revoke / pause / unpause / transfer (random amounts, including zero) / clock warp, sent directly to LiteSVM. After every step, compare with the model and assert:
   - SC-001: no successful transfer delivered units to an owner that wasn't `approved` at that moment;
   - I3: only approved holders or treasury hold a non-zero balance;
   - SC-007 / I10: `holder_count` equals the number of Investors with `last_balance > 0`, and each `last_balance` equals its ATA balance;
