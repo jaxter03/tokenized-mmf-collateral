@@ -132,7 +132,7 @@ roles and status (spec US1).
   - `RolesInitialized` and `FundCreated` events are emitted;
   - then `init_registry`, `set_rules` (one provider, `US`+`GB`, cap 0), `set_roles` (five distinct keys), and `launch`;
   - assert `status == Open` and a `FundLaunched` event
-- [ ] T028 [US1] Add `create_fund` rejection tests to `tests/tests/us1_launch.rs`, in contract order, each asserting the exact error and that no `FundState` or mint was created:
+- [X] T028 [US1] Add `create_fund` rejection tests to `tests/tests/us1_launch.rs`, in contract order, each asserting the exact error and that no `FundState` or mint was created:
   - `RoleRegistryMismatch`, `Unauthorized`;
   - `InvalidFundId` (all zero);
   - `InvalidCashMint` (not a mint; a mint with 9 decimals);

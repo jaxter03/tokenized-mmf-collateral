@@ -175,3 +175,238 @@ fn issuer_creates_configures_and_launches_fund() {
     let fs: FundState = read(&h, &fund_key);
     assert_eq!(fs.status, FundStatus::Open.as_u8());
 }
+
+// ---------------------------------------------------------------------------------------------
+// T028: create_fund rejections (FR-003, contract order). Each attempt sends init_roles +
+// create_fund in one transaction; on failure neither the FundState nor the mint may exist.
+// ---------------------------------------------------------------------------------------------
+
+use fund::{FundError, FundTerms};
+use tests::assert::assert_anchor_error;
+use tests::TxResult;
+
+/// `create_fund` account index of `role_registry` (issuer, mint, fund_state, role_registry, …).
+const CREATE_FUND_ROLE_REGISTRY: usize = 3;
+
+fn attempt(c: &mut Ctx, terms: FundTerms, name: &str, symbol: &str) -> TxResult {
+    let m = c.mint.pubkey();
+    let res = c.h.send(
+        &[
+            ix_governance::init_roles(&c.issuer.pubkey(), &m),
+            ix_fund::create_fund(
+                &c.issuer.pubkey(),
+                &m,
+                &terms.cash_mint,
+                terms,
+                name,
+                symbol,
+            ),
+        ],
+        &[&c.issuer, &c.mint],
+    );
+    if res.is_err() {
+        assert_nothing_created(c);
+    }
+    res
+}
+
+fn assert_nothing_created(c: &Ctx) {
+    let m = c.mint.pubkey();
+    assert!(
+        !c.h.exists(&pda::fund_state(&m).0),
+        "no FundState after a failed create_fund"
+    );
+    assert!(!c.h.exists(&m), "no mint after a failed create_fund");
+}
+
+fn reject(edit: impl FnOnce(&mut FundTerms), expected: FundError) {
+    let mut c = ctx();
+    let mut terms = fixtures::standard_terms(c.cash_mint);
+    edit(&mut terms);
+    let res = attempt(&mut c, terms, FUND_NAME, FUND_SYMBOL);
+    assert_anchor_error(&res, expected);
+}
+
+#[test]
+fn rejects_role_registry_that_is_not_governance_for_this_fund() {
+    // No init_roles at all: the role registry account doesn't exist.
+    let mut c = ctx();
+    let m = c.mint.pubkey();
+    let terms = fixtures::standard_terms(c.cash_mint);
+    let res = c.h.send(
+        &[ix_fund::create_fund(
+            &c.issuer.pubkey(),
+            &m,
+            &c.cash_mint,
+            terms,
+            FUND_NAME,
+            FUND_SYMBOL,
+        )],
+        &[&c.issuer, &c.mint],
+    );
+    assert_anchor_error(&res, FundError::RoleRegistryMismatch);
+    assert_nothing_created(&c);
+
+    // A role registry at some other address.
+    let mut c = ctx();
+    let m = c.mint.pubkey();
+    let mut ix = ix_fund::create_fund(
+        &c.issuer.pubkey(),
+        &m,
+        &c.cash_mint,
+        terms,
+        FUND_NAME,
+        FUND_SYMBOL,
+    );
+    ix.accounts[CREATE_FUND_ROLE_REGISTRY].pubkey = Pubkey::new_unique();
+    let res = c.h.send(
+        &[ix_governance::init_roles(&c.issuer.pubkey(), &m), ix],
+        &[&c.issuer, &c.mint],
+    );
+    assert_anchor_error(&res, FundError::RoleRegistryMismatch);
+    assert_nothing_created(&c);
+}
+
+#[test]
+fn rejects_creator_who_is_not_the_role_registry_issuer() {
+    let mut c = ctx();
+    let other = c.h.funded_keypair();
+    let m = c.mint.pubkey();
+    let terms = fixtures::standard_terms(c.cash_mint);
+    let res = c.h.send(
+        &[
+            ix_governance::init_roles(&c.issuer.pubkey(), &m),
+            ix_fund::create_fund(
+                &other.pubkey(),
+                &m,
+                &c.cash_mint,
+                terms,
+                FUND_NAME,
+                FUND_SYMBOL,
+            ),
+        ],
+        &[&c.issuer, &other, &c.mint],
+    );
+    assert_anchor_error(&res, FundError::Unauthorized);
+    assert_nothing_created(&c);
+}
+
+#[test]
+fn rejects_all_zero_fund_id() {
+    reject(|t| t.fund_id = [0; 12], FundError::InvalidFundId);
+}
+
+#[test]
+fn rejects_cash_asset_that_is_not_a_six_decimal_mint() {
+    reject(
+        |t| t.cash_mint = Pubkey::new_unique(),
+        FundError::InvalidCashMint,
+    );
+
+    let mut c = ctx();
+    let nine = fixtures::create_cash_mint(&mut c.h, 9);
+    let mut terms = fixtures::standard_terms(c.cash_mint);
+    terms.cash_mint = nine;
+    let res = attempt(&mut c, terms, FUND_NAME, FUND_SYMBOL);
+    assert_anchor_error(&res, FundError::InvalidCashMint);
+}
+
+#[test]
+fn rejects_zero_target_price() {
+    reject(|t| t.target_nav = 0, FundError::ZeroTargetNav); // US1-5
+}
+
+#[test]
+fn rejects_zero_largest_daily_move() {
+    reject(|t| t.max_nav_move_bps = 0, FundError::ZeroMaxNavMove);
+}
+
+#[test]
+fn rejects_redemption_limit_of_zero_or_above_100_percent() {
+    reject(
+        |t| t.redemption_gate_bps = 0,
+        FundError::InvalidRedemptionGate,
+    );
+    reject(
+        |t| t.redemption_gate_bps = 10_001,
+        FundError::InvalidRedemptionGate,
+    ); // US1-5
+}
+
+#[test]
+fn accepts_redemption_limit_of_exactly_100_percent() {
+    let mut c = ctx();
+    let mut terms = fixtures::standard_terms(c.cash_mint);
+    terms.redemption_gate_bps = 10_000;
+    attempt(&mut c, terms, FUND_NAME, FUND_SYMBOL).expect("10 000 bps is allowed");
+}
+
+#[test]
+fn rejects_unknown_distribution_mode() {
+    reject(
+        |t| t.distribution_mode = 2,
+        FundError::InvalidDistributionMode,
+    );
+}
+
+#[test]
+fn rejects_zero_distribution_frequency() {
+    reject(
+        |t| t.distribution_cadence_days = 0,
+        FundError::ZeroDistributionCadence,
+    );
+}
+
+#[test]
+fn rejects_missing_documents_fingerprint() {
+    reject(|t| t.terms_hash = [0; 32], FundError::MissingTermsHash);
+}
+
+#[test]
+fn rejects_missing_or_invalid_documents_link() {
+    reject(|t| t.terms_uri = [0; 128], FundError::MissingTermsUri);
+    reject(
+        |t| {
+            t.terms_uri = [0; 128];
+            t.terms_uri[..2].copy_from_slice(&[0xFF, 0xFE]);
+        },
+        FundError::MissingTermsUri,
+    );
+}
+
+#[test]
+fn rejects_empty_or_overlong_name() {
+    for name in ["", &"N".repeat(33)] {
+        let mut c = ctx();
+        let terms = fixtures::standard_terms(c.cash_mint);
+        assert_anchor_error(
+            &attempt(&mut c, terms, name, FUND_SYMBOL),
+            FundError::InvalidName,
+        );
+    }
+}
+
+#[test]
+fn rejects_empty_or_overlong_symbol() {
+    for symbol in ["", "SSSSSSSSSSS"] {
+        let mut c = ctx();
+        let terms = fixtures::standard_terms(c.cash_mint);
+        assert_anchor_error(
+            &attempt(&mut c, terms, FUND_NAME, symbol),
+            FundError::InvalidSymbol,
+        );
+    }
+}
+
+#[test]
+fn checks_terms_in_contract_order() {
+    // Several invalid terms at once: the first in the contract order is reported.
+    reject(
+        |t| {
+            t.target_nav = 0;
+            t.terms_hash = [0; 32];
+            t.distribution_mode = 9;
+        },
+        FundError::ZeroTargetNav,
+    );
+}
