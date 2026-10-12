@@ -399,7 +399,7 @@ from every party, and show only the right one succeeds (spec US4).
   - I3: only approved holders or treasury hold a non-zero balance;
   - SC-007 / I10: `holder_count` equals the number of Investors with `last_balance > 0`, and each `last_balance` equals its ATA balance;
   - `holder_count ≤ max_holders` when a cap is set
-- [ ] T076 [P] Write `tests/tests/scale.rs` (`#[ignore]`, run with `--release -- --ignored`) for SC-006: register and approve 10 holders and measure a hooked transfer's compute units; repeat with 10 000 holders. Assert the two are identical and ≤ 60 000 CU
+- [X] T076 [P] Write `tests/tests/scale.rs` (`#[ignore]`, run with `--release -- --ignored`) for SC-006: register and approve 10 holders and measure a hooked transfer's compute units; repeat with 10 000 holders. Assert the two are identical and ≤ 60 000 CU
 - [ ] T077 Run `scripts/check-error-coverage.sh` and add any missing rejection test until it reports none (SC-004)
 - [ ] T078 [P] Implement `scripts/devnet-e2e/src/main.rs`: steps 3–10 of the [quickstart.md devnet run](quickstart.md#devnet-run-r16). Use zero-unit transfers, print each signature and outcome, and exit 0 only if every outcome matches. Finish by rebuilding A's and B's status history from their events
 - [ ] T079 Deploy to devnet (`anchor deploy --provider.cluster devnet`). Move each program's upgrade authority to the issuer's Squads vault with a time lock ≥ 1 h (Constitution VIII; plan "Deployment and authorities"). Run `cargo run -p devnet-e2e`. Record the program IDs, vault address and run output in `specs/001-fund-launch-onboarding/devnet-run.md`

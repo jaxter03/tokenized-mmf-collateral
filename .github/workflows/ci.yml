@@ -51,5 +51,8 @@ jobs:
       - name: Program tests (LiteSVM)
         run: cargo test -p tests
 
+      - name: Scale test (SC-006, release)
+        run: cargo test -p tests --release --test scale -- --ignored
+
       - name: Error coverage (SC-004)
         run: scripts/check-error-coverage.sh
