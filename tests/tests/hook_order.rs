@@ -489,3 +489,26 @@ fn suspended_holder_sending_to_itself_changes_nothing() {
         mmf_common::enums::HolderStatus::Suspended.as_u8()
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// T077: checked arithmetic in the holder count (Constitution IX)
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn holder_count_arithmetic_is_checked() {
+    // Unreachable through instructions (the count always matches recorded balances, I10), so the
+    // Registry is patched to 0 holders while Alice still holds units: her emptying transfer would
+    // take the count below zero and must abort instead of wrapping.
+    let mut h = Harness::new();
+    let (ctx, alice) = fixtures::fund_with_investor_units(&mut h, 0, 1_000);
+    let bob = fixtures::new_investor(&mut h, &ctx);
+    fixtures::transfer(&mut h, &ctx, &alice, &bob.pubkey(), 1).unwrap(); // both hold units
+    fixtures::patch::<Registry>(&mut h, &ctx.registry(), |r| r.holder_count = 0);
+    let res = fixtures::transfer(&mut h, &ctx, &bob, &alice.pubkey(), 1); // Bob drops to zero
+    assert_anchor_error(&res, HookError::Overflow);
+    assert_eq!(
+        units::balance(&h, &ctx.m(), &bob.pubkey()),
+        1,
+        "nothing moved"
+    );
+}
