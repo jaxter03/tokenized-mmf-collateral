@@ -2,9 +2,15 @@
 //! record for an owner account.
 
 use anchor_lang::prelude::*;
+use anchor_lang::system_program;
+use mmf_common::enums::{FundStatus, HolderClass, HolderStatus};
+use mmf_common::ids::FUND_PROGRAM_ID;
 use mmf_common::seeds;
+use mmf_common::views::{FundStateView, RoleRegistryView};
 
-use crate::state::Registry;
+use crate::errors::HookError;
+use crate::events::HolderRegistered;
+use crate::state::{HolderState, Registry};
 
 #[event_cpi]
 #[derive(Accounts)]
@@ -27,10 +33,162 @@ pub struct RegisterHolder<'info> {
 }
 
 pub fn handle_register_holder(
-    _ctx: Context<RegisterHolder>,
-    _owner: Pubkey,
-    _class: u8,
+    ctx: Context<RegisterHolder>,
+    owner: Pubkey,
+    class: u8,
 ) -> Result<()> {
-    // Implemented in T052.
+    let reg = &ctx.accounts.registry;
+    let authority = ctx.accounts.authority.key();
+
+    // 1. Only while the fund is Open (a missing fund fails closed).
+    let open = FundStateView::load(&ctx.accounts.fund_state, &reg.fund_state)
+        .map(|f| f.status == FundStatus::Open.as_u8())
+        .unwrap_or(false);
+    require!(open, HookError::FundNotOpen);
+
+    // 2. A class that may hold units (CollateralVault is backlog).
+    let class = HolderClass::try_from(class)
+        .ok()
+        .filter(|c| c.transfer_allowed())
+        .ok_or(error!(HookError::InvalidClass))?;
+
+    // 3. Compliance, or the owner itself.
+    let roles = RoleRegistryView::load(&ctx.accounts.role_registry, &reg.role_registry)
+        .map_err(|_| error!(HookError::Unauthorized))?;
+    let is_compliance = authority == roles.compliance;
+    require!(is_compliance || authority == owner, HookError::Unauthorized);
+
+    // 4. An institution may register itself only as an investor (Clarification Q1).
+    require!(
+        is_compliance || class == HolderClass::Investor,
+        HookError::SelfRegistrationClassNotAllowed
+    );
+
+    // 5–6. Fund-operated accounts must be the system's own PDA (FR-019, research R17).
+    match class {
+        HolderClass::Escrow => return err!(HookError::ClassNotAvailable),
+        HolderClass::FundTreasury => {
+            let treasury = Pubkey::find_program_address(
+                &[seeds::TREASURY, reg.fund_state.as_ref()],
+                &FUND_PROGRAM_ID,
+            )
+            .0;
+            require_keys_eq!(owner, treasury, HookError::NotSystemControlled);
+        }
+        _ => {}
+    }
+
+    // 7. One record per owner, ever (FR-014; a revoked record stays and blocks re-registration).
+    let record = &ctx.accounts.holder_state;
+    require!(
+        record.data_is_empty() && record.owner == &system_program::ID,
+        HookError::HolderAlreadyRegistered
+    );
+
+    let mint = reg.mint;
+    let bump = ctx.bumps.holder_state;
+    create_record(&ctx, &mint, &owner, bump)?;
+
+    let state = HolderState {
+        version: HolderState::VERSION,
+        mint,
+        owner,
+        status: HolderStatus::Pending.as_u8(),
+        class: class.as_u8(),
+        jurisdiction: [0; 2],
+        investor_type: 0,
+        kyc_expiry_ts: 0,
+        attestation_hash: [0; 32],
+        attested_by: Pubkey::default(),
+        pledged_amount: 0,
+        active_liens: 0,
+        index_at_last_touch: 0,
+        accrued_e18: 0,
+        last_balance: 0,
+        last_slot: 0,
+        last_paid_cycle: 0,
+        bump,
+        _reserved: [0; 64],
+    };
+    {
+        let mut data = record.try_borrow_mut_data()?;
+        state.try_serialize(&mut &mut data[..])?;
+    }
+
+    let clock = Clock::get()?;
+    emit_cpi!(HolderRegistered {
+        fund: reg.fund_state,
+        owner,
+        class: class.as_u8(),
+        signer: authority,
+        slot: clock.slot,
+        unix_ts: clock.unix_timestamp,
+    });
     Ok(())
+}
+
+/// Allocates the record at its PDA. Works even if someone already sent lamports to the address
+/// (`create_account` refuses a funded address, so allocate + assign is used instead).
+fn create_record(
+    ctx: &Context<RegisterHolder>,
+    mint: &Pubkey,
+    owner: &Pubkey,
+    bump: u8,
+) -> Result<()> {
+    let record = ctx.accounts.holder_state.to_account_info();
+    let payer = ctx.accounts.payer.to_account_info();
+    let sys = ctx.accounts.system_program.key();
+    let space = 8 + HolderState::INIT_SPACE;
+    let needed = Rent::get()?.minimum_balance(space);
+    let bump = [bump];
+    let signer: &[&[&[u8]]] = &[&[seeds::HOLDER, mint.as_ref(), owner.as_ref(), &bump]];
+
+    if record.lamports() == 0 {
+        return system_program::create_account(
+            CpiContext::new(
+                sys,
+                system_program::CreateAccount {
+                    from: payer,
+                    to: record,
+                },
+            )
+            .with_signer(signer),
+            needed,
+            space as u64,
+            &crate::ID,
+        );
+    }
+    let top_up = needed.saturating_sub(record.lamports());
+    if top_up > 0 {
+        system_program::transfer(
+            CpiContext::new(
+                sys,
+                system_program::Transfer {
+                    from: payer,
+                    to: record.clone(),
+                },
+            ),
+            top_up,
+        )?;
+    }
+    system_program::allocate(
+        CpiContext::new(
+            sys,
+            system_program::Allocate {
+                account_to_allocate: record.clone(),
+            },
+        )
+        .with_signer(signer),
+        space as u64,
+    )?;
+    system_program::assign(
+        CpiContext::new(
+            sys,
+            system_program::Assign {
+                account_to_assign: record,
+            },
+        )
+        .with_signer(signer),
+        &crate::ID,
+    )
 }
