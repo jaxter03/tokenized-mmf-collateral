@@ -2,10 +2,11 @@
 //! Token-2022 calls it during `transfer_checked`, after moving the balances, with the five base
 //! accounts read-only and then the extra accounts from the `ExtraAccountMetaList`.
 //!
-//! Steps (F001 builds 0, 1, 4, 6, 7, 9, 10; step 3 arrives with US3, step 8 with F002, step 5 with
-//! F004 and step 2 with F005):
+//! Steps (F001 builds 0, 1, 3, 4, 6, 7, 9, 10; step 8 arrives with F002, step 5 with F004 and
+//! step 2 with F005):
 //!  0. both token accounts carry the `transferring` flag      → NotTransferring
 //!  1. accounts belong to this fund's mint                      → WrongMint
+//!  3. transfers paused                                         → TransfersPaused
 //!  4. sender approved with valid KYC                           → SenderNotApproved
 //!  6. receiver approved, class allowed, jurisdiction allowed   → ReceiverNotApproved
 //!  7. new investor while the cap is reached                    → HolderCapReached
@@ -129,6 +130,9 @@ pub fn handle_execute(ctx: Context<Execute>, amount: u64) -> Result<()> {
     require_keys_eq!(a.source_holder.key(), src_key, HookError::WrongMint);
     require_keys_eq!(a.destination_holder.key(), dst_key, HookError::WrongMint);
     let same_owner = src_key == dst_key;
+
+    // 3. Paused: every transfer stops (FR-021). Enforcement bypass arrives with F005 (step 2).
+    require!(!a.registry.transfers_paused, HookError::TransfersPaused);
 
     let clock = Clock::get()?;
     let now = clock.unix_timestamp;
