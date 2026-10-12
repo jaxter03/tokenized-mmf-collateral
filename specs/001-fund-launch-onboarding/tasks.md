@@ -120,7 +120,7 @@ roles and status (spec US1).
 ### Interface stubs for User Story 1
 
 - [X] T023 [P] [US1] In `programs/governance/src/instructions/init_roles.rs` and `set_roles.rs`, add the `#[derive(Accounts)]` structs exactly as in [contracts/governance.md](contracts/governance.md) (`init_roles`: issuer signer+payer, **mint signer**, unchecked `fund_state`, `role_registry` init at `["roles", fund_state]`; `set_roles`: issuer, role_registry mut, fund_state). Add `#[event_cpi]` and stub handlers returning `Ok(())`, wired in `lib.rs`
-- [ ] T024 [P] [US1] In `programs/fund/src/instructions/create_fund.rs` and `launch.rs`, add the Accounts structs per [contracts/fund.md](contracts/fund.md) with `#[event_cpi]` and stub handlers, wired in `programs/fund/src/lib.rs`
+- [X] T024 [P] [US1] In `programs/fund/src/instructions/create_fund.rs` and `launch.rs`, add the Accounts structs per [contracts/fund.md](contracts/fund.md) with `#[event_cpi]` and stub handlers, wired in `programs/fund/src/lib.rs`
 - [ ] T025 [P] [US1] In `programs/compliance_hook/src/instructions/init_registry.rs` and `set_rules.rs`, add the Accounts structs per [contracts/compliance_hook.md](contracts/compliance_hook.md) with `#[event_cpi]` and stub handlers, wired in `programs/compliance_hook/src/lib.rs`
 - [ ] T026 [US1] Add instruction builders to `crates/mmf-sdk/src/ix_governance.rs`, `ix_fund.rs` and `ix_hook.rs` for `init_roles`, `set_roles`, `create_fund`, `launch`, `init_registry` and `set_rules`. Accounts go in contract order, including the event authority and program accounts (depends on T023–T025)
 
