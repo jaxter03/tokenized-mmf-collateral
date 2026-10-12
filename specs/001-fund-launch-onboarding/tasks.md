@@ -362,7 +362,7 @@ from every party, and show only the right one succeeds (spec US4).
 
 ### Test support for User Story 4
 
-- [ ] T070 [US4] Write `tests/src/squads.rs`, hand-encoding the Squads v4 instructions as an Anchor discriminator `sha256("global:<name>")[..8]` followed by Borsh arguments (research R8):
+- [X] T070 [US4] Write `tests/src/squads.rs`, hand-encoding the Squads v4 instructions as an Anchor discriminator `sha256("global:<name>")[..8]` followed by Borsh arguments (research R8):
   - `multisig_create_v2`: threshold, members with Vote/Execute permissions, `time_lock = 0`, ProgramConfig treasury;
   - `vault_transaction_create`, with Squads' compact message format;
   - `proposal_create`; `proposal_approve`; `vault_transaction_execute`.
