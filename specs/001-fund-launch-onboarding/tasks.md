@@ -243,7 +243,7 @@ show every invalid statement and every unapproved receiver is rejected (spec US2
   - `thaw_holding_account`: happy path + `HoldingAccountThawed`; `HolderNotApproved` (Pending; KYC expired); `NotHoldingAccount` (a non-ATA account of the owner); `AlreadyThawed`;
   - a second, non-ATA account of an approved owner stays frozen, and a transfer to it fails `AccountFrozen` (FR-015);
   - SC-005: exactly two transactions (the institution's `register_holder`, then compliance's `onboarding_tx`) make an institution able to receive units
-- [ ] T048 [P] [US2] Write transfer rule tests in `tests/tests/hook_order.rs`:
+- [X] T048 [P] [US2] Write transfer rule tests in `tests/tests/hook_order.rs`:
   - with `seed_units` on A, A → B (both approved) succeeds, balances move, `TransferValidated` is logged;
   - to a Pending or unregistered owner → Token-2022 `AccountFrozen` (US2-7), no balance change;
   - KYC boundaries (FR-025): sender at `now == expiry` → `SenderNotApproved`; at `expiry − 1` → OK; receiver at `now == expiry` → `ReceiverNotApproved`;

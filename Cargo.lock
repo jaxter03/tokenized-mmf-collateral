@@ -4702,6 +4702,7 @@ dependencies = [
  "base64 0.22.1",
  "compliance_hook",
  "fund",
+ "futures",
  "governance",
  "litesvm",
  "mmf-common",

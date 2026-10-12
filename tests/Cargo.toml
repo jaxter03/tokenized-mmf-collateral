@@ -9,6 +9,7 @@ publish = false
 [dependencies]
 litesvm = { version = "=0.12.0", features = ["precompiles"] }
 proptest = "1"
+futures = { version = "0.3", default-features = false, features = ["executor"] }
 mmf-common = { path = "../crates/mmf-common" }
 mmf-sdk = { path = "../crates/mmf-sdk" }
 fund = { path = "../programs/fund", features = ["no-entrypoint"] }
