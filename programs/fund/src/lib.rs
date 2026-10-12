@@ -4,6 +4,7 @@ pub mod errors;
 pub mod events;
 pub mod instructions;
 pub mod state;
+pub mod token_setup;
 
 pub use errors::FundError;
 pub use instructions::*;
