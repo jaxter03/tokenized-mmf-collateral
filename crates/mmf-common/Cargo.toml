@@ -1,0 +1,10 @@
+[package]
+name = "mmf-common"
+version = "0.1.0"
+description = "Shared ids, seeds, enums, jurisdiction table, KYC statement layout and account views"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anchor-lang = "=1.1.2"
+sha2 = { version = "0.10", default-features = false }

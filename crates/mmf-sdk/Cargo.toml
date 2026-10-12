@@ -1,0 +1,15 @@
+[package]
+name = "mmf-sdk"
+version = "0.1.0"
+description = "Instruction builders, PDA helpers and a mock KYC provider"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+mmf-common = { path = "../mmf-common" }
+fund = { path = "../../programs/fund", features = ["no-entrypoint"] }
+compliance_hook = { path = "../../programs/compliance_hook", features = ["no-entrypoint"] }
+governance = { path = "../../programs/governance", features = ["no-entrypoint"] }
+spl-transfer-hook-interface = "2.1.0"
+solana-ed25519-program = "3.0.0"
+ed25519-dalek = "2"

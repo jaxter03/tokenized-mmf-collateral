@@ -1,0 +1,10 @@
+[package]
+name = "devnet-e2e"
+version = "0.1.0"
+description = "F001 end-to-end run against devnet (research R16)"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+mmf-sdk = { path = "../../crates/mmf-sdk" }

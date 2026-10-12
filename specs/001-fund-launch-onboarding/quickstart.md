@@ -21,7 +21,8 @@ All three come from **mainnet**, never devnet:
 solana program dump -um TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb tests/fixtures/spl_token_2022.so
 solana program dump -um SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf tests/fixtures/squads_multisig_program.so
 solana account -um BSTq9w3kZwNwpBXJEvTZz2G9ZTNyKBvoSeXMvwb4cNZr --output json > tests/fixtures/squads_program_config.json
-shasum -a 256 tests/fixtures/spl_token_2022.so   # must match the Token-2022 program@v11.0.0 release hash (7ea94a02…)
+python3 -c "import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],'rb').read().rstrip(b'\\0')).hexdigest())" tests/fixtures/spl_token_2022.so
+# hash with trailing zeros removed (solana-verify convention) must start 7ea94a02 = program@v11.0.0
 ```
 
 ## Build and test

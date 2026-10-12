@@ -1,0 +1,16 @@
+[package]
+name = "tests"
+version = "0.1.0"
+description = "LiteSVM program tests for F001"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+litesvm = { version = "=0.12.0", features = ["precompiles"] }
+proptest = "1"
+mmf-common = { path = "../crates/mmf-common" }
+mmf-sdk = { path = "../crates/mmf-sdk" }
+fund = { path = "../programs/fund", features = ["no-entrypoint"] }
+compliance_hook = { path = "../programs/compliance_hook", features = ["no-entrypoint"] }
+governance = { path = "../programs/governance", features = ["no-entrypoint"] }

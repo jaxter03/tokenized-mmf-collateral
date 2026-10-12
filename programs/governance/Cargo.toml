@@ -1,0 +1,28 @@
+[package]
+name = "governance"
+version = "0.1.0"
+description = "Role registry and compliance actions"
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "governance"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+anchor-lang = { version = "=1.1.2", features = ["event-cpi"] }
+anchor-spl = { version = "=1.1.2", features = ["token_2022", "token_2022_extensions", "associated_token"] }
+compliance_hook = { path = "../compliance_hook", features = ["cpi", "no-entrypoint"] }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }
