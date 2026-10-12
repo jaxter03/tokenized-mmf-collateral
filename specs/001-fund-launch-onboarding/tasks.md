@@ -81,7 +81,7 @@ Phase 2 is complete.
 
   Unit tests: the count is exactly 249; `US`, `GB`, `SS` are assigned; `AA`, `ZZ`, lowercase `us` and non-letters are rejected
 - [X] T014 [P] Write the KYC statement codec in `crates/mmf-common/src/statement.rs`, a fixed 95-byte message: "domain [u8; 20] b\"MMF-KYC-STATEMENT-V1\" | mint Pubkey | owner Pubkey | jurisdiction [u8; 2] | investor_type u8 | expiry_ts i64 LE". Provide `encode`, `parse` (errors: wrong length, wrong domain) and `fingerprint` (SHA-256 of the 95 bytes). Unit tests: round-trip and each parse error
-- [ ] T015 [P] Write the fund account and its events and errors in `programs/fund/src/state.rs`, `errors.rs` and `events.rs`:
+- [X] T015 [P] Write the fund account and its events and errors in `programs/fund/src/state.rs`, `errors.rs` and `events.rs`:
   - `FundState` in its full final layout per [data-model.md](data-model.md): "version u8 = 1, mint, role_registry, terms FundTerms, status u8", the F002–F006 fields from `docs/shared-model.md` §4.2 left zero (`nav u64`, `nav_ts i64`, `nav_seq u64`, `accrual_index u128`, `daily_rate_e12 u64`, `units_outstanding u64`, `redeemed_today u64`, `day_start_ts i64`, `cash_treasury Pubkey`, `current_cycle u32`), then `bump u8`, `_reserved [u8; 64]`;
   - `FundTerms`: `fund_id [u8;12]`, `cash_mint`, `target_nav u64`, `max_nav_move_bps u16`, `redemption_gate_bps u16`, `distribution_mode u8`, `distribution_cadence_days u16`, `terms_hash [u8;32]`, `terms_uri [u8;128]`;
   - every error in [contracts/fund.md](contracts/fund.md);
