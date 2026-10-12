@@ -9,6 +9,25 @@
 **Input**: User description: "Launch a tokenized money market fund and control who may hold it."
 (full input: `docs/speckit-inputs.md`, F001)
 
+## Clarifications
+
+### Session 2026-10-12
+
+- Q: When an investor institution wants to hold the fund, who may create its Pending holder record?
+  → A: The institution may register itself, only as an investor; compliance may register any class
+  (investor, fund treasury, escrow).
+- Q: Should the system identify an institution by the account its custodian controls, or by its
+  legal identity? → A: By account. One Holder record per owner account; the KYC statement names
+  that owner; an institution using several owner accounts has several records.
+- Q: When the fund sets a maximum number of holders, which investors count toward it? → A:
+  Investors that currently hold units, checked when a transfer would give units to an investor
+  with none; a place frees when a balance reaches zero; fund-operated accounts are not counted.
+- Q: May the same account or group hold more than one operating role? → A: The keeper must differ
+  from every other role, and the issuer must differ from compliance; other roles may share an
+  account or group.
+- Q: Which jurisdictions must the system be able to represent? → A: Any country in the
+  international standard country list (two-letter codes); each Fund allows any subset of them.
+
 ## User Scenarios & Testing *(mandatory)*
 
 A regulated fund may only be held by approved, KYC-checked institutions. Today a transfer agent's
@@ -64,14 +83,17 @@ rejected.
    approve, **Then** approval is rejected and the holder stays Pending.
 4. **Given** a statement whose expiry is in the past, **When** compliance tries to approve, **Then**
    approval is rejected.
-5. **Given** a statement issued for a different institution, **When** compliance tries to approve
-   with it, **Then** approval is rejected.
+5. **Given** a statement that names a different owner account, **When** compliance tries to
+   approve with it, **Then** approval is rejected.
 6. **Given** a statement naming a jurisdiction that the fund does not allow, **When** compliance
    tries to approve, **Then** approval is rejected.
 7. **Given** a receiver that is not Approved, **When** anyone sends units to it, **Then** the
    transfer is rejected and no balance changes.
-8. **Given** an institution that already has a holder record, **When** it is registered again,
+8. **Given** an owner account that already has a holder record, **When** it is registered again,
    **Then** registration is rejected and the existing record is unchanged.
+9. **Given** an institution, **When** it tries to register itself as a fund treasury or escrow
+   account, or to register a different owner, **Then** registration is rejected and no record is
+   created.
 
 ---
 
@@ -127,6 +149,11 @@ action from every party and show that only the right one succeeds.
    require have approved an action, **Then** the action is not performed.
 4. **Given** an Open fund, **When** anyone tries to change a role assignment, **Then** it is
    rejected in this feature (role changes after launch arrive with governance).
+5. **Given** a Fund in Setup, **When** the issuer tries to give the keeper role to an account or
+   group that holds any other role (including the issuer), or to give the compliance role to the
+   issuer, **Then** the assignment is rejected and the existing roles are unchanged.
+6. **Given** a Fund in Setup, **When** the issuer gives the fund admin and transfer agent roles to
+   the same account or group, **Then** the assignment is accepted.
 
 ---
 
@@ -134,13 +161,16 @@ action from every party and show that only the right one succeeds.
 
 - **Holder cap reached**: a transfer to an investor that holds no units is rejected once the
   number of investors holding units equals the cap. Investors that already hold units can still
-  receive more. A place frees up when an investor's balance falls to zero. With no cap set, there
-  is no limit.
+  receive more. A place frees up when an investor's balance falls to zero. Fund treasury and
+  escrow accounts never count. With no cap set, there is no limit.
 - **KYC expires while the holder has units**: the units stay where they are. The holder can
   neither send nor receive until compliance renews it with a new valid statement. KYC counts as
   expired from the exact moment its expiry is reached.
-- **Institution registered twice**: the second registration is rejected and the first record is
-  unchanged. One holder record covers every holding account the institution owns.
+- **Institution registered twice**: a second registration for the same owner account is rejected
+  and the first record is unchanged. One holder record covers every holding account that owner
+  account controls. An institution that uses a second owner account (for example, through a second
+  custodian) is a separate holder: it needs its own registration and KYC statement, and counts
+  separately toward the holder cap.
 - **Same sender and receiver**: the transfer goes through the same checks as any other transfer
   (sender and receiver must both be approved, transfers must not be paused). It does not change
   the holder count.
@@ -149,7 +179,12 @@ action from every party and show that only the right one succeeds.
 - **Several checks fail at once**: the transfer is rejected with the first failure in a fixed,
   documented order, so the reported reason is predictable.
 - **Revoked holder that still has units**: the units stay where they are and cannot be moved by
-  anything in this feature. Recovering them is a governance action in a later feature.
+  anything in this feature. Recovering them is a governance action in a later feature. While it
+  holds units it still counts toward the holder cap; the same applies to a suspended holder or one
+  whose KYC has expired.
+- **Unknown jurisdiction code**: a KYC statement whose jurisdiction is not a code in the standard
+  country list is rejected like any other invalid statement, and a Register rule naming such a
+  code is rejected.
 - **Fund-operated accounts** (fund treasury, escrow): only compliance can register them, and only
   for accounts controlled by the system itself. They need no KYC statement, but pause and
   suspension apply to them like any other holder.
@@ -180,13 +215,18 @@ action from every party and show that only the right one succeeds.
 **Register (holder rules)**
 
 - **FR-008**: System MUST let the issuer, while the Fund is in Setup, set the Register's rules:
-  up to four recognised KYC providers, the allowed jurisdictions, and an optional holder cap.
+  up to four recognised KYC providers, the allowed jurisdictions, and an optional holder cap. A
+  jurisdiction is a country identified by its two-letter code in the international standard
+  country list (ISO 3166-1); the allowed jurisdictions may be any subset of that list.
 - **FR-009**: System MUST reject any change to Fund terms or Register rules once the Fund is Open.
 
 **Roles**
 
 - **FR-010**: System MUST let the issuer, while the Fund is in Setup, assign each role (fund admin,
-  transfer agent, compliance, keeper, auditor) to an account or multi-person group.
+  transfer agent, compliance, keeper, auditor) to an account or multi-person group. System MUST
+  reject an assignment that would make the keeper the same account or group as any other role
+  (including the issuer), or make compliance the same account or group as the issuer. Any other
+  role may share an account or group with another role.
 - **FR-011**: System MUST accept each role-restricted action only when the current holder of that
   role signs it, and MUST reject it from any other party, including the issuer.
 - **FR-012**: System MUST treat a multi-person group holding a role as one role holder. The action
@@ -196,16 +236,18 @@ action from every party and show that only the right one succeeds.
 
 - **FR-013**: System MUST, while the Fund is Open, let an institution register itself as an
   investor, and let compliance register an institution as an investor or register a fund-operated
-  account (fund treasury or escrow). Every new Holder record MUST start as Pending.
+  account (fund treasury or escrow). An institution MUST NOT register an owner other than itself or
+  any class other than investor; such a registration MUST be rejected. Every new Holder record MUST
+  start as Pending.
 - **FR-014**: System MUST reject a registration for an owner that already has a Holder record, and
   MUST leave the existing record unchanged.
 - **FR-015**: System MUST ensure that one Holder record governs every holding account its owner has
   for the Fund, and that a newly opened holding account cannot send or receive units until its
   owner is Approved.
 - **FR-016**: System MUST let compliance approve a Pending investor only with a KYC statement that
-  (a) is signed by a provider recognised in the Register, (b) names that institution, (c) has an
-  expiry in the future, and (d) gives a jurisdiction the Fund allows. Any other statement MUST be
-  rejected and the Holder record left unchanged.
+  (a) is signed by a provider recognised in the Register, (b) names that Holder record's owner
+  account, (c) has an expiry in the future, and (d) gives a valid country code (FR-008) that the
+  Fund allows. Any other statement MUST be rejected and the Holder record left unchanged.
 - **FR-017**: System MUST store on the Holder record, on approval: jurisdiction, investor type, KYC
   expiry, the statement's fingerprint, and which provider signed it.
 - **FR-018**: System MUST let compliance renew an Approved investor with a newer statement, under
@@ -225,7 +267,9 @@ action from every party and show that only the right one succeeds.
 - **FR-023**: System MUST reject a transfer whose receiver is not Approved, whose receiver's KYC has
   expired, or whose receiver's jurisdiction is not allowed.
 - **FR-024**: System MUST reject a transfer to an investor that holds no units when a holder cap is
-  set and the number of investors holding units has reached it.
+  set and the number of investors holding units has reached it. The count includes only investors
+  (not fund treasury or escrow accounts), rises when an investor's balance goes from zero to above
+  zero, and falls when it returns to zero, in the same transfer that causes the change.
 - **FR-025**: System MUST treat KYC as expired from the moment its expiry is reached.
 - **FR-026**: System MUST report a rejected transfer's first failed check in a fixed, documented
   order.
@@ -267,16 +311,17 @@ action from every party and show that only the right one succeeds.
   Suspended, Winding down, Closed), its issuer and its token. This feature uses only Setup and
   Open; later features enter the other statuses.
 - **Register**: the Fund's holder rules. Holds recognised KYC providers (up to four), allowed
-  jurisdictions, optional holder cap, current count of investors holding units, and the pause
-  flag.
-- **Holder record**: one per institution or fund-operated account. Holds owner, status (Pending,
-  Approved, Suspended, Revoked), class (investor, fund treasury, escrow), jurisdiction, investor
-  type, KYC expiry, fingerprint of the KYC statement, and which provider signed it.
+  jurisdictions (any subset of all countries in the standard list), optional holder cap, current
+  count of investors holding units (fund-operated accounts excluded), and the pause flag.
+- **Holder record**: one per owner account (the account that controls the holding accounts),
+  whether an institution's or fund-operated. Holds owner, status (Pending, Approved, Suspended,
+  Revoked), class (investor, fund treasury, escrow), jurisdiction (a country code), investor type,
+  KYC expiry, fingerprint of the KYC statement, and which provider signed it.
 - **Role assignment**: the account or group that holds each role (issuer, fund admin, transfer
   agent, compliance, keeper, auditor) for a Fund.
-- **KYC statement**: a provider-signed statement that names an institution, its jurisdiction and
-  investor type, and an expiry. The system stores only its fingerprint and signer, not its
-  contents.
+- **KYC statement**: a provider-signed statement that names an owner account, the institution's
+  jurisdiction (a country code) and investor type, and an expiry. The system stores only its
+  fingerprint and signer, not its contents.
 
 ## Success Criteria *(mandatory)*
 
@@ -297,23 +342,28 @@ action from every party and show that only the right one succeeds.
   exactly one registration and one compliance approval, with no other manual step.
 - **SC-006**: All rules behave the same with 10,000 registered holders as with 10, and the effort
   to check a single transfer does not grow with the number of holders.
+- **SC-007**: After every operation in the test suite, including the randomized sequences of
+  SC-001, the Register's count of investors holding units equals the actual number of investors
+  with a balance above zero.
 
 ## Assumptions
 
 - **KYC providers are trusted**: providers sign honestly. The system checks only the signature, the
-  institution named, the expiry and the jurisdiction. Real provider integration is mocked. If a
+  owner account named, the expiry and the jurisdiction. Real provider integration is mocked. If a
   provider signs falsely, the system admits that institution until compliance suspends or revokes
   it.
 - **Issuer controls the token**: the issuer creates and controls the token. This is not a layer on
   top of someone else's fund token.
+- **Institution identity is the owner account**: the system identifies a holder only by its owner
+  account. The KYC provider is trusted to confirm that the owner account belongs to the institution
+  it vetted. The system cannot tell that two owner accounts belong to the same institution; such
+  an institution has two Holder records and counts twice toward the holder cap, which over-counts
+  and so never lets the cap be exceeded.
 - **Institutions act through custodians**: an institution's custodian signs on its behalf, and the
   system never holds an institution's signing key.
-- **Defaults for the open questions** (to confirm in `/speckit-clarify`):
-  - An institution may register itself, but only as an investor. Compliance may register any class.
-  - The holder cap is optional (no cap by default). It counts investors that currently hold units,
-    not fund-operated accounts, and is enforced when a transfer would give units to an investor
-    that has none.
-  - Suspension blocks both sending and receiving (stated in the input).
+- **Open questions from the input**: all three are settled. Self-registration and the holder cap
+  were confirmed in Clarifications (FR-013, FR-024; the cap is optional, with no cap by default).
+  Suspension blocks both sending and receiving, as the input states (FR-027).
 - **Fund-operated accounts**: fund treasury and escrow accounts are approved by compliance without
   a KYC statement, and only when the system itself controls them. This closes the path by which a
   KYC-free class could be granted to an outside party.
@@ -325,6 +375,15 @@ action from every party and show that only the right one succeeds.
 - **Records**: until the governance feature adds a dedicated audit record, the permanent record is
   the system's public activity log for the Fund.
 - **Scale**: one Fund, up to about 10,000 holders, up to four recognised KYC providers.
+- **Jurisdiction is a country**: regional rules (for example, "EU only") are expressed by allowing
+  each country in the region. The country list is fixed when the system is built; a country added
+  to the standard list later needs a system upgrade before a Fund can allow it. The current
+  `docs/shared-model.md` allows only 64 jurisdiction codes, so the plan must change it to cover the
+  full list (Constitution Principle XIII).
+- **Separation of duties**: the system enforces only two separations, keeper from every other role
+  and issuer from compliance, by comparing the assigned accounts or groups. It cannot tell that two
+  different accounts or groups are controlled by the same people. Any further separation (for
+  example, fund admin from transfer agent) is the issuer's responsibility.
 - **Transfer agent role**: the input lists fund admin, compliance, keeper and auditor. The transfer
   agent role is added so that the role set is complete from launch; the distributions feature uses
   it.
