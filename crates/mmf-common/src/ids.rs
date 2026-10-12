@@ -8,6 +8,7 @@ pub const COMPLIANCE_HOOK_PROGRAM_ID: Pubkey =
     pubkey!("A2R9A9xmCpicyUAYixJZr63oBPmKSR95CxxLoSPQfqtM");
 pub const GOVERNANCE_PROGRAM_ID: Pubkey = pubkey!("8Z7an6h8k8dbq7Bxzxyh4HseyaNgTHpVzSwvcq5H9pTV");
 
+pub const SPL_TOKEN_PROGRAM_ID: Pubkey = pubkey!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 pub const TOKEN_2022_PROGRAM_ID: Pubkey = pubkey!("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 pub const ASSOCIATED_TOKEN_PROGRAM_ID: Pubkey =
     pubkey!("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");

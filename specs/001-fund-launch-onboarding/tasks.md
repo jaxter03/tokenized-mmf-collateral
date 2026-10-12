@@ -175,7 +175,7 @@ roles and status (spec US1).
   9. transfer lamports for the final size, including metadata;
   10. `token_metadata_initialize` (name, symbol, uri, update authority `FundState`, signed with `FundState` seeds);
   11. `token_metadata_update_field` for `fund_id` (hex), then `terms_hash` (hex)
-- [ ] T035 [US1] Implement `create_fund` in `programs/fund/src/instructions/create_fund.rs`.
+- [X] T035 [US1] Implement `create_fund` in `programs/fund/src/instructions/create_fund.rs`.
   - Check, in order: `RoleRegistryMismatch` (owner governance, address `["roles", fund_state]`, `role_registry.fund_state == fund_state`), then `Unauthorized` (signer ≠ issuer).
   - Then validate terms in this order: "fund_id not all zero → InvalidFundId"; "cash_mint an initialized SPL Token or Token-2022 mint with 6 decimals → InvalidCashMint"; "target_nav > 0 → ZeroTargetNav"; "max_nav_move_bps > 0 → ZeroMaxNavMove"; "redemption_gate_bps 1 ..= 10 000 → InvalidRedemptionGate"; "distribution_mode 0 Reinvest or 1 Cash → InvalidDistributionMode"; "distribution_cadence_days > 0 → ZeroDistributionCadence"; "terms_hash not all zero → MissingTermsHash"; "terms_uri at least one non-zero byte, zero-padded, valid UTF-8 → MissingTermsUri"; "name non-empty, ≤ 32 bytes → InvalidName"; "symbol non-empty, ≤ 10 bytes → InvalidSymbol".
   - Then call `token_setup`, create `FundState` (status Setup, `role_registry`), and emit `FundCreated` (depends on T034)
