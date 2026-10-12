@@ -309,7 +309,7 @@ can; pause and show no transfer succeeds; unpause and show transfers work (spec 
   - `renew_investor`, with arg `attestation_hash`, in `approve_investor.rs`.
 
   Wire them in `lib.rs`
-- [ ] T058 [US3] Add Accounts structs and stub handlers in `programs/governance/src/instructions/compliance_actions.rs` for `suspend_holder`, `reinstate_holder`, `revoke_holder`, `pause_transfers` and `unpause_transfers`, each taking `(reason: u8, case_ref_hash: [u8; 32])`. Accounts follow [contracts/governance.md](contracts/governance.md): `hook_admin` PDA `["hook-admin"]` and `compliance_hook_program` (depends on T057)
+- [X] T058 [US3] Add Accounts structs and stub handlers in `programs/governance/src/instructions/compliance_actions.rs` for `suspend_holder`, `reinstate_holder`, `revoke_holder`, `pause_transfers` and `unpause_transfers`, each taking `(reason: u8, case_ref_hash: [u8; 32])`. Accounts follow [contracts/governance.md](contracts/governance.md): `hook_admin` PDA `["hook-admin"]` and `compliance_hook_program` (depends on T057)
 - [ ] T059 [US3] Add builders to `crates/mmf-sdk/src/ix_governance.rs` and `ix_hook.rs` for the five compliance actions, `renew_investor`, and direct `set_status` / `set_paused` calls (the latter for rejection tests)
 
 ### Tests for User Story 3 (write first; they must fail) ⚠️
