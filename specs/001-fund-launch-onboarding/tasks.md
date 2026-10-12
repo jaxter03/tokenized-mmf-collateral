@@ -161,7 +161,7 @@ roles and status (spec US1).
 
 ### Implementation for User Story 1
 
-- [ ] T032 [P] [US1] Implement `init_roles` in `programs/governance/src/instructions/init_roles.rs`. `fund_state` must equal `PDA(fund, ["fund", mint])` and hold no data, else `FundAlreadyExists`. Create `RoleRegistry { version: 1, fund_state, issuer: signer, other roles default }` and emit `RolesInitialized`
+- [X] T032 [P] [US1] Implement `init_roles` in `programs/governance/src/instructions/init_roles.rs`. `fund_state` must equal `PDA(fund, ["fund", mint])` and hold no data, else `FundAlreadyExists`. Create `RoleRegistry { version: 1, fund_state, issuer: signer, other roles default }` and emit `RolesInitialized`
 - [ ] T033 [P] [US1] Implement `set_roles` (basic) in `programs/governance/src/instructions/set_roles.rs`. Checks, in order: `Unauthorized` (signer ≠ `issuer`), `FundNotInSetup` (`FundStateView.status != Setup`), `RoleUnassigned` (any default pubkey). Replace the five roles and emit `RolesAssigned`. Separation rules come in T074
 - [ ] T034 [P] [US1] Implement the mint setup CPIs in `programs/fund/src/token_setup.rs`, in this exact order (research R2):
   1. `create_account` with length = `try_calculate_account_len::<Mint>(&[TransferHook, DefaultAccountState, PermanentDelegate, MetadataPointer, MintCloseAuthority])` + the PermissionedBurn TLV size from `mmf-common::permissioned_burn`;

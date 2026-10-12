@@ -5,6 +5,8 @@ use anchor_lang::prelude::*;
 use mmf_common::ids::FUND_PROGRAM_ID;
 use mmf_common::seeds;
 
+use crate::errors::GovernanceError;
+use crate::events::RolesInitialized;
 use crate::state::RoleRegistry;
 
 #[event_cpi]
@@ -31,7 +33,28 @@ pub struct InitRoles<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handle_init_roles(_ctx: Context<InitRoles>) -> Result<()> {
-    // Implemented in T032.
+pub fn handle_init_roles(ctx: Context<InitRoles>) -> Result<()> {
+    // The fund must not exist yet. Unreachable through instructions today (a fund always has a role
+    // registry, so the `init` above fails first), but kept as a defensive check.
+    let fund_state = &ctx.accounts.fund_state;
+    require!(
+        fund_state.data_is_empty() && fund_state.lamports() == 0,
+        GovernanceError::FundAlreadyExists
+    );
+
+    let issuer = ctx.accounts.issuer.key();
+    let roles = &mut ctx.accounts.role_registry;
+    roles.version = RoleRegistry::VERSION;
+    roles.fund_state = fund_state.key();
+    roles.issuer = issuer;
+    roles.bump = ctx.bumps.role_registry;
+
+    let clock = Clock::get()?;
+    emit_cpi!(RolesInitialized {
+        fund: fund_state.key(),
+        issuer,
+        slot: clock.slot,
+        unix_ts: clock.unix_timestamp,
+    });
     Ok(())
 }
