@@ -1,0 +1,633 @@
+//! US3 — Suspend, revoke and pause (FR-018, FR-021, FR-027 to FR-034). Independent test: suspend a
+//! holder and show it can't send or receive; reinstate it and show it can; pause and show no
+//! transfer succeeds; unpause and show transfers work again.
+
+use anchor_lang::prelude::Pubkey;
+use compliance_hook::{HolderState, HookError};
+use governance::GovernanceError;
+use mmf_common::enums::{HolderStatus, ReasonCode};
+use mmf_sdk::{ix_governance, ix_hook, pda};
+use solana_keypair::Keypair;
+use solana_signer::Signer;
+use tests::assert::assert_anchor_error;
+use tests::fixtures::{self, FundCtx};
+use tests::{clock, units, Harness, TxResult};
+
+const SANCTIONS: u8 = ReasonCode::SanctionsHit as u8;
+const CASE: [u8; 32] = [0xC5; 32];
+
+fn suspend(h: &mut Harness, ctx: &FundCtx, owner: &Pubkey) -> TxResult {
+    let ix =
+        ix_governance::suspend_holder(&ctx.compliance.pubkey(), &ctx.m(), owner, SANCTIONS, CASE);
+    h.send(&[ix], &[&ctx.compliance])
+}
+
+fn reinstate(h: &mut Harness, ctx: &FundCtx, owner: &Pubkey) -> TxResult {
+    let ix =
+        ix_governance::reinstate_holder(&ctx.compliance.pubkey(), &ctx.m(), owner, SANCTIONS, CASE);
+    h.send(&[ix], &[&ctx.compliance])
+}
+
+fn revoke(h: &mut Harness, ctx: &FundCtx, owner: &Pubkey) -> TxResult {
+    let ix =
+        ix_governance::revoke_holder(&ctx.compliance.pubkey(), &ctx.m(), owner, SANCTIONS, CASE);
+    h.send(&[ix], &[&ctx.compliance])
+}
+
+fn status(h: &Harness, ctx: &FundCtx, owner: &Pubkey) -> u8 {
+    fixtures::read::<HolderState>(h, &pda::holder(&ctx.m(), owner).0).status
+}
+
+/// Alice holds 1 000 units; Bob is an approved investor with none.
+fn two_investors() -> (Harness, FundCtx, Keypair, Keypair) {
+    let mut h = Harness::new();
+    let (ctx, alice) = fixtures::fund_with_investor_units(&mut h, 0, 1_000);
+    let bob = fixtures::new_investor(&mut h, &ctx);
+    (h, ctx, alice, bob)
+}
+
+// ---------------------------------------------------------------------------------------------
+// T060: suspend, reinstate, revoke (FR-027 to FR-029, US3-1 to US3-3)
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn a_suspended_holder_can_neither_send_nor_receive() {
+    // US3-1, FR-027.
+    let (mut h, ctx, alice, bob) = two_investors();
+    suspend(&mut h, &ctx, &bob.pubkey()).expect("suspend");
+    assert_eq!(
+        status(&h, &ctx, &bob.pubkey()),
+        HolderStatus::Suspended.as_u8()
+    );
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &ctx, &alice, &bob.pubkey(), 1),
+        HookError::ReceiverNotApproved,
+    );
+
+    suspend(&mut h, &ctx, &alice.pubkey()).expect("suspend sender");
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &ctx, &alice, &bob.pubkey(), 1),
+        HookError::SenderNotApproved,
+    );
+    assert_eq!(units::balance(&h, &ctx.m(), &alice.pubkey()), 1_000);
+}
+
+#[test]
+fn reinstated_holder_transacts_again() {
+    // US3-2, FR-028.
+    let (mut h, ctx, alice, bob) = two_investors();
+    suspend(&mut h, &ctx, &bob.pubkey()).unwrap();
+    assert_eq!(
+        status(&h, &ctx, &bob.pubkey()),
+        HolderStatus::Suspended.as_u8()
+    );
+    reinstate(&mut h, &ctx, &bob.pubkey()).expect("reinstate");
+    assert_eq!(
+        status(&h, &ctx, &bob.pubkey()),
+        HolderStatus::Approved.as_u8()
+    );
+    fixtures::transfer(&mut h, &ctx, &alice, &bob.pubkey(), 10).expect("receive again");
+    fixtures::transfer(&mut h, &ctx, &bob, &alice.pubkey(), 5).expect("send again");
+}
+
+#[test]
+fn kyc_expiry_still_applies_after_reinstatement() {
+    // FR-028.
+    let (mut h, ctx, alice, bob) = two_investors();
+    suspend(&mut h, &ctx, &bob.pubkey()).unwrap();
+    assert_eq!(
+        status(&h, &ctx, &bob.pubkey()),
+        HolderStatus::Suspended.as_u8()
+    );
+    clock::advance(&mut h.svm, fixtures::YEAR + 1); // both statements expire
+    reinstate(&mut h, &ctx, &bob.pubkey()).expect("reinstate is allowed");
+    assert_eq!(
+        status(&h, &ctx, &bob.pubkey()),
+        HolderStatus::Approved.as_u8()
+    );
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &ctx, &alice, &bob.pubkey(), 1),
+        HookError::SenderNotApproved,
+    );
+}
+
+#[test]
+fn revocation_is_final() {
+    // US3-3, FR-029: from Pending, Approved and Suspended.
+    let (mut h, ctx, alice, bob) = two_investors();
+    let m = ctx.m();
+    let pending = h.funded_keypair();
+    let p = pending.pubkey();
+    h.send(&[ix_hook::register_holder(&p, &p, &m, &p, 0)], &[&pending])
+        .unwrap();
+    let carol = fixtures::new_investor(&mut h, &ctx);
+    suspend(&mut h, &ctx, &carol.pubkey()).unwrap();
+    for owner in [p, bob.pubkey(), carol.pubkey()] {
+        revoke(&mut h, &ctx, &owner).expect("revoke");
+        assert_eq!(status(&h, &ctx, &owner), HolderStatus::Revoked.as_u8());
+    }
+
+    let b = bob.pubkey();
+    let signed = fixtures::signed_statement(&ctx, &b, *b"US", clock::now(&h.svm) + fixtures::YEAR);
+    let c = ctx.compliance.pubkey();
+    let approve = h.send(
+        &[
+            signed.ix.clone(),
+            ix_hook::approve_investor(&c, &m, &b, signed.attestation_hash),
+        ],
+        &[&ctx.compliance],
+    );
+    assert_anchor_error(&approve, HookError::HolderRevoked);
+    let renew = h.send(
+        &[
+            signed.ix.clone(),
+            ix_hook::renew_investor(&c, &m, &b, signed.attestation_hash),
+        ],
+        &[&ctx.compliance],
+    );
+    assert_anchor_error(&renew, HookError::HolderRevoked);
+    assert_anchor_error(&reinstate(&mut h, &ctx, &b), HookError::HolderRevoked);
+    assert_anchor_error(&revoke(&mut h, &ctx, &b), HookError::HolderRevoked);
+    let again = h.send(&[ix_hook::register_holder(&b, &b, &m, &b, 0)], &[&bob]);
+    assert_anchor_error(&again, HookError::HolderAlreadyRegistered);
+
+    // A revoked holder's units stay where they are and can't move.
+    revoke(&mut h, &ctx, &alice.pubkey()).unwrap();
+    let dave = fixtures::new_investor(&mut h, &ctx);
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &ctx, &alice, &dave.pubkey(), 1),
+        HookError::SenderNotApproved,
+    );
+    assert_eq!(units::balance(&h, &m, &alice.pubkey()), 1_000);
+}
+
+#[test]
+fn status_changes_follow_the_transition_table() {
+    let (mut h, ctx, _alice, bob) = two_investors();
+    let pending = h.funded_keypair();
+    let p = pending.pubkey();
+    h.send(
+        &[ix_hook::register_holder(&p, &p, &ctx.m(), &p, 0)],
+        &[&pending],
+    )
+    .unwrap();
+
+    assert_anchor_error(&suspend(&mut h, &ctx, &p), HookError::InvalidHolderStatus); // Pending
+    assert_anchor_error(
+        &reinstate(&mut h, &ctx, &bob.pubkey()),
+        HookError::InvalidHolderStatus,
+    ); // Approved
+    suspend(&mut h, &ctx, &bob.pubkey()).unwrap();
+    assert_anchor_error(
+        &suspend(&mut h, &ctx, &bob.pubkey()),
+        HookError::InvalidHolderStatus,
+    ); // Suspended
+}
+
+#[test]
+fn only_compliance_acts_and_only_on_an_open_fund() {
+    let (mut h, ctx, _alice, bob) = two_investors();
+    let ix = ix_governance::suspend_holder(
+        &ctx.issuer.pubkey(),
+        &ctx.m(),
+        &bob.pubkey(),
+        SANCTIONS,
+        CASE,
+    );
+    assert_anchor_error(
+        &h.send(&[ix], &[&ctx.issuer]),
+        GovernanceError::Unauthorized,
+    );
+
+    // A fund still in Setup (roles assigned, not launched).
+    let mut h = Harness::new();
+    let (issuer, mint, _) = fixtures::create_standard_fund(&mut h);
+    let compliance = h.funded_keypair();
+    let m = mint.pubkey();
+    let roles = ix_governance::Roles {
+        fund_admin: Pubkey::new_unique(),
+        transfer_agent: Pubkey::new_unique(),
+        compliance: compliance.pubkey(),
+        keeper: Pubkey::new_unique(),
+        auditor: Pubkey::new_unique(),
+    };
+    h.send(
+        &[
+            ix_hook::init_registry(&issuer.pubkey(), &m),
+            ix_governance::set_roles(&issuer.pubkey(), &m, &roles),
+        ],
+        &[&issuer],
+    )
+    .unwrap();
+    let ix = ix_governance::pause_transfers(&compliance.pubkey(), &m, SANCTIONS, CASE);
+    assert_anchor_error(&h.send(&[ix], &[&compliance]), GovernanceError::FundNotOpen);
+}
+
+// ---------------------------------------------------------------------------------------------
+// T061: reason codes, pause / unpause, admin while paused, governance-only entry points
+// (FR-021, FR-030, FR-031)
+// ---------------------------------------------------------------------------------------------
+
+fn pause(h: &mut Harness, ctx: &FundCtx) -> TxResult {
+    let ix = ix_governance::pause_transfers(&ctx.compliance.pubkey(), &ctx.m(), SANCTIONS, CASE);
+    h.send(&[ix], &[&ctx.compliance])
+}
+
+fn unpause(h: &mut Harness, ctx: &FundCtx) -> TxResult {
+    let ix = ix_governance::unpause_transfers(
+        &ctx.compliance.pubkey(),
+        &ctx.m(),
+        ReasonCode::OperationalError as u8,
+        CASE,
+    );
+    h.send(&[ix], &[&ctx.compliance])
+}
+
+#[test]
+fn every_action_needs_a_reason_from_the_f001_list() {
+    // FR-031: CourtOrder, SanctionsHit, LostKey, OperationalError, Other — not CollateralDefault
+    // (4), IssuerWindDown (5) or unknown codes.
+    let (mut h, ctx, _alice, bob) = two_investors();
+    let (c, m, b) = (ctx.compliance.pubkey(), ctx.m(), bob.pubkey());
+    for reason in [4u8, 5, 7, 255] {
+        for ix in [
+            ix_governance::suspend_holder(&c, &m, &b, reason, CASE),
+            ix_governance::reinstate_holder(&c, &m, &b, reason, CASE),
+            ix_governance::revoke_holder(&c, &m, &b, reason, CASE),
+            ix_governance::pause_transfers(&c, &m, reason, CASE),
+            ix_governance::unpause_transfers(&c, &m, reason, CASE),
+        ] {
+            assert_anchor_error(
+                &h.send(&[ix], &[&ctx.compliance]),
+                GovernanceError::InvalidReason,
+            );
+        }
+    }
+    for reason in [0u8, 1, 2, 3, 6] {
+        let ix = ix_governance::suspend_holder(&c, &m, &b, reason, CASE);
+        h.send(&[ix], &[&ctx.compliance]).expect("allowed reason");
+        let ix = ix_governance::reinstate_holder(&c, &m, &b, reason, CASE);
+        h.send(&[ix], &[&ctx.compliance]).expect("allowed reason");
+    }
+}
+
+#[test]
+fn pause_stops_every_transfer_until_unpaused() {
+    // US3-4, US3-5, FR-021.
+    let (mut h, ctx, alice, bob) = two_investors();
+    let treasury = fixtures::onboard_treasury(&mut h, &ctx);
+    pause(&mut h, &ctx).expect("pause");
+    for (to, amount) in [(bob.pubkey(), 10), (bob.pubkey(), 0), (treasury, 10)] {
+        assert_anchor_error(
+            &fixtures::transfer(&mut h, &ctx, &alice, &to, amount),
+            HookError::TransfersPaused,
+        );
+    }
+    assert_anchor_error(&pause(&mut h, &ctx), HookError::AlreadyPaused);
+
+    unpause(&mut h, &ctx).expect("unpause");
+    fixtures::transfer(&mut h, &ctx, &alice, &bob.pubkey(), 10).expect("transfers work again");
+    assert_anchor_error(&unpause(&mut h, &ctx), HookError::NotPaused);
+}
+
+#[test]
+fn compliance_can_still_act_while_paused() {
+    // US3-4, FR-030: register, approve, renew, suspend, reinstate and revoke all work while paused.
+    let (mut h, ctx, alice, bob) = two_investors();
+    pause(&mut h, &ctx).unwrap();
+    assert!(fixtures::read::<compliance_hook::Registry>(&h, &ctx.registry()).transfers_paused);
+    let carol = h.funded_keypair();
+    fixtures::onboard_investor(&mut h, &ctx, &carol, *b"GB"); // register + approve + thaw
+    let b = bob.pubkey();
+    let signed =
+        fixtures::signed_statement(&ctx, &b, *b"US", clock::now(&h.svm) + 2 * fixtures::YEAR);
+    let renew = ix_hook::renew_investor(
+        &ctx.compliance.pubkey(),
+        &ctx.m(),
+        &b,
+        signed.attestation_hash,
+    );
+    h.send(&[signed.ix.clone(), renew], &[&ctx.compliance])
+        .expect("renew while paused");
+    let rec = fixtures::read::<HolderState>(&h, &pda::holder(&ctx.m(), &b).0);
+    assert_eq!(
+        rec.attestation_hash, signed.attestation_hash,
+        "renewal recorded"
+    );
+    suspend(&mut h, &ctx, &b).expect("suspend while paused");
+    assert_eq!(status(&h, &ctx, &b), HolderStatus::Suspended.as_u8());
+    reinstate(&mut h, &ctx, &b).expect("reinstate while paused");
+    assert_eq!(status(&h, &ctx, &b), HolderStatus::Approved.as_u8());
+    revoke(&mut h, &ctx, &alice.pubkey()).expect("revoke while paused");
+    assert_eq!(
+        status(&h, &ctx, &alice.pubkey()),
+        HolderStatus::Revoked.as_u8()
+    );
+    assert_eq!(
+        status(&h, &ctx, &carol.pubkey()),
+        HolderStatus::Approved.as_u8()
+    );
+}
+
+#[test]
+fn only_governance_can_call_set_status_and_set_paused() {
+    let (mut h, ctx, _alice, bob) = two_investors();
+    let m = ctx.m();
+    for signer in [&ctx.compliance, &ctx.issuer] {
+        let s = signer.pubkey();
+        let ix = ix_hook::set_status_direct(&s, &m, &bob.pubkey(), 0, SANCTIONS, CASE, s);
+        assert_anchor_error(&h.send(&[ix], &[signer]), HookError::UnauthorizedCaller);
+        let ix = ix_hook::set_paused_direct(&s, &m, true, SANCTIONS, CASE, s);
+        assert_anchor_error(&h.send(&[ix], &[signer]), HookError::UnauthorizedCaller);
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// T062: renewal and timing (FR-018, FR-025, FR-032, US3-6, US3-7, SC-002)
+// ---------------------------------------------------------------------------------------------
+
+use compliance_hook::events::HolderApproved;
+use mmf_sdk::kyc::SignedStatement;
+use tests::events::one_cpi_event;
+
+fn renew(h: &mut Harness, ctx: &FundCtx, owner: &Pubkey, signed: &SignedStatement) -> TxResult {
+    let ix = ix_hook::renew_investor(
+        &ctx.compliance.pubkey(),
+        &ctx.m(),
+        owner,
+        signed.attestation_hash,
+    );
+    h.send(&[signed.ix.clone(), ix], &[&ctx.compliance])
+}
+
+fn holder_record(h: &Harness, ctx: &FundCtx, owner: &Pubkey) -> HolderState {
+    fixtures::read(h, &pda::holder(&ctx.m(), owner).0)
+}
+
+#[test]
+fn renewal_needs_a_later_expiry() {
+    let (mut h, ctx, _alice, bob) = two_investors();
+    let b = bob.pubkey();
+    let current = holder_record(&h, &ctx, &b).kyc_expiry_ts;
+
+    for expiry in [current, current - 1] {
+        let signed = fixtures::signed_statement(&ctx, &b, *b"US", expiry);
+        assert_anchor_error(
+            &renew(&mut h, &ctx, &b, &signed),
+            HookError::RenewalNotNewer,
+        );
+    }
+    let signed = fixtures::signed_statement(&ctx, &b, *b"US", current + 1);
+    let meta = renew(&mut h, &ctx, &b, &signed).expect("renew with a later expiry");
+    let ev = one_cpi_event::<HolderApproved>(&meta);
+    assert!(ev.renewal);
+    assert_eq!(holder_record(&h, &ctx, &b).kyc_expiry_ts, current + 1);
+}
+
+#[test]
+fn only_an_approved_investor_can_be_renewed() {
+    let (mut h, ctx, _alice, bob) = two_investors();
+    let b = bob.pubkey();
+    suspend(&mut h, &ctx, &b).unwrap();
+    let signed =
+        fixtures::signed_statement(&ctx, &b, *b"US", clock::now(&h.svm) + 2 * fixtures::YEAR);
+    assert_anchor_error(
+        &renew(&mut h, &ctx, &b, &signed),
+        HookError::InvalidHolderStatus,
+    );
+}
+
+#[test]
+fn expired_kyc_blocks_transfers_until_renewed() {
+    // US3-6, US3-7.
+    let (mut h, ctx, alice, bob) = two_investors();
+    clock::advance(&mut h.svm, fixtures::YEAR); // both statements expire at exactly this second
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &ctx, &alice, &bob.pubkey(), 1),
+        HookError::SenderNotApproved,
+    );
+
+    let later = clock::now(&h.svm) + fixtures::YEAR;
+    for owner in [alice.pubkey(), bob.pubkey()] {
+        let signed = fixtures::signed_statement(&ctx, &owner, *b"US", later);
+        renew(&mut h, &ctx, &owner, &signed).expect("renew an expired holder");
+    }
+    fixtures::transfer(&mut h, &ctx, &alice, &bob.pubkey(), 1).expect("send again");
+    fixtures::transfer(&mut h, &ctx, &bob, &alice.pubkey(), 1).expect("receive again");
+}
+
+#[test]
+fn renewal_rechecks_the_jurisdiction() {
+    let (mut h, ctx, _alice, bob) = two_investors();
+    let b = bob.pubkey();
+    let later = clock::now(&h.svm) + 2 * fixtures::YEAR;
+    let fr = fixtures::signed_statement(&ctx, &b, *b"FR", later);
+    assert_anchor_error(
+        &renew(&mut h, &ctx, &b, &fr),
+        HookError::JurisdictionNotAllowed,
+    );
+    let gb = fixtures::signed_statement(&ctx, &b, *b"GB", later);
+    renew(&mut h, &ctx, &b, &gb).expect("move to another allowed jurisdiction");
+    assert_eq!(holder_record(&h, &ctx, &b).jurisdiction, *b"GB");
+}
+
+#[test]
+fn compliance_actions_take_effect_in_the_next_transaction() {
+    // FR-032, SC-002: no clock change between the action and the transfer.
+    let (mut h, ctx, alice, bob) = two_investors();
+    let (a, b) = (alice.pubkey(), bob.pubkey());
+
+    suspend(&mut h, &ctx, &b).unwrap();
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &ctx, &alice, &b, 1),
+        HookError::ReceiverNotApproved,
+    );
+    reinstate(&mut h, &ctx, &b).unwrap();
+    fixtures::transfer(&mut h, &ctx, &alice, &b, 1).expect("right after reinstatement");
+
+    pause(&mut h, &ctx).unwrap();
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &ctx, &alice, &b, 1),
+        HookError::TransfersPaused,
+    );
+    unpause(&mut h, &ctx).unwrap();
+    fixtures::transfer(&mut h, &ctx, &alice, &b, 1).expect("right after unpause");
+
+    let carol = h.funded_keypair();
+    fixtures::onboard_investor(&mut h, &ctx, &carol, *b"US");
+    fixtures::transfer(&mut h, &ctx, &alice, &carol.pubkey(), 1).expect("right after approval");
+
+    revoke(&mut h, &ctx, &a).unwrap();
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &ctx, &alice, &b, 1),
+        HookError::SenderNotApproved,
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// T063: permanent records and status history (FR-033, FR-034, SC-003, US3-8)
+// ---------------------------------------------------------------------------------------------
+
+use compliance_hook::events::{HolderRegistered, HolderStatusChanged, TransfersPaused};
+use tests::events::cpi_events;
+use tests::TxMeta;
+
+#[test]
+fn every_compliance_action_leaves_a_record() {
+    // US3-8, FR-033: reason, case reference, actor, fund, slot and time on each record.
+    let (mut h, ctx, _alice, bob) = two_investors();
+    let b = bob.pubkey();
+    let actor = ctx.compliance.pubkey();
+    clock::set_unix_timestamp(&mut h.svm, 1_900_000_000);
+    let now = clock::now(&h.svm);
+
+    let check = |meta: &TxMeta, from: HolderStatus, to: HolderStatus| {
+        let ev = one_cpi_event::<HolderStatusChanged>(meta);
+        assert_eq!((ev.fund, ev.owner, ev.actor), (ctx.fund_state(), b, actor));
+        assert_eq!((ev.from, ev.to), (from.as_u8(), to.as_u8()));
+        assert_eq!(
+            (ev.reason, ev.case_ref_hash, ev.unix_ts),
+            (SANCTIONS, CASE, now)
+        );
+    };
+    check(
+        &suspend(&mut h, &ctx, &b).unwrap(),
+        HolderStatus::Approved,
+        HolderStatus::Suspended,
+    );
+    check(
+        &reinstate(&mut h, &ctx, &b).unwrap(),
+        HolderStatus::Suspended,
+        HolderStatus::Approved,
+    );
+    check(
+        &revoke(&mut h, &ctx, &b).unwrap(),
+        HolderStatus::Approved,
+        HolderStatus::Revoked,
+    );
+
+    let meta = pause(&mut h, &ctx).unwrap();
+    let ev = one_cpi_event::<TransfersPaused>(&meta);
+    assert_eq!(
+        (ev.fund, ev.paused, ev.reason, ev.case_ref_hash, ev.actor),
+        (ctx.fund_state(), true, SANCTIONS, CASE, actor)
+    );
+    let meta = unpause(&mut h, &ctx).unwrap();
+    let ev = one_cpi_event::<TransfersPaused>(&meta);
+    assert_eq!(
+        (ev.paused, ev.reason),
+        (false, ReasonCode::OperationalError as u8)
+    );
+}
+
+#[test]
+fn status_history_can_be_rebuilt_from_records_alone() {
+    // FR-034, SC-003: register → approve → suspend → reinstate → renew → revoke.
+    let mut h = Harness::new();
+    let ctx = fixtures::launched_fund(&mut h, 0);
+    let inst = h.funded_keypair();
+    let o = inst.pubkey();
+    let m = ctx.m();
+    let mut metas: Vec<TxMeta> = Vec::new();
+
+    metas.push(
+        h.send(&[ix_hook::register_holder(&o, &o, &m, &o, 0)], &[&inst])
+            .unwrap(),
+    );
+    let first = fixtures::signed_statement(&ctx, &o, *b"US", clock::now(&h.svm) + fixtures::YEAR);
+    let approve =
+        ix_hook::approve_investor(&ctx.compliance.pubkey(), &m, &o, first.attestation_hash);
+    metas.push(
+        h.send(&[first.ix.clone(), approve], &[&ctx.compliance])
+            .unwrap(),
+    );
+    metas.push(suspend(&mut h, &ctx, &o).unwrap());
+    metas.push(reinstate(&mut h, &ctx, &o).unwrap());
+    let second =
+        fixtures::signed_statement(&ctx, &o, *b"GB", clock::now(&h.svm) + 2 * fixtures::YEAR);
+    metas.push(renew(&mut h, &ctx, &o, &second).unwrap());
+    metas.push(revoke(&mut h, &ctx, &o).unwrap());
+
+    // Rebuild from the three record types only.
+    let mut history: Vec<(u8, &'static str)> = Vec::new();
+    for meta in &metas {
+        if cpi_events::<HolderRegistered>(meta)
+            .iter()
+            .any(|e| e.owner == o)
+        {
+            history.push((HolderStatus::Pending.as_u8(), "registered"));
+        }
+        for ev in cpi_events::<HolderApproved>(meta)
+            .into_iter()
+            .filter(|e| e.owner == o)
+        {
+            history.push((
+                HolderStatus::Approved.as_u8(),
+                if ev.renewal { "renewed" } else { "approved" },
+            ));
+        }
+        for ev in cpi_events::<HolderStatusChanged>(meta)
+            .into_iter()
+            .filter(|e| e.owner == o)
+        {
+            assert_eq!(
+                Some(ev.from),
+                history.last().map(|x| x.0),
+                "records chain without gaps"
+            );
+            history.push((ev.to, "status change"));
+        }
+    }
+    let statuses: Vec<u8> = history.iter().map(|x| x.0).collect();
+    let (p, a, s, r) = (
+        HolderStatus::Pending.as_u8(),
+        HolderStatus::Approved.as_u8(),
+        HolderStatus::Suspended.as_u8(),
+        HolderStatus::Revoked.as_u8(),
+    );
+    assert_eq!(statuses, vec![p, a, s, a, a, r]);
+    assert_eq!(history[4].1, "renewed");
+    assert_eq!(
+        statuses.last().copied(),
+        Some(status(&h, &ctx, &o)),
+        "history ends at the actual status"
+    );
+}
+
+/// Governance's hook-admin PDA is shared by every fund, so governance must only act on the
+/// signer's own fund: fund A's compliance can't suspend or pause fund B.
+#[test]
+fn compliance_of_one_fund_cannot_act_on_another() {
+    let mut h = Harness::new();
+    let (fund_a, _alice) = fixtures::fund_with_investor_units(&mut h, 0, 100);
+    let (fund_b, bob) = fixtures::fund_with_investor_units(&mut h, 0, 100);
+
+    // A's compliance and role registry, B's registry and holder record.
+    let mut ix = ix_governance::suspend_holder(
+        &fund_a.compliance.pubkey(),
+        &fund_a.m(),
+        &bob.pubkey(),
+        SANCTIONS,
+        CASE,
+    );
+    ix.accounts[3].pubkey = fund_b.registry(); // registry
+    ix.accounts[4].pubkey = pda::holder(&fund_b.m(), &bob.pubkey()).0; // holder_state
+    assert_anchor_error(
+        &h.send(&[ix], &[&fund_a.compliance]),
+        GovernanceError::Unauthorized,
+    );
+
+    let mut ix =
+        ix_governance::pause_transfers(&fund_a.compliance.pubkey(), &fund_a.m(), SANCTIONS, CASE);
+    ix.accounts[3].pubkey = fund_b.registry();
+    assert_anchor_error(
+        &h.send(&[ix], &[&fund_a.compliance]),
+        GovernanceError::Unauthorized,
+    );
+
+    assert_eq!(
+        status(&h, &fund_b, &bob.pubkey()),
+        HolderStatus::Approved.as_u8()
+    );
+    assert!(!fixtures::read::<compliance_hook::Registry>(&h, &fund_b.registry()).transfers_paused);
+}

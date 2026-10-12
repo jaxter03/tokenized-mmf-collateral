@@ -1,0 +1,58 @@
+name: ci
+
+on:
+  push:
+    branches: [main, "0*"]
+  pull_request:
+
+env:
+  SOLANA_VERSION: "3.1.10"
+  ANCHOR_VERSION: "1.1.2"
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Toolchain comes from rust-toolchain.toml (1.90.0 with rustfmt and clippy).
+      - name: Install Rust toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v${SOLANA_VERSION}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+
+      - name: Install Anchor CLI
+        run: |
+          cargo install --git https://github.com/solana-foundation/anchor --tag v${ANCHOR_VERSION} avm --locked
+          avm install ${ANCHOR_VERSION}
+          avm use ${ANCHOR_VERSION}
+
+      - name: Build programs
+        run: anchor build
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Duplicate crate check (research R1)
+        run: scripts/check-duplicate-crates.sh
+
+      - name: Shared crate tests
+        run: cargo test -p mmf-common
+
+      - name: Program tests (LiteSVM)
+        run: cargo test -p tests
+
+      - name: Scale test (SC-006, release)
+        run: cargo test -p tests --release --test scale -- --ignored
+
+      - name: Error coverage (SC-004)
+        run: scripts/check-error-coverage.sh

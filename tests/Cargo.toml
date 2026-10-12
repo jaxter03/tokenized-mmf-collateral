@@ -1,0 +1,39 @@
+[package]
+name = "tests"
+version = "0.1.0"
+description = "LiteSVM program tests for F001"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+litesvm = { version = "=0.12.0", features = ["precompiles"] }
+proptest = "1"
+futures = { version = "0.3", default-features = false, features = ["executor"] }
+mmf-common = { path = "../crates/mmf-common" }
+mmf-sdk = { path = "../crates/mmf-sdk" }
+fund = { path = "../programs/fund", features = ["no-entrypoint"] }
+compliance_hook = { path = "../programs/compliance_hook", features = ["no-entrypoint"] }
+governance = { path = "../programs/governance", features = ["no-entrypoint"] }
+anchor-lang = "=1.1.2"
+anchor-spl = { version = "=1.1.2", features = ["token_2022", "token_2022_extensions", "associated_token"] }
+solana-transaction = "3"
+solana-message = "3.1"
+solana-keypair = "3.1"
+solana-signer = "3"
+solana-system-interface = { version = "3.2", features = ["bincode"] }
+solana-program-pack = "3"
+solana-ed25519-program = "3.0.0"
+spl-associated-token-account-interface = "2"
+solana-account = "3"
+spl-token-metadata-interface = "0.8"
+spl-tlv-account-resolution = "0.11.4"
+spl-transfer-hook-interface = "2.1.0"
+spl-type-length-value = "0.9"
+solana-transaction-error = "3"
+serde_json = "1"
+base64 = "0.22"
+
+[lints.clippy]
+# LiteSVM's TransactionResult carries large failure metadata; boxing it in every helper buys nothing.
+result_large_err = "allow"
