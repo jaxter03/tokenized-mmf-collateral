@@ -99,3 +99,48 @@ pub fn patch<T: AccountDeserialize + anchor_lang::AccountSerialize>(
     acc.data = out;
     h.svm.set_account(*key, acc).expect("set_account");
 }
+
+/// Raw TLV lookup on a Token-2022 mint (`spl-token-2022-interface` 2.1.0 can't enumerate a mint
+/// carrying PermissionedBurn, research R8). Returns the extension's data bytes.
+pub fn mint_tlv(data: &[u8], extension_type: u16) -> Option<Vec<u8>> {
+    // Base mint padded to the account size (165) plus the 1-byte account type.
+    let mut i = 166;
+    while i + 4 <= data.len() {
+        let ty = u16::from_le_bytes([data[i], data[i + 1]]);
+        let len = u16::from_le_bytes([data[i + 2], data[i + 3]]) as usize;
+        if ty == 0 && len == 0 {
+            return None; // uninitialized tail
+        }
+        if ty == extension_type {
+            return Some(data[i + 4..i + 4 + len].to_vec());
+        }
+        i += 4 + len;
+    }
+    None
+}
+
+/// Lowercase hex, as used for the `fund_id` and `terms_hash` metadata fields.
+pub fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Sends init_roles + create_fund with standard terms. Returns `(issuer, mint, cash_mint)`.
+pub fn create_standard_fund(h: &mut Harness) -> (Keypair, Keypair, Pubkey) {
+    let issuer = h.funded_keypair();
+    let mint = Keypair::new();
+    let cash_mint = create_cash_mint(h, CASH_DECIMALS);
+    let m = mint.pubkey();
+    let ixs = [
+        mmf_sdk::ix_governance::init_roles(&issuer.pubkey(), &m),
+        mmf_sdk::ix_fund::create_fund(
+            &issuer.pubkey(),
+            &m,
+            &cash_mint,
+            standard_terms(cash_mint),
+            FUND_NAME,
+            FUND_SYMBOL,
+        ),
+    ];
+    h.send(&ixs, &[&issuer, &mint]).expect("create fund");
+    (issuer, mint, cash_mint)
+}

@@ -148,7 +148,7 @@ roles and status (spec US1).
   - `set_rules`: `Unauthorized`, `FundNotInSetup` after Open (FR-009), `DuplicateProvider`, `UnknownJurisdiction` (unassigned `AA` bit; a bit ≥ 676);
   - `set_roles`: `Unauthorized`, `RoleUnassigned`, `FundNotInSetup` after Open (FR-009);
   - `launch`: `Unauthorized` (spec US1-3), `FundNotInSetup` on relaunch (US1-6), `RolesIncomplete`, `RegisterNotInitialized`, `NoKycProvider`, `NoAllowedJurisdiction` (US1-4)
-- [ ] T030 [P] [US1] Write `tests/tests/mint_config.rs`. After `create_fund`, decode the mint and assert:
+- [X] T030 [P] [US1] Write `tests/tests/mint_config.rs`. After `create_fund`, decode the mint and assert:
   - TransferHook program = `compliance_hook`, authority = `token_admin` PDA;
   - DefaultAccountState = Frozen;
   - PermanentDelegate = `delegate` PDA;
