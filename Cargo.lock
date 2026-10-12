@@ -1983,12 +1983,14 @@ dependencies = [
 name = "mmf-sdk"
 version = "0.1.0"
 dependencies = [
+ "anchor-lang",
  "compliance_hook",
  "ed25519-dalek 2.2.0",
  "fund",
  "governance",
  "mmf-common",
  "solana-ed25519-program",
+ "spl-associated-token-account-interface",
  "spl-transfer-hook-interface",
 ]
 

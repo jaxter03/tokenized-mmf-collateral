@@ -103,7 +103,7 @@ Phase 2 is complete.
   - `tests/src/assert.rs`: `assert_anchor_error(res, code)`, `assert_token_error(res, TokenError)`, `assert_squads_error(res, 6008)`;
   - `tests/src/events.rs`: decode `emit_cpi!` events from `inner_instructions` (data starts with `EVENT_IX_TAG_LE` `0x1d9acb512ea545e4`, then the 8-byte discriminator, then Borsh), and decode `emit!` events from `Program data:` log lines;
   - `tests/src/clock.rs`: `set_unix_timestamp(&mut svm, ts)` via `get_sysvar::<Clock>` / `set_sysvar`
-- [ ] T022 [P] Write `crates/mmf-sdk/src/pda.rs`, deriving every PDA: `fund_state(mint)`, `role_registry(fund_state)`, `registry(mint)`, `extra_metas(mint)`, `holder(mint, owner)`, `delegate(mint)`, `token_admin(mint)`, `hook_admin()`, `treasury(fund_state)`, `event_authority(program)`, `holding_account(owner, mint)` (Token-2022 ATA)
+- [X] T022 [P] Write `crates/mmf-sdk/src/pda.rs`, deriving every PDA: `fund_state(mint)`, `role_registry(fund_state)`, `registry(mint)`, `extra_metas(mint)`, `holder(mint, owner)`, `delegate(mint)`, `token_admin(mint)`, `hook_admin()`, `treasury(fund_state)`, `event_authority(program)`, `holding_account(owner, mint)` (Token-2022 ATA)
 
 **Checkpoint**: the toolchain is proven, layouts are fixed, and the harness runs.
 
