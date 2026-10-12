@@ -12,7 +12,8 @@ compliance_hook = { path = "../../programs/compliance_hook", features = ["no-ent
 governance = { path = "../../programs/governance", features = ["no-entrypoint"] }
 spl-transfer-hook-interface = "2.1.0"
 solana-ed25519-program = "3.0.0"
-ed25519-dalek = "2"
+solana-keypair = "3.1"
+solana-signer = "3"
 anchor-lang = "=1.1.2"
 
 [dev-dependencies]
