@@ -341,3 +341,125 @@ fn only_governance_can_call_set_status_and_set_paused() {
         assert_anchor_error(&h.send(&[ix], &[signer]), HookError::UnauthorizedCaller);
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// T062: renewal and timing (FR-018, FR-025, FR-032, US3-6, US3-7, SC-002)
+// ---------------------------------------------------------------------------------------------
+
+use compliance_hook::events::HolderApproved;
+use mmf_sdk::kyc::SignedStatement;
+use tests::events::one_cpi_event;
+
+fn renew(h: &mut Harness, ctx: &FundCtx, owner: &Pubkey, signed: &SignedStatement) -> TxResult {
+    let ix = ix_hook::renew_investor(
+        &ctx.compliance.pubkey(),
+        &ctx.m(),
+        owner,
+        signed.attestation_hash,
+    );
+    h.send(&[signed.ix.clone(), ix], &[&ctx.compliance])
+}
+
+fn holder_record(h: &Harness, ctx: &FundCtx, owner: &Pubkey) -> HolderState {
+    fixtures::read(h, &pda::holder(&ctx.m(), owner).0)
+}
+
+#[test]
+fn renewal_needs_a_later_expiry() {
+    let (mut h, ctx, _alice, bob) = two_investors();
+    let b = bob.pubkey();
+    let current = holder_record(&h, &ctx, &b).kyc_expiry_ts;
+
+    for expiry in [current, current - 1] {
+        let signed = fixtures::signed_statement(&ctx, &b, *b"US", expiry);
+        assert_anchor_error(
+            &renew(&mut h, &ctx, &b, &signed),
+            HookError::RenewalNotNewer,
+        );
+    }
+    let signed = fixtures::signed_statement(&ctx, &b, *b"US", current + 1);
+    let meta = renew(&mut h, &ctx, &b, &signed).expect("renew with a later expiry");
+    let ev = one_cpi_event::<HolderApproved>(&meta);
+    assert!(ev.renewal);
+    assert_eq!(holder_record(&h, &ctx, &b).kyc_expiry_ts, current + 1);
+}
+
+#[test]
+fn only_an_approved_investor_can_be_renewed() {
+    let (mut h, ctx, _alice, bob) = two_investors();
+    let b = bob.pubkey();
+    suspend(&mut h, &ctx, &b).unwrap();
+    let signed =
+        fixtures::signed_statement(&ctx, &b, *b"US", clock::now(&h.svm) + 2 * fixtures::YEAR);
+    assert_anchor_error(
+        &renew(&mut h, &ctx, &b, &signed),
+        HookError::InvalidHolderStatus,
+    );
+}
+
+#[test]
+fn expired_kyc_blocks_transfers_until_renewed() {
+    // US3-6, US3-7.
+    let (mut h, ctx, alice, bob) = two_investors();
+    clock::advance(&mut h.svm, fixtures::YEAR); // both statements expire at exactly this second
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &ctx, &alice, &bob.pubkey(), 1),
+        HookError::SenderNotApproved,
+    );
+
+    let later = clock::now(&h.svm) + fixtures::YEAR;
+    for owner in [alice.pubkey(), bob.pubkey()] {
+        let signed = fixtures::signed_statement(&ctx, &owner, *b"US", later);
+        renew(&mut h, &ctx, &owner, &signed).expect("renew an expired holder");
+    }
+    fixtures::transfer(&mut h, &ctx, &alice, &bob.pubkey(), 1).expect("send again");
+    fixtures::transfer(&mut h, &ctx, &bob, &alice.pubkey(), 1).expect("receive again");
+}
+
+#[test]
+fn renewal_rechecks_the_jurisdiction() {
+    let (mut h, ctx, _alice, bob) = two_investors();
+    let b = bob.pubkey();
+    let later = clock::now(&h.svm) + 2 * fixtures::YEAR;
+    let fr = fixtures::signed_statement(&ctx, &b, *b"FR", later);
+    assert_anchor_error(
+        &renew(&mut h, &ctx, &b, &fr),
+        HookError::JurisdictionNotAllowed,
+    );
+    let gb = fixtures::signed_statement(&ctx, &b, *b"GB", later);
+    renew(&mut h, &ctx, &b, &gb).expect("move to another allowed jurisdiction");
+    assert_eq!(holder_record(&h, &ctx, &b).jurisdiction, *b"GB");
+}
+
+#[test]
+fn compliance_actions_take_effect_in_the_next_transaction() {
+    // FR-032, SC-002: no clock change between the action and the transfer.
+    let (mut h, ctx, alice, bob) = two_investors();
+    let (a, b) = (alice.pubkey(), bob.pubkey());
+
+    suspend(&mut h, &ctx, &b).unwrap();
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &ctx, &alice, &b, 1),
+        HookError::ReceiverNotApproved,
+    );
+    reinstate(&mut h, &ctx, &b).unwrap();
+    fixtures::transfer(&mut h, &ctx, &alice, &b, 1).expect("right after reinstatement");
+
+    pause(&mut h, &ctx).unwrap();
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &ctx, &alice, &b, 1),
+        HookError::TransfersPaused,
+    );
+    unpause(&mut h, &ctx).unwrap();
+    fixtures::transfer(&mut h, &ctx, &alice, &b, 1).expect("right after unpause");
+
+    let carol = h.funded_keypair();
+    fixtures::onboard_investor(&mut h, &ctx, &carol, *b"US");
+    fixtures::transfer(&mut h, &ctx, &alice, &carol.pubkey(), 1).expect("right after approval");
+
+    revoke(&mut h, &ctx, &a).unwrap();
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &ctx, &alice, &b, 1),
+        HookError::SenderNotApproved,
+    );
+}

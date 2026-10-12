@@ -326,7 +326,7 @@ can; pause and show no transfer succeeds; unpause and show transfers work (spec 
   - pause → every transfer fails `TransfersPaused`, including zero-unit and treasury transfers (US3-4); `AlreadyPaused`; unpause → transfers succeed (US3-5); `NotPaused`;
   - while paused, register, approve, renew, suspend, reinstate and revoke all succeed (FR-030);
   - calling `set_status` / `set_paused` directly with any signer → `UnauthorizedCaller`
-- [ ] T062 [US3] Add renewal and timing tests to `tests/tests/us3_suspend_pause.rs`:
+- [X] T062 [US3] Add renewal and timing tests to `tests/tests/us3_suspend_pause.rs`:
   - renew an Approved investor with a later expiry → `HolderApproved { renewal: true }`;
   - `RenewalNotNewer` for equal and earlier expiry; renewing a Suspended holder → `InvalidHolderStatus`;
   - a KYC-expired holder can't send or receive (US3-6), and after renewal it can (US3-7);
