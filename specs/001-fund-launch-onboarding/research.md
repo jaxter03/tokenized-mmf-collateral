@@ -178,11 +178,14 @@ the current toolchain behaves and were checked against upstream sources (listed 
   mint (`get_extension_types()` errors on the unknown type 28). Looking up a known extension with
   `get_extension::<T>()` still works, so code and tests must read extensions by type, never by
   enumeration.
-- **Placing units in tests** (no mint path exists — FR-035): create the fund treasury's ATA with real
-  instructions (so it has the TransferHookAccount extension), approve and thaw it, then patch its
-  `amount` and the mint's `supply` with `set_account` (unpack with `StateWithExtensionsMut`). Units
-  then move to investors only through real `transfer_checked` calls, so the hook maintains the holder
-  count itself. No test edits `HolderState` or `Registry` directly.
+- **Placing units in tests** (no mint path exists — FR-035): the plan was to seed the fund
+  treasury and move units out with real transfers, but the treasury's owner is a fund PDA that no
+  F001 instruction signs for, so nothing can leave it (found in T047). Instead `units::seed_units`
+  patches an approved investor's thawed holding account and the mint's `supply`, and records exactly
+  the bookkeeping a hook-checked transfer from a fund-operated account would have done: the holder's
+  `last_balance`, and `holder_count` when an investor goes from zero to a balance. Every later
+  movement is a real `transfer_checked`, so the invariant tests (I10) still compare against what
+  the hook itself maintains.
 - **Time**: KYC expiry tests read the `Clock` sysvar, set `unix_timestamp`, and write it back
   (`warp_to_slot` changes only the slot).
 - **Events**: decoded from `inner_instructions`: an instruction to our own program whose data starts

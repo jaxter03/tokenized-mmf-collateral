@@ -219,7 +219,7 @@ show every invalid statement and every unapproved receiver is rejected (spec US2
 - [X] T042 [P] [US2] Write `crates/mmf-sdk/src/transfer.rs`. `transfer_checked_with_hook(...)` resolves the extra accounts via `spl_transfer_hook_interface::offchain::add_extra_account_metas_for_execute`. `transfer_checked_manual(...)` builds the same account list by hand with `pda.rs`, with no offchain helper (FR-020)
 - [X] T043 [US2] Add builders to `crates/mmf-sdk/src/ix_hook.rs` for `register_holder`, `approve_investor`, `approve_fund_account` and `thaw_holding_account`. Add `onboarding_tx(owner, provider, …) -> Vec<Instruction>` returning `[create ATA idempotent, ed25519, approve_investor, thaw_holding_account]` (depends on T040)
 - [X] T044 [US2] Write test helpers in `tests/src/units.rs` and `tests/src/fixtures.rs`:
-  - `tests/src/units.rs`: `place_units(svm, treasury_owner, amount)` patches the approved, thawed treasury ATA's `amount` and the mint's `supply` via `StateWithExtensionsMut`. These are the only edits to token state (research R8);
+  - `tests/src/units.rs`: `seed_units(h, mint, owner, amount)` patches an approved investor's thawed ATA `amount` and the mint's `supply`, and records the bookkeeping a hooked transfer would (`last_balance`, `holder_count`). The treasury PDA can't sign in F001, so units can't start there (research R8, changed during T047);
   - `tests/src/fixtures.rs`: `onboard_investor(ctx, owner, jurisdiction)` and `onboard_treasury(ctx)`
 
 ### Tests for User Story 2 (write first; they must fail) ⚠️
@@ -238,13 +238,13 @@ show every invalid statement and every unapproved receiver is rejected (spec US2
     - `StatementExpired`: `expiry_ts == now` (US2-4);
     - `UnknownJurisdiction` (`AA`); `JurisdictionNotAllowed` (`FR`, US2-6); `InvalidInvestorType` (0); `StatementHashMismatch`.
   - Each rejection leaves the record unchanged
-- [ ] T047 [US2] Add fund-account, thaw and onboarding-count tests to `tests/tests/us2_onboarding.rs`:
+- [X] T047 [US2] Add fund-account, thaw and onboarding-count tests to `tests/tests/us2_onboarding.rs`:
   - `approve_fund_account`: happy path (`kyc_expiry_ts == i64::MAX`); `Unauthorized`; `InvalidHolderStatus`; `NotFundAccount` (investor); `NotSystemControlled`, by patching the record's owner with `set_account` (unreachable state, documented exception);
   - `thaw_holding_account`: happy path + `HoldingAccountThawed`; `HolderNotApproved` (Pending; KYC expired); `NotHoldingAccount` (a non-ATA account of the owner); `AlreadyThawed`;
   - a second, non-ATA account of an approved owner stays frozen, and a transfer to it fails `AccountFrozen` (FR-015);
   - SC-005: exactly two transactions (the institution's `register_holder`, then compliance's `onboarding_tx`) make an institution able to receive units
 - [ ] T048 [P] [US2] Write transfer rule tests in `tests/tests/hook_order.rs`:
-  - with `place_units`, treasury → A → B (both approved) succeeds, balances move, `TransferValidated` is logged;
+  - with `seed_units` on A, A → B (both approved) succeeds, balances move, `TransferValidated` is logged;
   - to a Pending or unregistered owner → Token-2022 `AccountFrozen` (US2-7), no balance change;
   - KYC boundaries (FR-025): sender at `now == expiry` → `SenderNotApproved`; at `expiry − 1` → OK; receiver at `now == expiry` → `ReceiverNotApproved`;
   - `ReceiverNotApproved` for a disallowed jurisdiction and for class 3, and `WrongMint` (Registry `mint` patched), by patching state with `set_account` (documented exception, quickstart FR-023);

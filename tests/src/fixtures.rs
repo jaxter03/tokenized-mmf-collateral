@@ -281,12 +281,12 @@ pub fn onboard_treasury(h: &mut Harness, ctx: &FundCtx) -> Pubkey {
     treasury
 }
 
-/// A launched fund with an onboarded treasury holding `units`. Returns the treasury owner.
-pub fn fund_with_treasury_units(h: &mut Harness, cap: u32, units: u64) -> (FundCtx, Pubkey) {
+/// A launched fund with one onboarded `US` investor holding `units`. Returns the investor.
+pub fn fund_with_investor_units(h: &mut Harness, cap: u32, units: u64) -> (FundCtx, Keypair) {
     let ctx = launched_fund(h, cap);
-    let treasury = onboard_treasury(h, &ctx);
-    crate::units::place_units(h, &ctx.m(), &treasury, units);
-    (ctx, treasury)
+    let investor = new_investor(h, &ctx);
+    crate::units::seed_units(h, &ctx.m(), &investor.pubkey(), units);
+    (ctx, investor)
 }
 
 /// Transfers `amount` from `from`'s holding account to `to_owner`'s, signed by `from`.

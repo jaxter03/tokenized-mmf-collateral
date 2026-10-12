@@ -1,17 +1,22 @@
-//! Placing units in tests (research R8). F001 has no way to create units (FR-035), so tests put
-//! them in the fund treasury's approved, thawed holding account by patching its balance and the
-//! mint's supply. From there units reach investors only through real `transfer_checked` calls, so
-//! the hook maintains the holder count itself. No test edits `HolderState` or `Registry` here.
+//! Placing units in tests (research R8). F001 has no way to create units (FR-035), and the fund
+//! treasury's owner is a program PDA that no F001 instruction signs for, so units can't be moved
+//! out of it. Tests therefore seed units directly into an approved investor's (or fund account's)
+//! thawed holding account, and record exactly the bookkeeping a hook-checked transfer from a
+//! fund-operated account would have done: the holder's `last_balance`, and `holder_count` when an
+//! investor goes from zero to a balance. Every later movement is a real `transfer_checked`.
 
 use anchor_lang::prelude::Pubkey;
 use anchor_spl::token_2022::spl_token_2022 as t22;
+use compliance_hook::{HolderState, Registry};
 use t22::extension::{StateWithExtensions, StateWithExtensionsMut};
 use t22::state::{Account as TokenAccount, AccountState, Mint};
 
+use crate::fixtures::patch;
 use crate::harness::Harness;
 
-/// Adds `amount` units to `owner`'s holding account (must exist and be thawed) and to supply.
-pub fn place_units(h: &mut Harness, mint: &Pubkey, owner: &Pubkey, amount: u64) {
+/// Adds `amount` units to `owner`'s holding account (must exist and be thawed), to supply, and to
+/// the holder's recorded balance (updating the holder count as the hook would).
+pub fn seed_units(h: &mut Harness, mint: &Pubkey, owner: &Pubkey, amount: u64) {
     let ata = mmf_sdk::pda::holding_account(owner, mint);
     let mut acc = h.account(&ata).expect("holding account exists");
     {
@@ -33,6 +38,16 @@ pub fn place_units(h: &mut Harness, mint: &Pubkey, owner: &Pubkey, amount: u64) 
         st.pack_base();
     }
     h.svm.set_account(*mint, macc).unwrap();
+
+    let holder_key = mmf_sdk::pda::holder(mint, owner).0;
+    let mut newly_counted = false;
+    patch::<HolderState>(h, &holder_key, |hs| {
+        newly_counted = hs.is_investor() && hs.last_balance == 0 && amount > 0;
+        hs.last_balance = hs.last_balance.checked_add(amount).unwrap();
+    });
+    if newly_counted {
+        patch::<Registry>(h, &mmf_sdk::pda::registry(mint).0, |r| r.holder_count += 1);
+    }
 }
 
 /// Balance of `owner`'s holding account (0 if it doesn't exist).

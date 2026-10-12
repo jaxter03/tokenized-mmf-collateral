@@ -563,3 +563,253 @@ fn statement_content_checks_in_contract_order() {
     );
     assert_rejected(&h, &ctx, &o, &before, res, HookError::ProviderNotRecognised);
 }
+
+// ---------------------------------------------------------------------------------------------
+// T047: fund-operated accounts, thawing the one holding account, two-step onboarding
+// (FR-015, FR-019, SC-005)
+// ---------------------------------------------------------------------------------------------
+
+use anchor_spl::token_2022::spl_token_2022 as t22;
+use compliance_hook::events::HoldingAccountThawed;
+use t22::error::TokenError;
+use t22::extension::ExtensionType;
+use tests::assert::assert_token_error;
+use tests::units;
+
+fn register_treasury(h: &mut Harness, ctx: &FundCtx) -> Pubkey {
+    let c = ctx.compliance.pubkey();
+    let treasury = pda::treasury(&ctx.fund_state()).0;
+    h.send(
+        &[ix_hook::register_holder(
+            &c,
+            &c,
+            &ctx.m(),
+            &treasury,
+            TREASURY,
+        )],
+        &[&ctx.compliance],
+    )
+    .unwrap();
+    treasury
+}
+
+fn approve_fund(
+    h: &mut Harness,
+    ctx: &FundCtx,
+    signer: &solana_keypair::Keypair,
+    owner: &Pubkey,
+) -> TxResult {
+    h.send(
+        &[ix_hook::approve_fund_account(
+            &signer.pubkey(),
+            &ctx.m(),
+            owner,
+        )],
+        &[signer],
+    )
+}
+
+#[test]
+fn compliance_approves_the_fund_treasury_without_a_statement() {
+    // FR-019.
+    let (mut h, ctx) = setup();
+    let treasury = register_treasury(&mut h, &ctx);
+    let meta = approve_fund(&mut h, &ctx, &ctx.compliance, &treasury).expect("approve treasury");
+    let rec = holder(&h, &ctx, &treasury);
+    assert_eq!(rec.status, HolderStatus::Approved.as_u8());
+    assert_eq!(
+        rec.kyc_expiry_ts,
+        i64::MAX,
+        "fund-operated accounts never expire"
+    );
+    assert_eq!(
+        (rec.jurisdiction, rec.investor_type, rec.attestation_hash),
+        ([0, 0], 0, [0; 32])
+    );
+    assert_eq!(rec.attested_by, Pubkey::default());
+    let ev = one_cpi_event::<HolderApproved>(&meta);
+    assert_eq!(
+        (ev.owner, ev.class, ev.renewal),
+        (treasury, TREASURY, false)
+    );
+}
+
+#[test]
+fn fund_account_approval_rejections() {
+    let (mut h, ctx) = setup();
+    let treasury = register_treasury(&mut h, &ctx);
+    assert_anchor_error(
+        &approve_fund(&mut h, &ctx, &ctx.issuer, &treasury),
+        HookError::Unauthorized,
+    );
+
+    // NotFundAccount: an investor record.
+    let inv = registered(&mut h, &ctx).pubkey();
+    assert_anchor_error(
+        &approve_fund(&mut h, &ctx, &ctx.compliance, &inv),
+        HookError::NotFundAccount,
+    );
+
+    // NotSystemControlled: unreachable through instructions (registration already checks the
+    // owner), so an investor record is patched to the treasury class to prove the check fires.
+    let key = pda::holder(&ctx.m(), &inv).0;
+    fixtures::patch::<HolderState>(&mut h, &key, |r| {
+        r.class = HolderClass::FundTreasury.as_u8()
+    });
+    assert_anchor_error(
+        &approve_fund(&mut h, &ctx, &ctx.compliance, &inv),
+        HookError::NotSystemControlled,
+    );
+
+    // InvalidHolderStatus: already Approved.
+    approve_fund(&mut h, &ctx, &ctx.compliance, &treasury).unwrap();
+    assert_anchor_error(
+        &approve_fund(&mut h, &ctx, &ctx.compliance, &treasury),
+        HookError::InvalidHolderStatus,
+    );
+}
+
+/// Creates a Token-2022 account for `owner` at a fresh (non-ATA) address. It starts frozen.
+fn extra_token_account(h: &mut Harness, ctx: &FundCtx, owner: &Pubkey) -> Pubkey {
+    let acct = solana_keypair::Keypair::new();
+    let len = ExtensionType::try_calculate_account_len::<t22::state::Account>(&[
+        ExtensionType::TransferHookAccount,
+    ])
+    .unwrap();
+    let lamports = h.svm.minimum_balance_for_rent_exemption(len);
+    let ixs = [
+        solana_system_interface::instruction::create_account(
+            &h.payer.pubkey(),
+            &acct.pubkey(),
+            lamports,
+            len as u64,
+            &mmf_common::ids::TOKEN_2022_PROGRAM_ID,
+        ),
+        t22::instruction::initialize_account3(
+            &mmf_common::ids::TOKEN_2022_PROGRAM_ID,
+            &acct.pubkey(),
+            &ctx.m(),
+            owner,
+        )
+        .unwrap(),
+    ];
+    h.send(&ixs, &[&acct]).expect("create extra token account");
+    acct.pubkey()
+}
+
+#[test]
+fn thaw_only_the_approved_owners_holding_account() {
+    let (mut h, ctx) = setup();
+    let inst = registered(&mut h, &ctx);
+    let o = inst.pubkey();
+    let m = ctx.m();
+    let ata = pda::holding_account(&o, &m);
+    let payer = h.payer.pubkey();
+    h.send(&[ix_hook::create_holding_account(&payer, &m, &o)], &[])
+        .unwrap();
+    assert!(units::is_frozen(&h, &ata), "new accounts start frozen");
+
+    // HolderNotApproved: still Pending.
+    let thaw = ix_hook::thaw_holding_account(&payer, &m, &o, &ata);
+    assert_anchor_error(
+        &h.send(std::slice::from_ref(&thaw), &[]),
+        HookError::HolderNotApproved,
+    );
+
+    let signed = kyc::sign(&ctx.provider, &stmt(&h, &ctx, &o));
+    approve(&mut h, &ctx, &o, &signed).unwrap();
+
+    // NotHoldingAccount: any other account the owner opens.
+    let other = extra_token_account(&mut h, &ctx, &o);
+    let res = h.send(
+        &[ix_hook::thaw_holding_account(&payer, &m, &o, &other)],
+        &[],
+    );
+    assert_anchor_error(&res, HookError::NotHoldingAccount);
+    assert!(units::is_frozen(&h, &other));
+
+    // Anyone may thaw the real holding account once the owner is Approved.
+    let meta = h.send(&[thaw.clone()], &[]).expect("permissionless thaw");
+    assert!(!units::is_frozen(&h, &ata));
+    let ev = one_cpi_event::<HoldingAccountThawed>(&meta);
+    assert_eq!((ev.owner, ev.token_account, ev.signer), (o, ata, payer));
+
+    // AlreadyThawed.
+    assert_anchor_error(&h.send(&[thaw], &[]), HookError::AlreadyThawed);
+}
+
+#[test]
+fn thaw_requires_unexpired_kyc() {
+    let (mut h, ctx) = setup();
+    let inst = registered(&mut h, &ctx);
+    let o = inst.pubkey();
+    let m = ctx.m();
+    let now = clock::now(&h.svm);
+    let s = Statement {
+        expiry_ts: now + 100,
+        ..stmt(&h, &ctx, &o)
+    };
+    approve(&mut h, &ctx, &o, &kyc::sign(&ctx.provider, &s)).unwrap();
+    let payer = h.payer.pubkey();
+    h.send(&[ix_hook::create_holding_account(&payer, &m, &o)], &[])
+        .unwrap();
+    clock::set_unix_timestamp(&mut h.svm, now + 100);
+    let res = h.send(
+        &[ix_hook::thaw_holding_account(
+            &payer,
+            &m,
+            &o,
+            &pda::holding_account(&o, &m),
+        )],
+        &[],
+    );
+    assert_anchor_error(&res, HookError::HolderNotApproved);
+}
+
+#[test]
+fn a_second_account_of_an_approved_owner_never_receives() {
+    // FR-015: only the designated holding account can send or receive.
+    let mut h = Harness::new();
+    let (ctx, alice) = fixtures::fund_with_investor_units(&mut h, 0, 1_000);
+    let bob = fixtures::new_investor(&mut h, &ctx);
+    let other = extra_token_account(&mut h, &ctx, &bob.pubkey());
+    let ix = mmf_sdk::transfer::transfer_checked_manual(
+        &pda::holding_account(&alice.pubkey(), &ctx.m()),
+        &alice.pubkey(),
+        &ctx.m(),
+        &other,
+        &bob.pubkey(),
+        &alice.pubkey(),
+        10,
+    );
+    assert_token_error(&h.send(&[ix], &[&alice]), TokenError::AccountFrozen);
+    assert_eq!(units::balance(&h, &ctx.m(), &alice.pubkey()), 1_000);
+}
+
+#[test]
+fn onboarding_takes_one_registration_and_one_compliance_approval() {
+    // SC-005: exactly two transactions, then the institution can receive units.
+    let mut h = Harness::new();
+    let (ctx, alice) = fixtures::fund_with_investor_units(&mut h, 0, 1_000);
+    let inst = h.funded_keypair();
+    let o = inst.pubkey();
+
+    h.send(
+        &[ix_hook::register_holder(&o, &o, &ctx.m(), &o, INVESTOR)],
+        &[&inst],
+    )
+    .expect("tx 1: registration");
+    let signed = kyc::sign(&ctx.provider, &stmt(&h, &ctx, &o));
+    let ixs = ix_hook::onboarding_tx(
+        &h.payer.pubkey(),
+        &ctx.compliance.pubkey(),
+        &ctx.m(),
+        &o,
+        &signed,
+    );
+    h.send(&ixs, &[&ctx.compliance])
+        .expect("tx 2: compliance approval");
+
+    fixtures::transfer(&mut h, &ctx, &alice, &o, 250).expect("institution can now receive");
+    assert_eq!(units::balance(&h, &ctx.m(), &o), 250);
+}
