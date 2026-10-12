@@ -389,13 +389,12 @@ fn first_failure_is_reported_in_the_documented_order() {
     );
 
     // Valid sender, expired receiver that would also break the cap → ReceiverNotApproved.
+    // A is expired and can't send, so C (valid KYC) is seeded directly; that puts the count at 2,
+    // over the cap of 1, which the receiver check must report before the cap check is reached.
     let c = h.funded_keypair();
     onboard_until(&mut h, &ctx, &c, now + 10_000);
-    units::seed_units(&mut h, &ctx.m(), &c.pubkey(), 0);
     let fresh = h.funded_keypair();
     onboard_until(&mut h, &ctx, &fresh, now + 10_000);
-    // Give C units by moving A's units is impossible (A expired), so seed C directly; the cap is
-    // now exceeded only on paper, which is exactly what the receiver check must not reach.
     units::seed_units(&mut h, &ctx.m(), &c.pubkey(), 50);
     assert_anchor_error(
         &fixtures::transfer(&mut h, &ctx, &c, &b.pubkey(), 1),
