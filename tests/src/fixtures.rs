@@ -144,3 +144,98 @@ pub fn create_standard_fund(h: &mut Harness) -> (Keypair, Keypair, Pubkey) {
     h.send(&ixs, &[&issuer, &mint]).expect("create fund");
     (issuer, mint, cash_mint)
 }
+
+/// A launched fund with every role held by its own keypair (T039). Used by US2–US4 tests.
+pub struct FundCtx {
+    pub issuer: Keypair,
+    pub mint: Keypair,
+    pub cash_mint: Pubkey,
+    pub fund_admin: Keypair,
+    pub transfer_agent: Keypair,
+    pub compliance: Keypair,
+    pub keeper: Keypair,
+    pub auditor: Keypair,
+    /// The one recognised mock KYC provider.
+    pub provider: Keypair,
+}
+
+impl FundCtx {
+    pub fn m(&self) -> Pubkey {
+        self.mint.pubkey()
+    }
+
+    pub fn fund_state(&self) -> Pubkey {
+        mmf_sdk::pda::fund_state(&self.m()).0
+    }
+
+    pub fn registry(&self) -> Pubkey {
+        mmf_sdk::pda::registry(&self.m()).0
+    }
+
+    pub fn roles(&self) -> mmf_sdk::ix_governance::Roles {
+        mmf_sdk::ix_governance::Roles {
+            fund_admin: self.fund_admin.pubkey(),
+            transfer_agent: self.transfer_agent.pubkey(),
+            compliance: self.compliance.pubkey(),
+            keeper: self.keeper.pubkey(),
+            auditor: self.auditor.pubkey(),
+        }
+    }
+}
+
+/// Creates, configures and launches a fund: one provider, `US` and `GB` allowed, holder cap
+/// `cap` (0 = no cap), five distinct role keypairs (all funded so they can pay fees).
+pub fn launched_fund(h: &mut Harness, cap: u32) -> FundCtx {
+    let (issuer, mint, cash_mint) = create_standard_fund(h);
+    let ctx = FundCtx {
+        issuer,
+        mint,
+        cash_mint,
+        fund_admin: h.funded_keypair(),
+        transfer_agent: h.funded_keypair(),
+        compliance: h.funded_keypair(),
+        keeper: h.funded_keypair(),
+        auditor: h.funded_keypair(),
+        provider: Keypair::new(),
+    };
+    let m = ctx.m();
+    let i = ctx.issuer.pubkey();
+    let providers = [
+        ctx.provider.pubkey(),
+        Pubkey::default(),
+        Pubkey::default(),
+        Pubkey::default(),
+    ];
+    let ixs = [
+        mmf_sdk::ix_hook::init_registry(&i, &m),
+        mmf_sdk::ix_hook::set_rules(&i, &m, providers, jurisdictions(&[*b"US", *b"GB"]), cap),
+        mmf_sdk::ix_governance::set_roles(&i, &m, &ctx.roles()),
+        mmf_sdk::ix_fund::launch(&i, &m),
+    ];
+    h.send(&ixs, &[&ctx.issuer])
+        .expect("configure and launch fund");
+    ctx
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn launched_fund_is_open_with_rules_and_roles() {
+        let mut h = Harness::new();
+        let c = launched_fund(&mut h, 2);
+        let fs: fund::FundState = read(&h, &c.fund_state());
+        assert_eq!(fs.status, mmf_common::enums::FundStatus::Open.as_u8());
+        let reg: compliance_hook::Registry = read(&h, &c.registry());
+        assert_eq!(reg.max_holders, 2);
+        assert_eq!(reg.kyc_providers[0], c.provider.pubkey());
+        assert!(jurisdiction::set_contains(
+            &reg.allowed_jurisdictions,
+            *b"US"
+        ));
+        let roles: governance::RoleRegistry = read(&h, &fs.role_registry);
+        assert_eq!(roles.compliance, c.compliance.pubkey());
+        assert_eq!(roles.issuer, c.issuer.pubkey());
+    }
+}
