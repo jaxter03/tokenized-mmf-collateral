@@ -335,7 +335,7 @@ can; pause and show no transfer succeeds; unpause and show transfers work (spec 
 - [X] T063 [US3] Add record tests to `tests/tests/us3_suspend_pause.rs`:
   - every suspension, reinstatement, revocation, pause and unpause emits an event with `reason`, `case_ref_hash`, `actor`, `fund`, `slot` and `unix_ts` (US3-8, FR-033);
   - for a holder taken through register → approve → suspend → reinstate → renew → revoke, the status history rebuilt from `HolderRegistered`, `HolderApproved` and `HolderStatusChanged` alone equals the actual sequence (FR-034, SC-003)
-- [ ] T064 [P] [US3] Add pause and suspension combinations to `tests/tests/hook_order.rs`:
+- [X] T064 [P] [US3] Add pause and suspension combinations to `tests/tests/hook_order.rs`:
   - FR-026 order: paused + suspended sender → `TransfersPaused`; paused + frozen receiver → `AccountFrozen`; suspended sender + suspended receiver → `SenderNotApproved`;
   - a suspended holder's transfer from its account to itself still succeeds and changes nothing (R4)
 

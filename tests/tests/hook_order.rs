@@ -406,3 +406,86 @@ fn first_failure_is_reported_in_the_documented_order() {
         HookError::HolderCapReached,
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// T064: pause and suspension in the check order (FR-026), self-transfer while suspended
+// ---------------------------------------------------------------------------------------------
+
+use mmf_common::enums::ReasonCode;
+use mmf_sdk::ix_governance;
+
+const REASON: u8 = ReasonCode::CourtOrder as u8;
+
+fn suspend(h: &mut Harness, ctx: &FundCtx, owner: &Pubkey) {
+    let ix =
+        ix_governance::suspend_holder(&ctx.compliance.pubkey(), &ctx.m(), owner, REASON, [0; 32]);
+    h.send(&[ix], &[&ctx.compliance]).expect("suspend");
+}
+
+fn pause(h: &mut Harness, ctx: &FundCtx) {
+    let ix = ix_governance::pause_transfers(&ctx.compliance.pubkey(), &ctx.m(), REASON, [0; 32]);
+    h.send(&[ix], &[&ctx.compliance]).expect("pause");
+}
+
+#[test]
+fn pause_and_suspension_follow_the_documented_order() {
+    let mut h = Harness::new();
+    let (ctx, alice) = fixtures::fund_with_investor_units(&mut h, 0, 1_000);
+    let bob = fixtures::new_investor(&mut h, &ctx);
+    let frozen = Pubkey::new_unique();
+    h.send(
+        &[ix_hook::create_holding_account(
+            &h.payer.pubkey(),
+            &ctx.m(),
+            &frozen,
+        )],
+        &[],
+    )
+    .unwrap();
+
+    suspend(&mut h, &ctx, &alice.pubkey());
+    suspend(&mut h, &ctx, &bob.pubkey());
+    // Suspended sender and suspended receiver → SenderNotApproved (sender checked first).
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &ctx, &alice, &bob.pubkey(), 1),
+        HookError::SenderNotApproved,
+    );
+
+    pause(&mut h, &ctx);
+    // Paused and suspended sender → TransfersPaused (pause checked before the sender).
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &ctx, &alice, &bob.pubkey(), 1),
+        HookError::TransfersPaused,
+    );
+    // Paused and frozen receiver → Token-2022's AccountFrozen comes before any hook check.
+    assert_token_error(
+        &fixtures::transfer(&mut h, &ctx, &alice, &frozen, 1),
+        TokenError::AccountFrozen,
+    );
+}
+
+#[test]
+fn suspended_holder_sending_to_itself_changes_nothing() {
+    // Research R4: a same-account transfer never reaches the hook, so it succeeds even while
+    // suspended, but moves nothing and leaves every record unchanged.
+    let mut h = Harness::new();
+    let (ctx, alice) = fixtures::fund_with_investor_units(&mut h, 0, 1_000);
+    suspend(&mut h, &ctx, &alice.pubkey());
+    let before = (
+        registry(&h, &ctx).holder_count,
+        holder(&h, &ctx, &alice.pubkey()).last_balance,
+    );
+    fixtures::transfer(&mut h, &ctx, &alice, &alice.pubkey(), 25).expect("self-transfer");
+    assert_eq!(units::balance(&h, &ctx.m(), &alice.pubkey()), 1_000);
+    assert_eq!(
+        (
+            registry(&h, &ctx).holder_count,
+            holder(&h, &ctx, &alice.pubkey()).last_balance
+        ),
+        before
+    );
+    assert_eq!(
+        holder(&h, &ctx, &alice.pubkey()).status,
+        mmf_common::enums::HolderStatus::Suspended.as_u8()
+    );
+}
