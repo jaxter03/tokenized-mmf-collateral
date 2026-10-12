@@ -110,5 +110,18 @@ are under `tests/tests/`.
     those events.
 
 **Expected**: each step prints its signature and outcome; the run exits 0 only if every outcome
-matches. Transfers with units are covered by the LiteSVM suite, because F001 can't create units on
+matches.
+
+**Rehearse locally first (free)**: run the same script against a local validator with the three
+programs and the mainnet Token-2022 v11 binary loaded:
+
+```bash
+solana-test-validator --reset \
+  --bpf-program HV75Ur4qgfHHTNwbJdpiTMkq2sA7YoynBXFtzpsZzYT5 target/deploy/fund.so \
+  --bpf-program A2R9A9xmCpicyUAYixJZr63oBPmKSR95CxxLoSPQfqtM target/deploy/compliance_hook.so \
+  --bpf-program 8Z7an6h8k8dbq7Bxzxyh4HseyaNgTHpVzSwvcq5H9pTV target/deploy/governance.so \
+  --bpf-program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb tests/fixtures/spl_token_2022.so
+solana -u localhost airdrop 100 <wallet>
+RPC_URL=http://127.0.0.1:8899 WALLET=<wallet.json> cargo run -p devnet-e2e
+``` Transfers with units are covered by the LiteSVM suite, because F001 can't create units on
 a real cluster (FR-035).
