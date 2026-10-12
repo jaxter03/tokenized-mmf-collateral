@@ -276,3 +276,134 @@ fn transfer_to_the_same_account_skips_the_hook_and_changes_nothing() {
         before
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// T049: holder cap and the fixed order of checks (FR-024, FR-026, I10)
+// ---------------------------------------------------------------------------------------------
+
+/// Asserts `holder_count` and each investor's `last_balance` against the actual balances.
+#[track_caller]
+fn assert_count(h: &Harness, ctx: &FundCtx, expected: u32, investors: &[&Keypair]) {
+    assert_eq!(registry(h, ctx).holder_count, expected, "holder_count");
+    for k in investors {
+        let actual = units::balance(h, &ctx.m(), &k.pubkey());
+        assert_eq!(
+            holder(h, ctx, &k.pubkey()).last_balance,
+            actual,
+            "last_balance tracks the balance"
+        );
+    }
+}
+
+#[test]
+fn holder_cap_counts_investors_with_units() {
+    let mut h = Harness::new();
+    let (ctx, a) = fixtures::fund_with_investor_units(&mut h, 2, 1_000);
+    let b = fixtures::new_investor(&mut h, &ctx);
+    let c = fixtures::new_investor(&mut h, &ctx);
+    let all = [&a, &b, &c];
+    assert_count(&h, &ctx, 1, &all);
+
+    fixtures::transfer(&mut h, &ctx, &a, &b.pubkey(), 100).unwrap();
+    assert_count(&h, &ctx, 2, &all);
+
+    // At the cap: a new investor can't receive...
+    let res = fixtures::transfer(&mut h, &ctx, &a, &c.pubkey(), 1);
+    assert_anchor_error(&res, HookError::HolderCapReached);
+    assert_count(&h, &ctx, 2, &all);
+    // ...even a zero-unit transfer is fine because it doesn't make C a holder.
+    fixtures::transfer(&mut h, &ctx, &a, &c.pubkey(), 0).expect("zero units don't add a holder");
+    assert_count(&h, &ctx, 2, &all);
+
+    // ...but existing holders can still receive more.
+    fixtures::transfer(&mut h, &ctx, &a, &b.pubkey(), 50).unwrap();
+    assert_count(&h, &ctx, 2, &all);
+
+    // A place frees up when an investor's balance falls to zero.
+    fixtures::transfer(&mut h, &ctx, &b, &a.pubkey(), 150).unwrap();
+    assert_count(&h, &ctx, 1, &all);
+    fixtures::transfer(&mut h, &ctx, &a, &c.pubkey(), 10).expect("place freed");
+    assert_count(&h, &ctx, 2, &all);
+}
+
+#[test]
+fn fund_treasury_is_never_counted() {
+    let mut h = Harness::new();
+    let (ctx, a) = fixtures::fund_with_investor_units(&mut h, 1, 1_000);
+    let treasury = fixtures::onboard_treasury(&mut h, &ctx);
+    // The cap (1) is reached by A alone, yet the treasury can receive and isn't counted.
+    fixtures::transfer(&mut h, &ctx, &a, &treasury, 300).expect("treasury receives at the cap");
+    assert_eq!(units::balance(&h, &ctx.m(), &treasury), 300);
+    assert_count(&h, &ctx, 1, &[&a]);
+    // A sending everything to the treasury frees A's place.
+    fixtures::transfer(&mut h, &ctx, &a, &treasury, 700).unwrap();
+    assert_count(&h, &ctx, 0, &[&a]);
+}
+
+#[test]
+fn no_cap_means_no_limit() {
+    let mut h = Harness::new();
+    let (ctx, a) = fixtures::fund_with_investor_units(&mut h, 0, 1_000);
+    let others: Vec<Keypair> = (0..5)
+        .map(|_| fixtures::new_investor(&mut h, &ctx))
+        .collect();
+    for o in &others {
+        fixtures::transfer(&mut h, &ctx, &a, &o.pubkey(), 10).unwrap();
+    }
+    let refs: Vec<&Keypair> = std::iter::once(&a).chain(others.iter()).collect();
+    assert_count(&h, &ctx, 6, &refs);
+}
+
+#[test]
+fn first_failure_is_reported_in_the_documented_order() {
+    // FR-026: Token-2022's frozen check, then the hook's checks in contract order.
+    let mut h = Harness::new();
+    let ctx = fixtures::launched_fund(&mut h, 1);
+    let now = clock::now(&h.svm);
+    let a = h.funded_keypair();
+    onboard_until(&mut h, &ctx, &a, now + 1_000);
+    let b = h.funded_keypair();
+    onboard_until(&mut h, &ctx, &b, now + 1_000);
+    units::seed_units(&mut h, &ctx.m(), &a.pubkey(), 100); // A holds; the cap (1) is reached
+    let frozen = Pubkey::new_unique();
+    h.send(
+        &[ix_hook::create_holding_account(
+            &h.payer.pubkey(),
+            &ctx.m(),
+            &frozen,
+        )],
+        &[],
+    )
+    .unwrap();
+    clock::set_unix_timestamp(&mut h.svm, now + 1_000); // A and B expire
+
+    // Frozen receiver and expired sender → Token-2022's AccountFrozen comes first.
+    assert_token_error(
+        &fixtures::transfer(&mut h, &ctx, &a, &frozen, 1),
+        TokenError::AccountFrozen,
+    );
+    // Expired sender and expired receiver (also new, at the cap) → SenderNotApproved.
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &ctx, &a, &b.pubkey(), 1),
+        HookError::SenderNotApproved,
+    );
+
+    // Valid sender, expired receiver that would also break the cap → ReceiverNotApproved.
+    let c = h.funded_keypair();
+    onboard_until(&mut h, &ctx, &c, now + 10_000);
+    units::seed_units(&mut h, &ctx.m(), &c.pubkey(), 0);
+    let fresh = h.funded_keypair();
+    onboard_until(&mut h, &ctx, &fresh, now + 10_000);
+    // Give C units by moving A's units is impossible (A expired), so seed C directly; the cap is
+    // now exceeded only on paper, which is exactly what the receiver check must not reach.
+    units::seed_units(&mut h, &ctx.m(), &c.pubkey(), 50);
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &ctx, &c, &b.pubkey(), 1),
+        HookError::ReceiverNotApproved,
+    );
+    // Valid sender and valid new receiver at the cap → HolderCapReached.
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &ctx, &c, &fresh.pubkey(), 1),
+        HookError::HolderCapReached,
+    );
+}

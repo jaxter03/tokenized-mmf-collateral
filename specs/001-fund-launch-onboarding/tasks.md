@@ -252,7 +252,7 @@ show every invalid statement and every unapproved receiver is rejected (spec US2
   - zero-unit transfers run the checks: to KYC-expired → `ReceiverNotApproved`; to approved → OK;
   - a transfer from an account to itself → succeeds, nothing changes, no `TransferValidated` (spec edge case, R4);
   - a transfer built with `transfer_checked_manual` passes the same checks (FR-020)
-- [ ] T049 [US2] Add holder cap and order tests to `tests/tests/hook_order.rs`:
+- [X] T049 [US2] Add holder cap and order tests to `tests/tests/hook_order.rs`:
   - with cap 2, A and B holding, a transfer to new C → `HolderCapReached`;
   - A can still receive more;
   - B sends everything to A → `holder_count` drops to 1, and C can now receive;
