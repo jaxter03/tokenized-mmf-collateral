@@ -380,7 +380,7 @@ from every party, and show only the right one succeeds (spec US4).
   - instructions: issuer-only (`init_registry`, `set_rules`, `set_roles`, `launch`) and compliance-only (`register_holder` for another owner, `approve_investor`, `approve_fund_account`, `renew_investor`, and the five governance actions);
   - signers: the issuer, fund_admin, transfer_agent, compliance, keeper, auditor and an unrelated key;
   - assert `Unauthorized` for every wrong signer, including the issuer for compliance actions, and success for the right one
-- [ ] T073 [US4] Add Squads tests to `tests/tests/us4_roles.rs`:
+- [X] T073 [US4] Add Squads tests to `tests/tests/us4_roles.rs`:
   - compliance = a 2-of-3 Squads vault. A `suspend_holder` proposal with one approval fails on execute with `InvalidProposalStatus` (6008), and the holder is unchanged (US4-3, FR-012); after a second approval, execute succeeds;
   - `[ed25519, vault_transaction_execute(approve_investor(hash))]` succeeds; with a different valid statement in the ed25519 instruction it fails `StatementHashMismatch` (R8)
 

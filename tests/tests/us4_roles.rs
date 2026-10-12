@@ -352,3 +352,127 @@ fn each_action_is_accepted_only_from_its_role_holder() {
         gov_unauthorized,
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// T073: compliance as a Squads 2-of-3 vault (FR-012, US4-3, research R8)
+// ---------------------------------------------------------------------------------------------
+
+use compliance_hook::HolderState;
+use mmf_common::enums::HolderStatus;
+use tests::squads::{self, Multisig, INVALID_PROPOSAL_STATUS};
+
+/// A launched fund whose compliance role is a 2-of-3 Squads vault, plus a registered investor.
+fn fund_with_squads_compliance() -> (Harness, Multisig, Keypair, Pubkey, Keypair) {
+    let mut h = Harness::new();
+    let ms = squads::create(&mut h, 2, 3);
+    let (issuer, mint, _) = fixtures::create_standard_fund(&mut h);
+    let m = mint.pubkey();
+    let provider = Keypair::new();
+    let roles = Roles {
+        compliance: ms.vault,
+        ..distinct()
+    };
+    let i = issuer.pubkey();
+    let providers = [
+        provider.pubkey(),
+        Pubkey::default(),
+        Pubkey::default(),
+        Pubkey::default(),
+    ];
+    h.send(
+        &[
+            ix_hook::init_registry(&i, &m),
+            ix_hook::set_rules(&i, &m, providers, fixtures::jurisdictions(&[*b"US"]), 0),
+            ix_governance::set_roles(&i, &m, &roles),
+            ix_fund::launch(&i, &m),
+        ],
+        &[&issuer],
+    )
+    .unwrap();
+    let inv = h.funded_keypair();
+    let o = inv.pubkey();
+    h.send(&[ix_hook::register_holder(&o, &o, &m, &o, 0)], &[&inv])
+        .unwrap();
+    (h, ms, provider, m, inv)
+}
+
+fn holder_status(h: &Harness, m: &Pubkey, owner: &Pubkey) -> u8 {
+    fixtures::read::<HolderState>(h, &pda::holder(m, owner).0).status
+}
+
+#[test]
+fn a_multisig_role_acts_only_at_its_threshold() {
+    let (mut h, mut ms, provider, m, inv) = fund_with_squads_compliance();
+    let o = inv.pubkey();
+
+    // Approve the investor through the vault (2 approvals) so there is someone to suspend.
+    let stmt = mmf_sdk::kyc::sign(
+        &provider,
+        &mmf_sdk::kyc::statement(m, o, *b"US", 1, clock::now(&h.svm) + fixtures::YEAR),
+    );
+    let approve = ix_hook::approve_investor(&ms.vault, &m, &o, stmt.attestation_hash);
+    squads::squads_execute(
+        &mut h,
+        &mut ms,
+        &[approve],
+        2,
+        std::slice::from_ref(&stmt.ix),
+    )
+    .expect("approve via vault");
+    assert_eq!(holder_status(&h, &m, &o), HolderStatus::Approved.as_u8());
+
+    // One approval of a 2-of-3: execute fails and the holder is unchanged (US4-3).
+    let suspend =
+        ix_governance::suspend_holder(&ms.vault, &m, &o, ReasonCode::SanctionsHit as u8, [0; 32]);
+    let (index, remaining) = ms.propose(&mut h, &[suspend]);
+    ms.approve(&mut h, index, 0).unwrap();
+    let res = ms.execute(&mut h, index, &remaining, &[]);
+    tests::assert::assert_squads_error(&res, INVALID_PROPOSAL_STATUS);
+    assert_eq!(holder_status(&h, &m, &o), HolderStatus::Approved.as_u8());
+
+    // A second approval reaches the threshold: the same proposal now executes.
+    ms.approve(&mut h, index, 1).unwrap();
+    ms.execute(&mut h, index, &remaining, &[])
+        .expect("executes at threshold");
+    assert_eq!(holder_status(&h, &m, &o), HolderStatus::Suspended.as_u8());
+}
+
+#[test]
+fn the_vault_approves_one_exact_statement() {
+    // The Ed25519 instruction must be top-level, outside the approved vault transaction; the
+    // attestation_hash argument binds the approval to one statement (research R8).
+    let (mut h, mut ms, provider, m, inv) = fund_with_squads_compliance();
+    let o = inv.pubkey();
+    let now = clock::now(&h.svm);
+    let approved = mmf_sdk::kyc::sign(
+        &provider,
+        &mmf_sdk::kyc::statement(m, o, *b"US", 1, now + fixtures::YEAR),
+    );
+    let swapped = mmf_sdk::kyc::sign(
+        &provider,
+        &mmf_sdk::kyc::statement(m, o, *b"US", 7, now + 2 * fixtures::YEAR),
+    );
+    let ix = ix_hook::approve_investor(&ms.vault, &m, &o, approved.attestation_hash);
+
+    // The executor attaches a different, validly signed statement for the same owner.
+    let (index, remaining) = ms.propose(&mut h, std::slice::from_ref(&ix));
+    ms.approve(&mut h, index, 0).unwrap();
+    ms.approve(&mut h, index, 1).unwrap();
+    let res = ms.execute(&mut h, index, &remaining, std::slice::from_ref(&swapped.ix));
+    assert_anchor_error(&res, HookError::StatementHashMismatch);
+    assert_eq!(holder_status(&h, &m, &o), HolderStatus::Pending.as_u8());
+
+    // With the statement the members approved, it goes through.
+    ms.execute(
+        &mut h,
+        index,
+        &remaining,
+        std::slice::from_ref(&approved.ix),
+    )
+    .expect("approved statement");
+    let rec = fixtures::read::<HolderState>(&h, &pda::holder(&m, &o).0);
+    assert_eq!(
+        (rec.status, rec.attestation_hash),
+        (HolderStatus::Approved.as_u8(), approved.attestation_hash)
+    );
+}
