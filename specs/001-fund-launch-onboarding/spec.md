@@ -171,9 +171,10 @@ action from every party and show that only the right one succeeds.
   account controls. An institution that uses a second owner account (for example, through a second
   custodian) is a separate holder: it needs its own registration and KYC statement, and counts
   separately toward the holder cap.
-- **Same sender and receiver**: the transfer goes through the same checks as any other transfer
-  (sender and receiver must both be approved, transfers must not be paused). It does not change
-  the holder count.
+- **Same sender and receiver**: a transfer from a holding account to itself moves nothing, and the
+  token does not run the holder checks for it. No balance, record or holder count changes. Because
+  each owner has only one holding account that can send or receive, this is the only form of "same
+  sender and receiver".
 - **Transfer of zero units**: the same checks apply, so a zero-unit transfer to an unapproved
   receiver is rejected.
 - **Several checks fail at once**: the transfer is rejected with the first failure in a fixed,
@@ -187,7 +188,11 @@ action from every party and show that only the right one succeeds.
   code is rejected.
 - **Fund-operated accounts** (fund treasury, escrow): only compliance can register them, and only
   for accounts controlled by the system itself. They need no KYC statement, but pause and
-  suspension apply to them like any other holder.
+  suspension apply to them like any other holder. Escrow accounts are created by the settlement
+  feature; until it exists, no escrow account is controlled by the system, so registering one is
+  rejected.
+- **Holder tries to destroy its own units**: rejected. Only the system can destroy units, and not
+  in this feature.
 
 ## Requirements *(mandatory)*
 
@@ -242,16 +247,18 @@ action from every party and show that only the right one succeeds.
 - **FR-014**: System MUST reject a registration for an owner that already has a Holder record, and
   MUST leave the existing record unchanged.
 - **FR-015**: System MUST ensure that one Holder record governs every holding account its owner has
-  for the Fund, and that a newly opened holding account cannot send or receive units until its
-  owner is Approved.
+  for the Fund. Each owner holds units in exactly one designated holding account, which can send
+  or receive only once its owner is Approved; any other holding account the owner opens can never
+  send or receive.
 - **FR-016**: System MUST let compliance approve a Pending investor only with a KYC statement that
   (a) is signed by a provider recognised in the Register, (b) names that Holder record's owner
   account, (c) has an expiry in the future, and (d) gives a valid country code (FR-008) that the
   Fund allows. Any other statement MUST be rejected and the Holder record left unchanged.
 - **FR-017**: System MUST store on the Holder record, on approval: jurisdiction, investor type, KYC
   expiry, the statement's fingerprint, and which provider signed it.
-- **FR-018**: System MUST let compliance renew an Approved investor with a newer statement, under
-  the same checks as FR-016.
+- **FR-018**: System MUST let compliance renew an Approved investor with a statement whose expiry
+  is later than the one on record, under the same checks as FR-016. A statement whose expiry is not
+  later MUST be rejected.
 - **FR-019**: System MUST let compliance approve a fund-operated account without a KYC statement,
   and only when the account is controlled by the system itself rather than by any person or
   institution.
@@ -302,8 +309,9 @@ action from every party and show that only the right one succeeds.
 
 **Units**
 
-- **FR-035**: System MUST NOT offer any way to create or destroy units in this feature. Units are
-  created only by subscription settlement in a later feature.
+- **FR-035**: System MUST NOT offer any way to create or destroy units in this feature, and MUST
+  reject any attempt by a holder to destroy its own units. Units are created only by subscription
+  settlement in a later feature.
 
 ### Key Entities *(include if feature involves data)*
 

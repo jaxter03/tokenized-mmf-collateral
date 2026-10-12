@@ -20,6 +20,8 @@
 | Daily rate | Fraction of value earned that day × 10^12, stored as `u64`. 4.5 % a year ≈ 0.000123288/day = `123_287_671`. |
 | Accrual index | `u128`, scale 10^18 (interest per unit since launch). `index += daily_rate_e12 × 10^6` on each publish. |
 | Time | `i64` Unix seconds from the Clock sysvar. |
+| Jurisdiction | ISO 3166-1 alpha-2 country code, stored as `[u8; 2]` ASCII. Bit index in a jurisdiction set: `(c1 − 'A') × 26 + (c2 − 'A')` (0..675). A compile-time constant lists the assigned codes; any other code is rejected. [F001] |
+| Holding account | Each owner holds units in exactly one token account: its associated token account (ATA) for the fund mint under Token-2022. Only `compliance_hook::thaw_holding_account` thaws accounts, and only that ATA; any other account stays frozen. [F001] |
 | Seeds | Integers in seeds are little-endian `u64` (`seq.to_le_bytes()`). |
 | Events | Every state-changing instruction emits one event (section 9) with `fund`, `slot`, `unix_ts`. |
 
@@ -42,13 +44,15 @@
 | Setting | Value | Holder of the authority |
 |---|---|---|
 | Transfer hook | `compliance_hook` program | n/a |
+| Transfer hook authority | PDA `["token-admin", mint]` of **governance**; signs nothing until a time-locked F007 action | governance |
 | Default account state | `Frozen` | n/a |
 | Permanent delegate | PDA `["delegate", mint]` of **governance** | governance |
-| Metadata pointer + metadata | name, symbol, `fund_id`, `terms_hash`, `terms_uri` | fund PDA |
+| Metadata pointer + metadata | name, symbol, `fund_id`, `terms_hash`, `terms_uri`; pointer authority and metadata update authority = `FundState` PDA (no F001 instruction updates them) | fund PDA |
 | Mint close authority | `FundState` PDA | fund |
+| Permissioned burn | enabled; burn authority = `FundState` PDA. Every burn (owner, delegate or permanent delegate) needs the fund PDA's co-signature, so holders cannot burn their own units and only `fund` burns (F003 redemption) | fund |
 | Mint authority | `FundState` PDA | fund |
 | Freeze authority | `Registry` PDA | compliance_hook |
-| Not used | ConfidentialTransfer, InterestBearing, TransferFee, NonTransferable | |
+| Not used | ConfidentialTransfer, InterestBearing, TransferFee, NonTransferable, Pausable (transfers are paused in the hook; mint and burn are gated by `fund`) | |
 
 Created once in F001 by `fund::create_fund`, with all extensions initialised in the same transaction.
 
@@ -70,9 +74,9 @@ role_registry          Pubkey   [F001]
 fund_state             Pubkey   [F001]
 collateral_program     Pubkey   [F004]  only caller allowed to change locked units
 kyc_providers          [Pubkey; 4] [F001]
-allowed_jurisdictions  u64      [F001]  bitmask
+allowed_jurisdictions  [u64; 11] [F001] 676-bit set indexed per §1 Jurisdiction; bits ≥ 676 zero
 max_holders            u32      [F001]  0 = no cap
-holder_count           u32      [F001]
+holder_count           u32      [F001]  Investor HolderStates with last_balance > 0 (invariant I10)
 transfers_paused       bool     [F001]
 bump                   u8
 _reserved              [u8; 64]
@@ -86,7 +90,7 @@ mint                   Pubkey   [F001]
 owner                  Pubkey   [F001]
 status                 u8       [F001]  0 Pending, 1 Approved, 2 Suspended, 3 Revoked
 class                  u8       [F001]  0 Investor, 1 FundTreasury, 2 Escrow, 3 CollateralVault [backlog]
-jurisdiction           u8       [F001]
+jurisdiction           [u8; 2]  [F001]  ISO 3166-1 alpha-2; zero for FundTreasury / Escrow
 investor_type          u8       [F001]
 kyc_expiry_ts          i64      [F001]
 attestation_hash       [u8; 32] [F001]
@@ -95,8 +99,8 @@ pledged_amount         u64      [F004]  units locked; = Σ active pledges (invar
 active_liens           u16      [F004]
 index_at_last_touch    u128     [F002]
 accrued_e18            u128     [F002]  interest owed in units × 10^18, not yet paid
-last_balance           u64      [F002]
-last_slot              u64      [F002]
+last_balance           u64      [F001]  owner's ATA balance after the last hook touch (holder count from F001; accrual from F002)
+last_slot              u64      [F001]
 last_paid_cycle        u32      [F006]
 bump                   u8
 _reserved              [u8; 64]
@@ -104,7 +108,7 @@ _reserved              [u8; 64]
 
 **ExtraAccountMetaList**: PDA `["extra-account-metas", mint]`, created in F001. It resolves, in this fixed order:
 
-1. `Registry` (read-only)
+1. `Registry` (**writable**: the hook updates `holder_count`; every transfer of the fund write-locks the Registry, so the fund's transfers are processed one after another within a block)
 2. `FundState` (read-only)
 3. `HolderState` of source owner (writable; seed from source token account `owner` field)
 4. `HolderState` of destination owner (writable; seed from destination token account `owner` field)
@@ -115,6 +119,8 @@ Adding entries later changes every client's transfer, so all five exist from F00
 ### 4.2 `fund`
 
 **FundState**: PDA `["fund", mint]` (also the mint authority)
+
+**Fund treasury authority**: PDA `["treasury", fund_state]` of `fund`. Owns the fund's own unit holding account (`HolderState` class `FundTreasury`). [F001]
 
 ```text
 version                u8
@@ -289,6 +295,12 @@ bump            u8
 _reserved       [u8; 64]
 ```
 
+`init_roles` is signed by the issuer **and the mint keypair**, and runs before `fund::create_fund`, which requires `role_registry.issuer == signer`. The issuer is stored only here. `set_roles` enforces: keeper differs from every other role; compliance differs from issuer. [F001]
+
+**Hook admin**: PDA `["hook-admin"]` of governance. Signs `compliance_hook::set_status` / `set_paused` CPIs. [F001]
+
+**Token admin**: PDA `["token-admin", mint]` of governance. Holds the mint's transfer hook authority. Signs nothing until F007. [F001]
+
 **Delegate authority**: PDA `["delegate", mint]`. This is the mint's permanent delegate. It signs only inside `execute_enforcement` [F005] and `execute_action` for Seize or ForcedTransfer [F007].
 
 **ActionRecord**: PDA `["action", fund_state, seq]`
@@ -328,11 +340,14 @@ version u8 · epoch u64 · slot u64 · register_root [u8; 32] · pledge_root [u8
 | Instruction | Program | Signer | Feature |
 |---|---|---|---|
 | `create_fund`, `launch` | fund | issuer | F001 |
-| `init_roles` | governance | issuer | F001 |
-| `init_registry` (+ ExtraAccountMetaList) | compliance_hook | issuer | F001 |
-| `register_holder` | compliance_hook | the institution or compliance | F001 |
-| `approve_holder` | compliance_hook | compliance + KYC statement (ed25519) | F001 |
-| `suspend/revoke_holder`, `pause/unpause` | governance → compliance_hook | compliance | F001 (record from F007) |
+| `init_roles` | governance | issuer + mint keypair | F001 |
+| `set_roles` | governance | issuer (fund in Setup) | F001 |
+| `init_registry` (+ ExtraAccountMetaList), `set_rules` | compliance_hook | issuer (fund in Setup) | F001 |
+| `register_holder` | compliance_hook | the owner itself (Investor class only) or compliance (any class) | F001 |
+| `approve_investor`, `renew_investor` | compliance_hook | compliance + KYC statement (ed25519) | F001 |
+| `approve_fund_account` | compliance_hook | compliance (owner must be the system PDA for its class) | F001 |
+| `thaw_holding_account` | compliance_hook | anyone (permissionless, state-checked: owner Approved, target is the owner's ATA) | F001 |
+| `suspend/reinstate/revoke_holder`, `pause/unpause_transfers` | governance → compliance_hook | compliance | F001 (record from F007) |
 | `publish_daily` | fund | fund_admin | F002 |
 | `create_instruction`, `affirm_and_fund`, `cancel` | dvp_settlement | parties | F003 |
 | `settle`, `expire` | dvp_settlement | keeper or anyone (permissionless, state-checked) | F003 |
@@ -368,21 +383,25 @@ No other CPI edge is allowed without updating this table.
 ```text
 0. Called by Token-2022 during transfer_checked (source and destination have transferring flag)
 1. Load Registry, FundState, HolderState(src owner), HolderState(dst owner), delegate PDA
-2. is_enforcement = (transfer authority == delegate PDA)
+2. is_enforcement = (transfer authority == delegate PDA)     [F005; false until then]
 3. if registry.transfers_paused && !is_enforcement          → TransfersPaused
 4. if !is_enforcement: src.status == Approved && kyc valid  → SenderNotApproved
-5. if !is_enforcement: post_src_balance >= src.pledged_amount → PledgedUnitsLocked
+5. if !is_enforcement: post_src_balance >= src.pledged_amount → PledgedUnitsLocked   [F004]
 6. dst.status == Approved && kyc valid && class allowed &&
-   jurisdiction allowed (ALWAYS, also for enforcement)       → ReceiverNotApproved
-7. if dst becomes a new holder and max_holders reached       → HolderCapReached
+   (dst.class != Investor || jurisdiction allowed)
+   (ALWAYS, also for enforcement)                            → ReceiverNotApproved
+7. if dst.class == Investor && dst.last_balance == 0 && amount > 0 &&
+   max_holders > 0 && holder_count >= max_holders            → HolderCapReached
 8. accrue(src, pre_src_balance); accrue(dst, pre_dst_balance)   [F002]
-9. src.last_balance, dst.last_balance, last_slot updated
+9. for each Investor touched (once if src owner == dst owner):
+   holder_count += (post_balance > 0) − (last_balance > 0); then
+   src.last_balance, dst.last_balance, last_slot updated
 10. emit TransferValidated
 ```
 
 `pre_src = post_src + amount`, `pre_dst = post_dst − amount`. When source and destination are the same owner, accrue once.
 
-Features insert their logic only at their step. F001 builds steps 0–7 and 9–10 with step 8 as a no-op. F002 fills step 8. F004 activates step 5 (it reads `pledged_amount`, which is zero until then).
+Features insert their logic only at their step. F001 builds steps 0, 1, 3, 4, 6, 7, 9 and 10. Step 8 is a no-op until F002 fills it. Step 5 lands with F004 and step 2 with F005, because neither can be exercised by a test before then (Constitution VI). A missing or foreign `HolderState` counts as not approved (steps 4 and 6). Token-2022 rejects frozen source or destination accounts (`AccountFrozen`) before the hook runs, so that check comes first in the documented order.
 
 Mint and burn do not trigger the hook, so `fund` calls `compliance_hook::accrue` before every mint or burn.
 
@@ -401,6 +420,7 @@ Mint and burn do not trigger the hook, so `fund` calls `compliance_hook::accrue`
 | I7 | Enforced value ≤ shortfall at the price record used | F005 |
 | I8 | Every discretionary admin action has an `ActionRecord` | F007 (F001–F006 call `record_action` once F007 lands; before that, events only) |
 | I9 | Σ distribution receipts for a cycle == total due, within rounding (section 8) | F006 |
+| I10 | `Registry.holder_count == |{Investor HolderState with last_balance > 0}|`, and never below the number of Investors with an actual balance > 0 | F001 |
 
 ---
 
@@ -423,7 +443,7 @@ Worked check (used in tests): NAV 1.00, haircut 2 %:
 
 ## 9. Events (names are shared; payloads include `fund`, `slot`, `unix_ts`)
 
-`FundCreated`, `FundLaunched`, `HolderRegistered`, `HolderApproved`, `HolderStatusChanged`, `TransfersPaused`, `TransferValidated`, `Accrued`, `NavPublished`, `SettlementCreated`, `LegFunded`, `Settled`, `SettlementCancelled`, `SettlementExpired`, `SettlementRejected`, `AgreementProposed`, `AgreementActive`, `ExposureUpdated`, `CallIssued`, `CallMet`, `CallDisputed`, `CallDefaulted`, `Pledged`, `Released`, `Substituted`, `LienSet`, `HoldPlaced`, `HoldLifted`, `Enforced`, `CycleClosed`, `Distributed`, `CycleFinalised`, `ActionProposed`, `ActionExecuted`, `ActionCancelled`, `RegisterRootCommitted`, `FundWindingDown`, `FundClosed`.
+`RolesInitialized`, `RolesAssigned`, `FundCreated`, `RegistryInitialized`, `RegisterRulesSet`, `FundLaunched`, `HolderRegistered`, `HolderApproved`, `HolderStatusChanged`, `TransfersPaused`, `HoldingAccountThawed`, `TransferValidated`, `Accrued`, `NavPublished`, `SettlementCreated`, `LegFunded`, `Settled`, `SettlementCancelled`, `SettlementExpired`, `SettlementRejected`, `AgreementProposed`, `AgreementActive`, `ExposureUpdated`, `CallIssued`, `CallMet`, `CallDisputed`, `CallDefaulted`, `Pledged`, `Released`, `Substituted`, `LienSet`, `HoldPlaced`, `HoldLifted`, `Enforced`, `CycleClosed`, `Distributed`, `CycleFinalised`, `ActionProposed`, `ActionExecuted`, `ActionCancelled`, `RegisterRootCommitted`, `FundWindingDown`, `FundClosed`.
 
 ---
 
@@ -443,11 +463,29 @@ Worked check (used in tests): NAV 1.00, haircut 2 %:
 
 | Feature | Must create | Must fill or activate |
 |---|---|---|
-| F001 | mint + extensions, `FundState` (Setup/Open), `Registry`, `ExtraAccountMetaList` (all 5 entries), `HolderState`, `RoleRegistry` | hook steps 0–7, 9–10 |
+| F001 | mint + extensions, `FundState` (Setup/Open), `Registry`, `ExtraAccountMetaList` (all 5 entries), `HolderState`, `RoleRegistry` | hook steps 0, 1, 3, 4, 6, 7, 9, 10; `holder_count`, `last_balance`, `last_slot` |
 | F002 | `NavRecord` | `FundState.nav*`, `accrual_index`, `daily_rate_e12`; `HolderState.index_at_last_touch`, `accrued_e18`, `last_balance`; hook step 8; `fund::accrue` CPI |
 | F003 | `DvpConfig`, escrow authority + its `HolderState`, `SettlementInstruction` | `FundState.units_outstanding`, `redeemed_today`, `cash_treasury` |
 | F004 | `PledgeAgreement`, `Pledge`, `CollateralCall` | `Registry.collateral_program`; `HolderState.pledged_amount`, `active_liens`; hook step 5 |
-| F005 | `EnforcementHold` | `CollateralCall.enforced_*`; delegate PDA signing in `execute_enforcement` |
+| F005 | `EnforcementHold` | `CollateralCall.enforced_*`; delegate PDA signing in `execute_enforcement`; hook step 2 |
 | F006 | `DistributionCycle`, `DistributionReceipt` | `FundState.current_cycle`; `HolderState.last_paid_cycle` |
 | F007 | `ActionRecord` (full), `RegisterRoot` | `RoleRegistry.timelock_secs`; `record_action` wired into F001–F006 admin paths |
 | F008 | none on-chain | reads everything; must not require new on-chain fields |
+
+---
+
+## 12. Token-2022 behaviours every feature must design for
+
+Checked against Token-2022 program v11.0.0 (mainnet) and v11.1.0 (devnet) in F001 research.
+
+| Behaviour | Consequence |
+|---|---|
+| Mint extensions can only be set before `InitializeMint`. | The F001 extension set (§3) is final. A new mint-level extension means a new mint. |
+| Without permissioned burn, an owner can burn its own units with no hook call. | Permissioned burn is enabled (§3). Burns go only through `fund`, which settles accrual first (F002) and keeps `units_outstanding` (I4). |
+| A transfer whose source and destination are the same token account returns before the hook runs. | Nothing moves; no rule applies. Each owner has one usable account (§1), so "send to yourself" is always this case. |
+| The hook runs for zero-amount `transfer_checked`; unchecked `Transfer` fails for hooked mints. | Zero-unit transfers exercise every check (used by the F001 devnet run). |
+| Frozen source or destination fails with `AccountFrozen` before the hook; that also applies to the permanent delegate. | Default-frozen accounts block unregistered owners. Suspension does not freeze (F001 research R13), so F005 enforcement and F007 recovery are not blocked by a freeze. |
+| Transfers by the permanent delegate also go through the hook. | Step 2 (F005) recognises them; the receiver check still applies. |
+| A program calling `transfer_checked` by CPI must pass the extra accounts with the flags in §4.1, including the **writable** `Registry`. | Applies to `dvp_settlement` (F003) and `governance` (F005, F007). |
+| Holder-side account extensions (required memo on incoming transfers, CPI guard) are set by the account owner. | A receiver could make incoming transfers fail. F003 settlements must tolerate this through expiry and refund; F005 and F006 must decide how to handle it. |
+| Anchor 1.x rejects the same writable typed account passed twice (error 2040). | The hook loads `HolderState` as unchecked accounts and writes once when source owner == destination owner. |
