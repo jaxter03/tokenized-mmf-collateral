@@ -86,7 +86,7 @@ Phase 2 is complete.
   - `FundTerms`: `fund_id [u8;12]`, `cash_mint`, `target_nav u64`, `max_nav_move_bps u16`, `redemption_gate_bps u16`, `distribution_mode u8`, `distribution_cadence_days u16`, `terms_hash [u8;32]`, `terms_uri [u8;128]`;
   - every error in [contracts/fund.md](contracts/fund.md);
   - events `FundCreated` and `FundLaunched`, each carrying `fund`, `slot`, `unix_ts`
-- [ ] T016 [P] Write the governance account and its events and errors in `programs/governance/src/state.rs`, `errors.rs` and `events.rs`:
+- [X] T016 [P] Write the governance account and its events and errors in `programs/governance/src/state.rs`, `errors.rs` and `events.rs`:
   - `RoleRegistry`: "version, fund_state, issuer, fund_admin, transfer_agent, compliance, keeper, auditor, timelock_secs u32 (zero, F007), action_count u64 (zero, F007), bump, _reserved [u8; 64]";
   - errors `Unauthorized`, `FundNotInSetup`, `FundNotOpen`, `FundAlreadyExists`, `RoleUnassigned`, `KeeperNotSeparate`, `ComplianceIsIssuer`, `InvalidReason`;
   - events `RolesInitialized` and `RolesAssigned`
