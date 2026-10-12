@@ -386,7 +386,7 @@ from every party, and show only the right one succeeds (spec US4).
 
 ### Implementation for User Story 4
 
-- [ ] T074 [US4] Add the separation rules to `programs/governance/src/instructions/set_roles.rs`, after `RoleUnassigned`: "keeper differs from issuer, fund_admin, transfer_agent, compliance and auditor → else `KeeperNotSeparate`", then "compliance differs from issuer → else `ComplianceIsIssuer`". Other overlaps stay allowed
+- [X] T074 [US4] Add the separation rules to `programs/governance/src/instructions/set_roles.rs`, after `RoleUnassigned`: "keeper differs from issuer, fund_admin, transfer_agent, compliance and auditor → else `KeeperNotSeparate`", then "compliance differs from issuer → else `ComplianceIsIssuer`". Other overlaps stay allowed
 
 **Checkpoint**: all four stories pass on their own and together.
 

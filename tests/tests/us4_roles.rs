@@ -120,7 +120,7 @@ fn a_rejected_assignment_leaves_roles_unchanged() {
     assert_anchor_error(
         &s.set(&Roles {
             keeper: good.compliance,
-            ..distinct()
+            ..good
         }),
         GovernanceError::KeeperNotSeparate,
     );

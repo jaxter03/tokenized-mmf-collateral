@@ -1,5 +1,5 @@
 //! `set_roles` (contracts/governance.md): the issuer assigns the five operating roles while the
-//! Fund is in Setup (FR-010). Separation rules arrive in T074.
+//! Fund is in Setup (FR-010), with the separation rules from Clarification Q4.
 
 use anchor_lang::prelude::*;
 use mmf_common::enums::FundStatus;
@@ -47,6 +47,27 @@ pub fn handle_set_roles(
         assigned.iter().all(|k| *k != Pubkey::default()),
         GovernanceError::RoleUnassigned
     );
+
+    // Separation of duties (Clarification Q4). The keeper is an automated service's key, so it
+    // may hold no other role (Constitution III: a service key calls only its own role's actions).
+    let others = [
+        roles.issuer,
+        fund_admin,
+        transfer_agent,
+        compliance,
+        auditor,
+    ];
+    require!(
+        !others.contains(&keeper),
+        GovernanceError::KeeperNotSeparate
+    );
+    // The party that runs the fund doesn't also approve its holders.
+    require_keys_neq!(
+        compliance,
+        roles.issuer,
+        GovernanceError::ComplianceIsIssuer
+    );
+    // Any other overlap (e.g. fund admin = transfer agent) is allowed.
 
     roles.fund_admin = fund_admin;
     roles.transfer_agent = transfer_agent;
