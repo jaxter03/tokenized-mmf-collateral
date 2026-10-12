@@ -65,7 +65,7 @@ Phase 2 is complete.
   - (d) invokes the empty `fund` program.
 
   **If any step can't be made to pass**, switch to configuration A: `rust-toolchain.toml` ≥ 1.97.1, `anchor-lang`/`anchor-spl` `=1.2.1` with `solana-v4`, `litesvm = "=0.18.0"`. Rerun, then write the outcome under "Spike outcome" in [research.md](research.md) R8
-- [ ] T012 [P] Add the shared enums to `crates/mmf-common/src/enums.rs`:
+- [X] T012 [P] Add the shared enums to `crates/mmf-common/src/enums.rs`:
   - `FundStatus` "0 Setup, 1 Open, 2 Gated, 3 Suspended, 4 WindingDown, 5 Closed";
   - `HolderStatus` "0 Pending, 1 Approved, 2 Suspended, 3 Revoked";
   - `HolderClass` "0 Investor, 1 FundTreasury, 2 Escrow, 3 CollateralVault [backlog]";
