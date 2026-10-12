@@ -376,7 +376,7 @@ from every party, and show only the right one succeeds (spec US4).
   - `ComplianceIsIssuer`;
   - accepted overlaps: fund_admin == transfer_agent (US4-6); auditor == fund_admin;
   - a rejected assignment leaves the existing roles unchanged (US4-5)
-- [ ] T072 [US4] Add the permission matrix to `tests/tests/us4_roles.rs` (US4-1, US4-2, FR-011):
+- [X] T072 [US4] Add the permission matrix to `tests/tests/us4_roles.rs` (US4-1, US4-2, FR-011):
   - instructions: issuer-only (`init_registry`, `set_rules`, `set_roles`, `launch`) and compliance-only (`register_holder` for another owner, `approve_investor`, `approve_fund_account`, `renew_investor`, and the five governance actions);
   - signers: the issuer, fund_admin, transfer_agent, compliance, keeper, auditor and an unrelated key;
   - assert `Unauthorized` for every wrong signer, including the issuer for compliance actions, and success for the right one
