@@ -90,7 +90,7 @@ Phase 2 is complete.
   - `RoleRegistry`: "version, fund_state, issuer, fund_admin, transfer_agent, compliance, keeper, auditor, timelock_secs u32 (zero, F007), action_count u64 (zero, F007), bump, _reserved [u8; 64]";
   - errors `Unauthorized`, `FundNotInSetup`, `FundNotOpen`, `FundAlreadyExists`, `RoleUnassigned`, `KeeperNotSeparate`, `ComplianceIsIssuer`, `InvalidReason`;
   - events `RolesInitialized` and `RolesAssigned`
-- [ ] T017 [P] Write the compliance_hook accounts, predicates, events and errors in `programs/compliance_hook/src/state.rs`, `errors.rs` and `events.rs`:
+- [X] T017 [P] Write the compliance_hook accounts, predicates, events and errors in `programs/compliance_hook/src/state.rs`, `errors.rs` and `events.rs`:
   - `Registry`, with "allowed_jurisdictions [u64; 11] 676-bit set", "max_holders u32 0 = no cap" and `holder_count u32`;
   - `HolderState`, with "jurisdiction [u8; 2] ISO 3166-1 alpha-2, ASCII; zero for fund-operated accounts", "kyc_expiry_ts i64 investors: from the statement; fund-operated: i64::MAX", `last_balance u64`, `last_slot u64`, and every F002/F004/F006 field left zero, laid out per [data-model.md](data-model.md);
   - predicates `kyc_valid(h, now) := now < h.kyc_expiry_ts`, `approved(h, now) := h.status == Approved && kyc_valid(h, now)`, `jurisdiction_ok(h) := h.class != Investor || allowed(registry, h.jurisdiction)`, `class_allowed(h) := h.class ∈ {Investor, FundTreasury, Escrow}`;
