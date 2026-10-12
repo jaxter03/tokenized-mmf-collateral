@@ -73,7 +73,7 @@ Phase 2 is complete.
   - `StatusAction { Suspend, Reinstate, Revoke }`.
 
   Add every PDA seed to `crates/mmf-common/src/seeds.rs`: `"fund"`, `"roles"`, `"registry"`, `"holder"`, `"extra-account-metas"`, `"delegate"`, `"token-admin"`, `"hook-admin"`, `"treasury"`
-- [ ] T013 [P] Write the jurisdiction support in `crates/mmf-common/src/iso3166.rs` and `crates/mmf-common/src/jurisdiction.rs`:
+- [X] T013 [P] Write the jurisdiction support in `crates/mmf-common/src/iso3166.rs` and `crates/mmf-common/src/jurisdiction.rs`:
   - embed the 249 assigned ISO 3166-1 alpha-2 codes from Debian `iso-codes` `data/iso_3166-1.json` v4.20.1;
   - `index(c1, c2) = (c1 − 'A') × 26 + (c2 − 'A')`, range 0..675;
   - `ASSIGNED_ISO3166: [u64; 11]` 676-bit constant, where bit `i` lives in word `i / 64` at bit `i % 64`;
