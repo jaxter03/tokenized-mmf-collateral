@@ -59,3 +59,132 @@ pub fn set_roles(issuer: &Pubkey, mint: &Pubkey, roles: &Roles) -> Instruction {
         .data(),
     }
 }
+
+use mmf_common::ids::COMPLIANCE_HOOK_PROGRAM_ID;
+
+fn holder_action_accounts(
+    compliance: &Pubkey,
+    mint: &Pubkey,
+    owner: &Pubkey,
+) -> governance::accounts::HolderAction {
+    let fund_state = pda::fund_state(mint).0;
+    governance::accounts::HolderAction {
+        compliance: *compliance,
+        role_registry: pda::role_registry(&fund_state).0,
+        fund_state,
+        registry: pda::registry(mint).0,
+        holder_state: pda::holder(mint, owner).0,
+        hook_admin: pda::hook_admin().0,
+        hook_event_authority: pda::event_authority(&COMPLIANCE_HOOK_PROGRAM_ID).0,
+        compliance_hook_program: COMPLIANCE_HOOK_PROGRAM_ID,
+    }
+}
+
+fn pause_accounts(compliance: &Pubkey, mint: &Pubkey) -> governance::accounts::PauseAction {
+    let fund_state = pda::fund_state(mint).0;
+    governance::accounts::PauseAction {
+        compliance: *compliance,
+        role_registry: pda::role_registry(&fund_state).0,
+        fund_state,
+        registry: pda::registry(mint).0,
+        hook_admin: pda::hook_admin().0,
+        hook_event_authority: pda::event_authority(&COMPLIANCE_HOOK_PROGRAM_ID).0,
+        compliance_hook_program: COMPLIANCE_HOOK_PROGRAM_ID,
+    }
+}
+
+fn ix(accounts: impl ToAccountMetas, data: Vec<u8>) -> Instruction {
+    Instruction {
+        program_id: GOVERNANCE_PROGRAM_ID,
+        accounts: accounts.to_account_metas(None),
+        data,
+    }
+}
+
+/// `suspend_holder`: Approved → Suspended.
+pub fn suspend_holder(
+    compliance: &Pubkey,
+    mint: &Pubkey,
+    owner: &Pubkey,
+    reason: u8,
+    case_ref_hash: [u8; 32],
+) -> Instruction {
+    ix(
+        holder_action_accounts(compliance, mint, owner),
+        governance::instruction::SuspendHolder {
+            reason,
+            case_ref_hash,
+        }
+        .data(),
+    )
+}
+
+/// `reinstate_holder`: Suspended → Approved.
+pub fn reinstate_holder(
+    compliance: &Pubkey,
+    mint: &Pubkey,
+    owner: &Pubkey,
+    reason: u8,
+    case_ref_hash: [u8; 32],
+) -> Instruction {
+    ix(
+        holder_action_accounts(compliance, mint, owner),
+        governance::instruction::ReinstateHolder {
+            reason,
+            case_ref_hash,
+        }
+        .data(),
+    )
+}
+
+/// `revoke_holder`: Pending / Approved / Suspended → Revoked (final).
+pub fn revoke_holder(
+    compliance: &Pubkey,
+    mint: &Pubkey,
+    owner: &Pubkey,
+    reason: u8,
+    case_ref_hash: [u8; 32],
+) -> Instruction {
+    ix(
+        holder_action_accounts(compliance, mint, owner),
+        governance::instruction::RevokeHolder {
+            reason,
+            case_ref_hash,
+        }
+        .data(),
+    )
+}
+
+/// `pause_transfers`.
+pub fn pause_transfers(
+    compliance: &Pubkey,
+    mint: &Pubkey,
+    reason: u8,
+    case_ref_hash: [u8; 32],
+) -> Instruction {
+    ix(
+        pause_accounts(compliance, mint),
+        governance::instruction::PauseTransfers {
+            reason,
+            case_ref_hash,
+        }
+        .data(),
+    )
+}
+
+/// `unpause_transfers`.
+pub fn unpause_transfers(
+    compliance: &Pubkey,
+    mint: &Pubkey,
+    reason: u8,
+    case_ref_hash: [u8; 32],
+) -> Instruction {
+    ix(
+        pause_accounts(compliance, mint),
+        governance::instruction::UnpauseTransfers {
+            reason,
+            case_ref_hash,
+        }
+        .data(),
+    )
+}

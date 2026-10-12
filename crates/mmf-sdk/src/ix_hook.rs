@@ -199,3 +199,76 @@ pub fn onboarding_tx(
         thaw_holding_account(payer, mint, owner, &pda::holding_account(owner, mint)),
     ]
 }
+
+/// `renew_investor`: must come immediately after the statement's Ed25519 instruction.
+pub fn renew_investor(
+    compliance: &Pubkey,
+    mint: &Pubkey,
+    owner: &Pubkey,
+    attestation_hash: [u8; 32],
+) -> Instruction {
+    let mut ix = approve_investor(compliance, mint, owner, attestation_hash);
+    ix.data = compliance_hook::instruction::RenewInvestor { attestation_hash }.data();
+    ix
+}
+
+/// A direct `set_status` call (normally only governance's hook-admin PDA signs it). For tests
+/// proving any other signer is rejected.
+pub fn set_status_direct(
+    signer: &Pubkey,
+    mint: &Pubkey,
+    owner: &Pubkey,
+    action: u8,
+    reason: u8,
+    case_ref_hash: [u8; 32],
+    actor: Pubkey,
+) -> Instruction {
+    let (event_authority, program) = event_accounts();
+    let accounts = compliance_hook::accounts::SetStatus {
+        hook_admin: *signer,
+        registry: pda::registry(mint).0,
+        holder_state: pda::holder(mint, owner).0,
+        event_authority,
+        program,
+    };
+    Instruction {
+        program_id: COMPLIANCE_HOOK_PROGRAM_ID,
+        accounts: accounts.to_account_metas(None),
+        data: compliance_hook::instruction::SetStatus {
+            action,
+            reason,
+            case_ref_hash,
+            actor,
+        }
+        .data(),
+    }
+}
+
+/// A direct `set_paused` call (normally only governance's hook-admin PDA signs it).
+pub fn set_paused_direct(
+    signer: &Pubkey,
+    mint: &Pubkey,
+    paused: bool,
+    reason: u8,
+    case_ref_hash: [u8; 32],
+    actor: Pubkey,
+) -> Instruction {
+    let (event_authority, program) = event_accounts();
+    let accounts = compliance_hook::accounts::SetPaused {
+        hook_admin: *signer,
+        registry: pda::registry(mint).0,
+        event_authority,
+        program,
+    };
+    Instruction {
+        program_id: COMPLIANCE_HOOK_PROGRAM_ID,
+        accounts: accounts.to_account_metas(None),
+        data: compliance_hook::instruction::SetPaused {
+            paused,
+            reason,
+            case_ref_hash,
+            actor,
+        }
+        .data(),
+    }
+}
