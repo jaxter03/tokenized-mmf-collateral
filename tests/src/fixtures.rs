@@ -217,6 +217,90 @@ pub fn launched_fund(h: &mut Harness, cap: u32) -> FundCtx {
     ctx
 }
 
+/// Seconds in a year; mock statements expire a year after "now" unless a test says otherwise.
+pub const YEAR: i64 = 365 * 24 * 60 * 60;
+
+/// A statement for `owner` signed by the fund's mock provider.
+pub fn signed_statement(
+    ctx: &FundCtx,
+    owner: &Pubkey,
+    jurisdiction: [u8; 2],
+    expiry_ts: i64,
+) -> mmf_sdk::kyc::SignedStatement {
+    mmf_sdk::kyc::sign(
+        &ctx.provider,
+        &mmf_sdk::kyc::statement(ctx.m(), *owner, jurisdiction, 1, expiry_ts),
+    )
+}
+
+/// Onboards an investor the SC-005 way: the institution registers itself, then compliance sends
+/// `[create ATA, ed25519, approve_investor, thaw]`. KYC expires a year from now.
+pub fn onboard_investor(h: &mut Harness, ctx: &FundCtx, owner: &Keypair, jurisdiction: [u8; 2]) {
+    let m = ctx.m();
+    let o = owner.pubkey();
+    let ix = mmf_sdk::ix_hook::register_holder(&o, &o, &m, &o, 0);
+    h.send(&[ix], &[owner]).expect("register investor");
+    let expiry = crate::clock::now(&h.svm) + YEAR;
+    let signed = signed_statement(ctx, &o, jurisdiction, expiry);
+    let ixs = mmf_sdk::ix_hook::onboarding_tx(
+        &h.payer.pubkey(),
+        &ctx.compliance.pubkey(),
+        &m,
+        &o,
+        &signed,
+    );
+    h.send(&ixs, &[&ctx.compliance])
+        .expect("approve and thaw investor");
+}
+
+/// A funded investor keypair, onboarded in `US`.
+pub fn new_investor(h: &mut Harness, ctx: &FundCtx) -> Keypair {
+    let k = h.funded_keypair();
+    onboard_investor(h, ctx, &k, *b"US");
+    k
+}
+
+/// Registers, approves and thaws the fund treasury (owner = fund PDA `["treasury", fund_state]`).
+/// Returns the treasury owner.
+pub fn onboard_treasury(h: &mut Harness, ctx: &FundCtx) -> Pubkey {
+    let m = ctx.m();
+    let c = ctx.compliance.pubkey();
+    let treasury = mmf_sdk::pda::treasury(&ctx.fund_state()).0;
+    let ixs = [
+        mmf_sdk::ix_hook::register_holder(&c, &c, &m, &treasury, 1),
+        mmf_sdk::ix_hook::approve_fund_account(&c, &m, &treasury),
+        mmf_sdk::ix_hook::create_holding_account(&h.payer.pubkey(), &m, &treasury),
+        mmf_sdk::ix_hook::thaw_holding_account(
+            &h.payer.pubkey(),
+            &m,
+            &treasury,
+            &mmf_sdk::pda::holding_account(&treasury, &m),
+        ),
+    ];
+    h.send(&ixs, &[&ctx.compliance]).expect("onboard treasury");
+    treasury
+}
+
+/// A launched fund with an onboarded treasury holding `units`. Returns the treasury owner.
+pub fn fund_with_treasury_units(h: &mut Harness, cap: u32, units: u64) -> (FundCtx, Pubkey) {
+    let ctx = launched_fund(h, cap);
+    let treasury = onboard_treasury(h, &ctx);
+    crate::units::place_units(h, &ctx.m(), &treasury, units);
+    (ctx, treasury)
+}
+
+/// Transfers `amount` from `from`'s holding account to `to_owner`'s, signed by `from`.
+pub fn transfer(
+    h: &mut Harness,
+    ctx: &FundCtx,
+    from: &Keypair,
+    to_owner: &Pubkey,
+    amount: u64,
+) -> crate::harness::TxResult {
+    let ix = mmf_sdk::transfer::transfer_between_owners(&ctx.m(), &from.pubkey(), to_owner, amount);
+    h.send(&[ix], &[from])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

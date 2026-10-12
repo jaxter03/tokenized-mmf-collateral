@@ -218,7 +218,7 @@ show every invalid statement and every unapproved receiver is rejected (spec US2
 - [X] T041 [P] [US2] Write `crates/mmf-sdk/src/kyc.rs`. `MockProvider { keypair }::statement(mint, owner, jurisdiction, investor_type, expiry_ts) -> (message [u8; 95], ed25519 Instruction, attestation_hash)`, using `mmf_common::statement::encode` and `solana_ed25519_program::new_ed25519_instruction_with_signature`. Add tamper helpers for tests: a statement with two signatures, offsets into another instruction, zero signatures, and a wrong length
 - [X] T042 [P] [US2] Write `crates/mmf-sdk/src/transfer.rs`. `transfer_checked_with_hook(...)` resolves the extra accounts via `spl_transfer_hook_interface::offchain::add_extra_account_metas_for_execute`. `transfer_checked_manual(...)` builds the same account list by hand with `pda.rs`, with no offchain helper (FR-020)
 - [X] T043 [US2] Add builders to `crates/mmf-sdk/src/ix_hook.rs` for `register_holder`, `approve_investor`, `approve_fund_account` and `thaw_holding_account`. Add `onboarding_tx(owner, provider, …) -> Vec<Instruction>` returning `[create ATA idempotent, ed25519, approve_investor, thaw_holding_account]` (depends on T040)
-- [ ] T044 [US2] Write test helpers in `tests/src/units.rs` and `tests/src/fixtures.rs`:
+- [X] T044 [US2] Write test helpers in `tests/src/units.rs` and `tests/src/fixtures.rs`:
   - `tests/src/units.rs`: `place_units(svm, treasury_owner, amount)` patches the approved, thawed treasury ATA's `amount` and the mint's `supply` via `StateWithExtensionsMut`. These are the only edits to token state (research R8);
   - `tests/src/fixtures.rs`: `onboard_investor(ctx, owner, jurisdiction)` and `onboard_treasury(ctx)`
 
