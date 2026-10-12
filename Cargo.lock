@@ -4652,6 +4652,7 @@ dependencies = [
  "solana-signer",
  "solana-system-interface 3.3.0",
  "solana-transaction",
+ "solana-transaction-error",
  "spl-associated-token-account-interface",
 ]
 
