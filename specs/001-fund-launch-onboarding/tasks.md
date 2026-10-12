@@ -208,7 +208,7 @@ show every invalid statement and every unapproved receiver is rejected (spec US2
 
 ### Interface stubs for User Story 2
 
-- [ ] T040 [US2] Add Accounts structs and stub handlers per [contracts/compliance_hook.md](contracts/compliance_hook.md) in `programs/compliance_hook/src/instructions/`:
+- [X] T040 [US2] Add Accounts structs and stub handlers per [contracts/compliance_hook.md](contracts/compliance_hook.md) in `programs/compliance_hook/src/instructions/`:
   - `register_holder.rs`: `holder_state` as an `UncheckedAccount`, created by hand;
   - `approve_investor.rs`: arg `attestation_hash: [u8; 32]`, plus the `instructions` sysvar;
   - `approve_fund_account.rs`;
