@@ -5,8 +5,12 @@
 
 use anchor_lang::prelude::*;
 use compliance_hook::program::ComplianceHook;
+use mmf_common::enums::{FundStatus, ReasonCode};
+use mmf_common::ids::COMPLIANCE_HOOK_PROGRAM_ID;
 use mmf_common::seeds;
+use mmf_common::views::FundStateView;
 
+use crate::errors::GovernanceError;
 use crate::state::RoleRegistry;
 
 /// Accounts for suspend / reinstate / revoke.
@@ -49,22 +53,116 @@ pub struct PauseAction<'info> {
     pub compliance_hook_program: Program<'info, ComplianceHook>,
 }
 
-pub fn handle_holder_action(
-    _ctx: Context<HolderAction>,
-    _action: u8,
-    _reason: u8,
-    _case_ref_hash: [u8; 32],
+/// Checks shared by all five actions, in contract order: Unauthorized → FundNotOpen →
+/// (register belongs to this fund, else Unauthorized) → InvalidReason.
+fn check(
+    compliance: &Pubkey,
+    role_registry: &RoleRegistry,
+    fund_state: &AccountInfo,
+    registry: &Pubkey,
+    reason: u8,
 ) -> Result<()> {
-    // Implemented in T069.
+    // 1. Only the compliance role (a Squads vault signs through Squads' execute).
+    require_keys_eq!(
+        *compliance,
+        role_registry.compliance,
+        GovernanceError::Unauthorized
+    );
+
+    // 2. Only on an Open fund (a missing fund fails closed).
+    let fund = FundStateView::load(fund_state, &role_registry.fund_state)
+        .map_err(|_| error!(GovernanceError::FundNotOpen))?;
+    require!(
+        fund.status == FundStatus::Open.as_u8(),
+        GovernanceError::FundNotOpen
+    );
+
+    // The hook-admin PDA is shared by every fund, so the register must be this fund's: otherwise
+    // one fund's compliance could act on another fund's holders.
+    let expected = Pubkey::find_program_address(
+        &[seeds::REGISTRY, fund.mint.as_ref()],
+        &COMPLIANCE_HOOK_PROGRAM_ID,
+    )
+    .0;
+    require_keys_eq!(*registry, expected, GovernanceError::Unauthorized);
+
+    // 3. A reason from the F001 list (FR-031).
+    let allowed = ReasonCode::try_from(reason)
+        .map(|r| r.allowed_in_f001())
+        .unwrap_or(false);
+    require!(allowed, GovernanceError::InvalidReason);
     Ok(())
 }
 
-pub fn handle_pause_action(
-    _ctx: Context<PauseAction>,
-    _paused: bool,
-    _reason: u8,
-    _case_ref_hash: [u8; 32],
+pub fn handle_holder_action(
+    ctx: Context<HolderAction>,
+    action: u8,
+    reason: u8,
+    case_ref_hash: [u8; 32],
 ) -> Result<()> {
-    // Implemented in T069.
-    Ok(())
+    let a = &ctx.accounts;
+    let compliance = a.compliance.key();
+    check(
+        &compliance,
+        &a.role_registry,
+        &a.fund_state,
+        &a.registry.key(),
+        reason,
+    )?;
+
+    let bump = [ctx.bumps.hook_admin];
+    let signer: &[&[&[u8]]] = &[&[seeds::HOOK_ADMIN, &bump]];
+    compliance_hook::cpi::set_status(
+        CpiContext::new(
+            a.compliance_hook_program.key(),
+            compliance_hook::cpi::accounts::SetStatus {
+                hook_admin: a.hook_admin.to_account_info(),
+                registry: a.registry.to_account_info(),
+                holder_state: a.holder_state.to_account_info(),
+                event_authority: a.hook_event_authority.to_account_info(),
+                program: a.compliance_hook_program.to_account_info(),
+            },
+        )
+        .with_signer(signer),
+        action,
+        reason,
+        case_ref_hash,
+        compliance,
+    )
+}
+
+pub fn handle_pause_action(
+    ctx: Context<PauseAction>,
+    paused: bool,
+    reason: u8,
+    case_ref_hash: [u8; 32],
+) -> Result<()> {
+    let a = &ctx.accounts;
+    let compliance = a.compliance.key();
+    check(
+        &compliance,
+        &a.role_registry,
+        &a.fund_state,
+        &a.registry.key(),
+        reason,
+    )?;
+
+    let bump = [ctx.bumps.hook_admin];
+    let signer: &[&[&[u8]]] = &[&[seeds::HOOK_ADMIN, &bump]];
+    compliance_hook::cpi::set_paused(
+        CpiContext::new(
+            a.compliance_hook_program.key(),
+            compliance_hook::cpi::accounts::SetPaused {
+                hook_admin: a.hook_admin.to_account_info(),
+                registry: a.registry.to_account_info(),
+                event_authority: a.hook_event_authority.to_account_info(),
+                program: a.compliance_hook_program.to_account_info(),
+            },
+        )
+        .with_signer(signer),
+        paused,
+        reason,
+        case_ref_hash,
+        compliance,
+    )
 }

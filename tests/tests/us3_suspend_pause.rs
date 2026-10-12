@@ -593,3 +593,41 @@ fn status_history_can_be_rebuilt_from_records_alone() {
         "history ends at the actual status"
     );
 }
+
+/// Governance's hook-admin PDA is shared by every fund, so governance must only act on the
+/// signer's own fund: fund A's compliance can't suspend or pause fund B.
+#[test]
+fn compliance_of_one_fund_cannot_act_on_another() {
+    let mut h = Harness::new();
+    let (fund_a, _alice) = fixtures::fund_with_investor_units(&mut h, 0, 100);
+    let (fund_b, bob) = fixtures::fund_with_investor_units(&mut h, 0, 100);
+
+    // A's compliance and role registry, B's registry and holder record.
+    let mut ix = ix_governance::suspend_holder(
+        &fund_a.compliance.pubkey(),
+        &fund_a.m(),
+        &bob.pubkey(),
+        SANCTIONS,
+        CASE,
+    );
+    ix.accounts[3].pubkey = fund_b.registry(); // registry
+    ix.accounts[4].pubkey = pda::holder(&fund_b.m(), &bob.pubkey()).0; // holder_state
+    assert_anchor_error(
+        &h.send(&[ix], &[&fund_a.compliance]),
+        GovernanceError::Unauthorized,
+    );
+
+    let mut ix =
+        ix_governance::pause_transfers(&fund_a.compliance.pubkey(), &fund_a.m(), SANCTIONS, CASE);
+    ix.accounts[3].pubkey = fund_b.registry();
+    assert_anchor_error(
+        &h.send(&[ix], &[&fund_a.compliance]),
+        GovernanceError::Unauthorized,
+    );
+
+    assert_eq!(
+        status(&h, &fund_b, &bob.pubkey()),
+        HolderStatus::Approved.as_u8()
+    );
+    assert!(!fixtures::read::<compliance_hook::Registry>(&h, &fund_b.registry()).transfers_paused);
+}
