@@ -228,7 +228,7 @@ show every invalid statement and every unapproved receiver is rejected (spec US2
   - an institution registers itself → Pending, `HolderRegistered` (US2-1);
   - compliance registers an investor and a treasury at `["treasury", fund_state]`;
   - rejections: `FundNotOpen` (fund in Setup); `InvalidClass` (3); `Unauthorized` (a third party registers someone else); `SelfRegistrationClassNotAllowed` (self as treasury); `ClassNotAvailable` (escrow by compliance); `NotSystemControlled` (treasury with any other owner); `HolderAlreadyRegistered`, with the existing record byte-for-byte unchanged (US2-8, FR-014). The institution registering a different owner is covered by US2-9
-- [ ] T046 [US2] Add `approve_investor` tests to `tests/tests/us2_onboarding.rs`.
+- [X] T046 [US2] Add `approve_investor` tests to `tests/tests/us2_onboarding.rs`.
   - Happy path: Approved; stores jurisdiction, investor_type, kyc_expiry_ts, attestation_hash = SHA-256 of the message, attested_by (FR-017); `HolderApproved { renewal: false }`.
   - Rejections in contract order: `Unauthorized`; `InvalidHolderStatus` (already Approved); `NotInvestor` (treasury).
   - Statement rejections:
