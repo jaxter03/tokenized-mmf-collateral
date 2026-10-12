@@ -4632,6 +4632,8 @@ dependencies = [
 name = "tests"
 version = "0.1.0"
 dependencies = [
+ "anchor-lang",
+ "anchor-spl",
  "compliance_hook",
  "fund",
  "governance",
@@ -4639,6 +4641,14 @@ dependencies = [
  "mmf-common",
  "mmf-sdk",
  "proptest",
+ "solana-ed25519-program",
+ "solana-keypair",
+ "solana-message",
+ "solana-program-pack",
+ "solana-signer",
+ "solana-system-interface 3.3.0",
+ "solana-transaction",
+ "spl-associated-token-account-interface",
 ]
 
 [[package]]

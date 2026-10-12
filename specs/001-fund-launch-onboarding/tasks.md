@@ -58,7 +58,7 @@ harness that every story uses.
 **⚠️ CRITICAL**: T011 must pass before any other Phase 2 task, and no story work starts until
 Phase 2 is complete.
 
-- [ ] T011 **Toolchain spike (research R3, R8).** In `crates/mmf-common/src/permissioned_burn.rs`, record the PermissionedBurn encoding: instruction tag 46, sub-instruction 0 = Initialize followed by the 32-byte authority, plus the extension's `ExtensionType` number and TLV data size, all read from the `spl-token-2022-interface` 3.1.2 source. Then write `tests/tests/spike_toolchain.rs`, which in LiteSVM 0.12 (`precompiles`), with `tests/fixtures/spl_token_2022.so` loaded over the bundled Token-2022, does the following using raw Token-2022 instructions:
+- [X] T011 **Toolchain spike (research R3, R8).** In `crates/mmf-common/src/permissioned_burn.rs`, record the PermissionedBurn encoding: instruction tag 46, sub-instruction 0 = Initialize followed by the 32-byte authority, plus the extension's `ExtensionType` number and TLV data size, all read from the `spl-token-2022-interface` 3.1.2 source. Then write `tests/tests/spike_toolchain.rs`, which in LiteSVM 0.12 (`precompiles`), with `tests/fixtures/spl_token_2022.so` loaded over the bundled Token-2022, does the following using raw Token-2022 instructions:
   - (a) creates a mint with TransferHook, DefaultAccountState(Frozen), PermanentDelegate, MetadataPointer, MintCloseAuthority and the hand-encoded PermissionedBurn, then `InitializeMint2`;
   - (b) creates and thaws an ATA, patches its balance, and asserts that an owner `BurnChecked` fails;
   - (c) runs one Ed25519 verify instruction successfully;

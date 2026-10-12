@@ -165,6 +165,19 @@ the current toolchain behaves and were checked against upstream sources (listed 
   `solana-v4`, LiteSVM 0.18.0 (Agave 4.3 runtime, bundles Token-2022 11.0.0, mainnet rent and
   features). Record the outcome here. Programs are built by the platform tools either way; the host
   Rust version only affects tests and support crates.
+- **Spike outcome (T011, 2026-10-12): configuration B passes; no switch needed.**
+  `tests/tests/spike_toolchain.rs` shows, on LiteSVM 0.12 with the mainnet Token-2022 v11 binary:
+  - the mint is created with all six extensions, including hand-encoded PermissionedBurn (type 28,
+    instruction 46/0);
+  - an owner's ordinary `Burn` and `BurnChecked` fail with `TokenError::InvalidInstruction`
+    (custom 12), while the permissioned `BurnChecked` (46/2) co-signed by the burn authority succeeds;
+  - Ed25519 verification runs and rejects a tampered message;
+  - the `fund` program binary loads and executes.
+
+  One finding for later tasks: `spl-token-2022-interface` 2.1.0 can't **enumerate** extensions on our
+  mint (`get_extension_types()` errors on the unknown type 28). Looking up a known extension with
+  `get_extension::<T>()` still works, so code and tests must read extensions by type, never by
+  enumeration.
 - **Placing units in tests** (no mint path exists — FR-035): create the fund treasury's ATA with real
   instructions (so it has the TransferHookAccount extension), approve and thaw it, then patch its
   `amount` and the mint's `supply` with `set_account` (unpack with `StateWithExtensionsMut`). Units
