@@ -1,4 +1,4 @@
-//! `mint_for_subscription` (and, from US2, `burn_for_redemption`) (contracts/fund.md, F003
+//! `mint_for_subscription` and `burn_for_redemption` (contracts/fund.md, F003
 //! FR-019–FR-022, research R7, R9). Called only by `dvp_settlement` with its escrow PDA as signer;
 //! `fund` also checks the settlement instruction itself, so a bug in the caller can't create
 //! units for an unfunded subscription.
@@ -11,12 +11,13 @@ use mmf_common::enums::{FundStatus, SettlementKind, SettlementStatus};
 use mmf_common::ids::{
     COMPLIANCE_HOOK_PROGRAM_ID, DVP_SETTLEMENT_PROGRAM_ID, TOKEN_2022_PROGRAM_ID,
 };
+use mmf_common::permissioned_burn;
 use mmf_common::seeds;
-use mmf_common::settlement;
+use mmf_common::settlement::{self, UNIT_DECIMALS};
 use mmf_common::views::SettlementView;
 
 use crate::errors::FundError;
-use crate::events::SubscriptionMinted;
+use crate::events::{RedemptionBurned, SubscriptionMinted};
 use crate::state::FundState;
 
 #[event_cpi]
@@ -46,6 +47,140 @@ pub struct MintForSubscription<'info> {
     pub compliance_hook_program: UncheckedAccount<'info>,
     /// CHECK: Token-2022.
     pub token_2022_program: UncheckedAccount<'info>,
+}
+
+#[event_cpi]
+#[derive(Accounts)]
+pub struct BurnForRedemption<'info> {
+    /// Must be dvp_settlement's escrow PDA `["escrow", fund_state]` (`UnauthorizedCaller`); also
+    /// the unit escrow's owner, co-signing the permissioned burn.
+    pub escrow_authority: Signer<'info>,
+    /// Also the burn authority.
+    #[account(mut)]
+    pub fund_state: Account<'info, FundState>,
+    /// CHECK: must be `fund_state.mint`.
+    #[account(mut)]
+    pub mint: UncheckedAccount<'info>,
+    /// CHECK: the escrow's unit account (Token-2022 ATA of the escrow PDA).
+    #[account(mut)]
+    pub unit_escrow: UncheckedAccount<'info>,
+    /// CHECK: the SettlementInstruction; decoded with `SettlementView`.
+    pub settlement: UncheckedAccount<'info>,
+    /// CHECK: compliance_hook's Registry for this mint (passed to `accrue`).
+    pub registry: UncheckedAccount<'info>,
+    /// CHECK: the escrow's HolderState (settled by `accrue`).
+    #[account(mut)]
+    pub escrow_holder: UncheckedAccount<'info>,
+    /// CHECK: compliance_hook program.
+    pub compliance_hook_program: UncheckedAccount<'info>,
+    /// CHECK: Token-2022.
+    pub token_2022_program: UncheckedAccount<'info>,
+}
+
+pub fn handle_burn_for_redemption(ctx: Context<BurnForRedemption>, units: u64) -> Result<()> {
+    let a = &ctx.accounts;
+    let fund_key = a.fund_state.key();
+    let escrow = a.escrow_authority.key();
+
+    // 1. Only this fund's settlement escrow.
+    require_escrow(&escrow, &fund_key)?;
+    // 2. Only while Open.
+    require!(
+        a.fund_state.status == FundStatus::Open.as_u8(),
+        FundError::FundNotOpen
+    );
+    // 3. An Affirmed redemption of this fund, for exactly these units.
+    settlement_view(&a.settlement, &fund_key, SettlementKind::Redemption, units)?;
+    require_unit_accounts(
+        &a.fund_state,
+        &escrow,
+        &a.mint,
+        &a.unit_escrow,
+        &a.compliance_hook_program,
+        &a.token_2022_program,
+    )?;
+
+    // 4. Within today's limit, measured after the day rolls over (FR-021, research R9).
+    let clock = Clock::get()?;
+    let mut fs_after = (*a.fund_state).clone();
+    roll_day(&mut fs_after, clock.unix_timestamp)?;
+    let within = settlement::redemption_ok(
+        fs_after.redeemed_today,
+        units,
+        fs_after.units_at_day_start,
+        fs_after.terms.redemption_gate_bps,
+    )
+    .ok_or(error!(FundError::Overflow))?;
+    require!(within, FundError::RedemptionLimitExceeded);
+
+    // 5. The units are there to destroy.
+    let pre = unit_balance(&a.unit_escrow)?;
+    let post = pre.checked_sub(units).ok_or(error!(FundError::Overflow))?;
+    let outstanding = fs_after
+        .units_outstanding
+        .checked_sub(units)
+        .ok_or(error!(FundError::Overflow))?;
+    let redeemed_today = fs_after
+        .redeemed_today
+        .checked_add(units)
+        .ok_or(error!(FundError::Overflow))?;
+
+    let mint_key = a.fund_state.mint;
+    let bump = [a.fund_state.bump];
+    let signer: &[&[&[u8]]] = &[&[seeds::FUND, mint_key.as_ref(), &bump]];
+
+    // Settle the escrow's interest first (F002 FR-013), then destroy the units. The burn needs the
+    // FundState's signature as burn authority and the escrow's as the account owner (its
+    // signature carries through from dvp_settlement's call).
+    compliance_hook::cpi::accrue(
+        CpiContext::new_with_signer(
+            COMPLIANCE_HOOK_PROGRAM_ID,
+            compliance_hook::cpi::accounts::Accrue {
+                fund_state: a.fund_state.to_account_info(),
+                registry: a.registry.to_account_info(),
+                holder_state: a.escrow_holder.to_account_info(),
+                holding_account: a.unit_escrow.to_account_info(),
+            },
+            signer,
+        ),
+        post,
+    )?;
+    let burn = permissioned_burn::burn_checked(
+        &a.unit_escrow.key(),
+        &mint_key,
+        &fund_key,
+        &escrow,
+        units,
+        UNIT_DECIMALS,
+    );
+    anchor_lang::solana_program::program::invoke_signed(
+        &burn,
+        &[
+            a.unit_escrow.to_account_info(),
+            a.mint.to_account_info(),
+            a.fund_state.to_account_info(),
+            a.escrow_authority.to_account_info(),
+            a.token_2022_program.to_account_info(),
+        ],
+        signer,
+    )?;
+
+    let fs = &mut ctx.accounts.fund_state;
+    fs.day_start_ts = fs_after.day_start_ts;
+    fs.units_at_day_start = fs_after.units_at_day_start;
+    fs.units_outstanding = outstanding;
+    fs.redeemed_today = redeemed_today;
+    emit_cpi!(RedemptionBurned {
+        fund: fund_key,
+        settlement: ctx.accounts.settlement.key(),
+        units,
+        units_outstanding: outstanding,
+        redeemed_today,
+        units_at_day_start: fs.units_at_day_start,
+        slot: clock.slot,
+        unix_ts: clock.unix_timestamp,
+    });
+    Ok(())
 }
 
 /// Checks the SettlementInstruction passed to a mint or burn (research R7): owned by

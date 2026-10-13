@@ -65,4 +65,9 @@ pub mod fund {
     pub fn mint_for_subscription(ctx: Context<MintForSubscription>, units: u64) -> Result<()> {
         instructions::mint_burn::handle_mint_for_subscription(ctx, units)
     }
+
+    /// dvp_settlement's escrow PDA only (CPI from `settle`).
+    pub fn burn_for_redemption(ctx: Context<BurnForRedemption>, units: u64) -> Result<()> {
+        instructions::mint_burn::handle_burn_for_redemption(ctx, units)
+    }
 }
