@@ -43,6 +43,15 @@ pub fn mint_supported(program: &Pubkey, data: &[u8]) -> bool {
     }
 }
 
+/// Decimals of an initialized SPL Token or Token-2022 mint; `None` for anything else.
+pub fn mint_decimals(program: &Pubkey, data: &[u8]) -> Option<u8> {
+    if !is_token_program(program) {
+        return None;
+    }
+    let state = StateWithExtensions::<Mint>::unpack(data).ok()?;
+    state.base.is_initialized.then_some(state.base.decimals)
+}
+
 /// The fields of a token account settlement checks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TokenAccountFields {

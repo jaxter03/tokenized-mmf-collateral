@@ -170,3 +170,35 @@ pub fn set_cash_treasury(
         data: fund::instruction::SetCashTreasury {}.data(),
     }
 }
+
+/// `mint_for_subscription` (F003): only dvp_settlement's escrow PDA may sign it (by CPI from
+/// `settle`). Built here so tests can show any other signer is refused.
+pub fn mint_for_subscription(
+    escrow_authority: &Pubkey,
+    mint: &Pubkey,
+    cash_escrow: &Pubkey,
+    settlement: &Pubkey,
+    units: u64,
+) -> Instruction {
+    let fund_state = pda::fund_state(mint).0;
+    let escrow = pda::escrow_authority(&fund_state).0;
+    let accounts = fund::accounts::MintForSubscription {
+        escrow_authority: *escrow_authority,
+        fund_state,
+        mint: *mint,
+        unit_escrow: pda::unit_escrow(&fund_state, mint),
+        cash_escrow: *cash_escrow,
+        settlement: *settlement,
+        registry: pda::registry(mint).0,
+        escrow_holder: pda::holder(mint, &escrow).0,
+        compliance_hook_program: mmf_common::ids::COMPLIANCE_HOOK_PROGRAM_ID,
+        token_2022_program: TOKEN_2022_PROGRAM_ID,
+        event_authority: pda::event_authority(&FUND_PROGRAM_ID).0,
+        program: FUND_PROGRAM_ID,
+    };
+    Instruction {
+        program_id: FUND_PROGRAM_ID,
+        accounts: accounts.to_account_metas(None),
+        data: fund::instruction::MintForSubscription { units }.data(),
+    }
+}

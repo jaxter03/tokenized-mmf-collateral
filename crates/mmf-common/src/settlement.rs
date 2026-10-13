@@ -13,6 +13,9 @@ pub const PRICE_SCALE: u128 = 100_000_000;
 /// Basis points in 100 %.
 pub const BPS: u128 = 10_000;
 
+/// Fund unit decimals (shared-model §1).
+pub const UNIT_DECIMALS: u8 = 6;
+
 /// Default instruction expiry when `init_dvp` is given none: 24 hours (Clarification Q2).
 pub const DEFAULT_EXPIRY_SECS: u32 = 86_400;
 

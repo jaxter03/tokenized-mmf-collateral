@@ -60,4 +60,9 @@ pub mod fund {
     pub fn set_cash_treasury(ctx: Context<SetCashTreasury>) -> Result<()> {
         instructions::set_cash_treasury::handle_set_cash_treasury(ctx)
     }
+
+    /// dvp_settlement's escrow PDA only (CPI from `settle`).
+    pub fn mint_for_subscription(ctx: Context<MintForSubscription>, units: u64) -> Result<()> {
+        instructions::mint_burn::handle_mint_for_subscription(ctx, units)
+    }
 }

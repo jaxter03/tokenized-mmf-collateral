@@ -272,3 +272,24 @@ pub fn set_paused_direct(
         .data(),
     }
 }
+
+/// `accrue` (F003): only the fund's FundState PDA may sign it (by CPI from `fund`). Built here so
+/// tests can show any other signer is refused.
+pub fn accrue(
+    fund_authority: &Pubkey,
+    mint: &Pubkey,
+    owner: &Pubkey,
+    post_balance: u64,
+) -> Instruction {
+    let accounts = compliance_hook::accounts::Accrue {
+        fund_state: *fund_authority,
+        registry: pda::registry(mint).0,
+        holder_state: pda::holder(mint, owner).0,
+        holding_account: pda::holding_account(owner, mint),
+    };
+    Instruction {
+        program_id: COMPLIANCE_HOOK_PROGRAM_ID,
+        accounts: accounts.to_account_metas(None),
+        data: compliance_hook::instruction::Accrue { post_balance }.data(),
+    }
+}
