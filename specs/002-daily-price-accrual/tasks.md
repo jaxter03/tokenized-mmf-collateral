@@ -462,7 +462,9 @@ figures plus fair interest.
   - invariants I11 and I12 against §7;
   - FundState offsets unchanged for F001 accounts;
   - every F001 test edit listed
-- [ ] T039 Upgrade the three programs on devnet through the issuer's Squads vault (F001 plan
+- [ ] T039 *(not done: needs the user's go-ahead, ~8 devnet SOL, the Squads upgrade authority and
+  three UTC days; no programs are on devnet yet. Rehearsed on a local validator 2026-10-13, 34 of 34
+  steps matched)* Upgrade the three programs on devnet through the issuer's Squads vault (F001 plan
   "Deployment and authorities") and run `cargo run -p devnet-e2e`. Then run
   `cargo run -p devnet-e2e -- --continue <fund>` on each of the next two UTC days. Record program
   IDs, signatures and the three-record history in `specs/002-daily-price-accrual/devnet-run.md`
@@ -475,7 +477,10 @@ figures plus fair interest.
   - every F001 test or helper edit (T006, T008, T010, T033) with the reason for each
     (Constitution XII).
 
-  A human reviewer completes T038's checklist before merge
+  A human reviewer completes T038's checklist before merge.
+  **Status 2026-10-13**: full suite green (157 + 23 tests, 2 release scale tests, 73 of 73 errors
+  covered, clippy and fmt clean). PR [#2](https://github.com/jaxter03/tokenized-mmf-collateral/pull/2)
+  is open. It is left unchecked until the reviewer signs off and it merges
 
 ---
 
