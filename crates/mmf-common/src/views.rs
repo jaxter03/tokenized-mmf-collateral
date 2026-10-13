@@ -18,8 +18,8 @@ use crate::enums::{HolderClass, HolderStatus};
 use crate::ids::{
     COMPLIANCE_HOOK_PROGRAM_ID, DVP_SETTLEMENT_PROGRAM_ID, FUND_PROGRAM_ID, GOVERNANCE_PROGRAM_ID,
 };
-use crate::seeds;
 use crate::jurisdiction::{JurisdictionSet, SET_WORDS};
+use crate::seeds;
 
 /// Why an account isn't the expected one. Callers map this to their own error code.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -527,7 +527,10 @@ mod tests {
         assert!(!HolderStateView::decode(&suspended).eligible(0));
         let escrow = holder_bytes(&mint, &owner, bump, HolderClass::Escrow);
         let e = HolderStateView::decode(&escrow);
-        assert!(e.is_approved_escrow() && !e.eligible(0), "fund-operated: never a party");
+        assert!(
+            e.is_approved_escrow() && !e.eligible(0),
+            "fund-operated: never a party"
+        );
     }
 
     #[test]
@@ -542,7 +545,8 @@ mod tests {
         d[offsets::SI_FUND_STATE..offsets::SI_FUND_STATE + 32].copy_from_slice(fund.as_ref());
         d[offsets::SI_KIND] = 1;
         d[offsets::SI_UNITS..offsets::SI_UNITS + 8].copy_from_slice(&5u64.to_le_bytes());
-        d[offsets::SI_CASH_AMOUNT..offsets::SI_CASH_AMOUNT + 8].copy_from_slice(&6u64.to_le_bytes());
+        d[offsets::SI_CASH_AMOUNT..offsets::SI_CASH_AMOUNT + 8]
+            .copy_from_slice(&6u64.to_le_bytes());
         d[offsets::SI_STATUS] = 3;
         d[offsets::SI_EXTERNAL_REF..offsets::SI_EXTERNAL_REF + 32].copy_from_slice(&ext);
         d[offsets::SI_CREATED_BY..offsets::SI_CREATED_BY + 32].copy_from_slice(creator.as_ref());
@@ -551,7 +555,10 @@ mod tests {
         let mut l = 0u64;
 
         let v = SettlementView::load(&info(&key, &dvp, &mut l, &mut d)).unwrap();
-        assert_eq!((v.fund_state, v.kind, v.units, v.cash_amount, v.status), (fund, 1, 5, 6, 3));
+        assert_eq!(
+            (v.fund_state, v.kind, v.units, v.cash_amount, v.status),
+            (fund, 1, 5, 6, 3)
+        );
 
         let elsewhere = Pubkey::new_unique();
         assert_eq!(

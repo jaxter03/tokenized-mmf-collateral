@@ -171,7 +171,11 @@ mod tests {
     #[test]
     fn reject_settlement_reasons() {
         let allowed: Vec<u8> = (0..=6)
-            .filter(|v| ReasonCode::try_from(*v).unwrap().allowed_for_reject_settlement())
+            .filter(|v| {
+                ReasonCode::try_from(*v)
+                    .unwrap()
+                    .allowed_for_reject_settlement()
+            })
             .collect();
         assert_eq!(allowed, vec![0, 1, 2, 3, 6]);
     }

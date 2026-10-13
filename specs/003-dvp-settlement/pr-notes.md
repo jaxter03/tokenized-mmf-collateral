@@ -12,6 +12,7 @@ Collected while implementing, so the PR description can list them (Constitution 
 | Task | File | Change | Why |
 |---|---|---|---|
 | T011 | `tests/tests/layouts.rs` | FundState test sets the F003 fields, checks size still equals F001's, `units_at_day_start` after `pending_override_nav`, 44 reserved bytes; views decode the new FundState and Registry fields; HolderState test also loads `HolderStateView`; new DvpConfig and SettlementInstruction layout tests | FundState took 8 more reserved bytes (research R9); new views (T010) |
+| T013 | `tests/src/units.rs`, `tests/src/assert.rs` | `seed_units` also adds to `FundState.units_outstanding`; new `assert_i4` helper | otherwise invariant I4 (`units_outstanding == supply`) fails in every test that seeds units (research R18); F001/F002 assertions unchanged |
 
 ## Other notes
 

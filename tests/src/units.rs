@@ -6,7 +6,9 @@
 //! - F002: settle the holder's interest at the fund's current counter on its old balance first
 //!   (hook step 8, research R12), so seeded units never earn for publishes made before they
 //!   arrived;
-//! - the holder's `last_balance`, and `holder_count` when an investor goes from zero to a balance.
+//! - the holder's `last_balance`, and `holder_count` when an investor goes from zero to a balance;
+//! - F003: `FundState.units_outstanding`, so it keeps equalling the mint's supply (invariant I4,
+//!   research R18). Seeded units stand for units issued before the test began.
 //!
 //! Every later movement is a real `transfer_checked`.
 
@@ -20,9 +22,9 @@ use t22::state::{Account as TokenAccount, AccountState, Mint};
 use crate::fixtures::{patch, read};
 use crate::harness::Harness;
 
-/// Adds `amount` units to `owner`'s holding account (must exist and be thawed), to supply, and to
-/// the holder's recorded balance, after settling its interest and updating the holder count as
-/// the hook would.
+/// Adds `amount` units to `owner`'s holding account (must exist and be thawed), to supply and
+/// `units_outstanding`, and to the holder's recorded balance, after settling its interest and
+/// updating the holder count as the hook would.
 pub fn seed_units(h: &mut Harness, mint: &Pubkey, owner: &Pubkey, amount: u64) {
     let ata = mmf_sdk::pda::holding_account(owner, mint);
     let mut acc = h.account(&ata).expect("holding account exists");
@@ -45,8 +47,12 @@ pub fn seed_units(h: &mut Harness, mint: &Pubkey, owner: &Pubkey, amount: u64) {
         st.pack_base();
     }
     h.svm.set_account(*mint, macc).unwrap();
+    let fund_key = mmf_sdk::pda::fund_state(mint).0;
+    patch::<FundState>(h, &fund_key, |fs| {
+        fs.units_outstanding = fs.units_outstanding.checked_add(amount).unwrap();
+    });
 
-    let index = read::<FundState>(h, &mmf_sdk::pda::fund_state(mint).0).accrual_index;
+    let index = read::<FundState>(h, &fund_key).accrual_index;
     let holder_key = mmf_sdk::pda::holder(mint, owner).0;
     let mut newly_counted = false;
     patch::<HolderState>(h, &holder_key, |hs| {

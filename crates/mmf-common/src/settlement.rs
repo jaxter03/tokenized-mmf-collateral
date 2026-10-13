@@ -67,9 +67,18 @@ mod tests {
     #[test]
     fn spec_amounts_at_one_dollar() {
         // US1: 2 000 000 units (6 dp) cost $2M (6 dp); US2: 500 000 units pay $500 000.
-        assert_eq!(subscription_cash(2_000_000_000_000, ONE_DOLLAR), Some(2_000_000_000_000));
-        assert_eq!(redemption_cash(2_000_000_000_000, ONE_DOLLAR), Some(2_000_000_000_000));
-        assert_eq!(redemption_cash(500_000_000_000, ONE_DOLLAR), Some(500_000_000_000));
+        assert_eq!(
+            subscription_cash(2_000_000_000_000, ONE_DOLLAR),
+            Some(2_000_000_000_000)
+        );
+        assert_eq!(
+            redemption_cash(2_000_000_000_000, ONE_DOLLAR),
+            Some(2_000_000_000_000)
+        );
+        assert_eq!(
+            redemption_cash(500_000_000_000, ONE_DOLLAR),
+            Some(500_000_000_000)
+        );
     }
 
     #[test]
@@ -114,10 +123,19 @@ mod tests {
         let today = 20_741;
         assert!(price_fresh(1, today, today), "covers today");
         assert!(price_fresh(1, today - 1, today), "ended yesterday");
-        assert!(!price_fresh(1, today - 2, today), "ended the day before yesterday");
-        assert!(price_fresh(3, today + 2, today), "covers ahead (Friday's 3-day record)");
+        assert!(
+            !price_fresh(1, today - 2, today),
+            "ended the day before yesterday"
+        );
+        assert!(
+            price_fresh(3, today + 2, today),
+            "covers ahead (Friday's 3-day record)"
+        );
         assert!(!price_fresh(0, today, today), "no publish yet");
-        assert!(price_fresh(1, u32::MAX, 0), "no overflow at the top of the range");
+        assert!(
+            price_fresh(1, u32::MAX, 0),
+            "no overflow at the top of the range"
+        );
     }
 
     #[test]

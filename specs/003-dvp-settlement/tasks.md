@@ -192,7 +192,7 @@ green.
   - every new view field matches a program-serialized account with non-zero values.
 
   F001/F002 test edit, to be listed in the PR (Constitution XII)
-- [ ] T012 [P] In `crates/mmf-sdk/src/pda.rs`, add:
+- [X] T012 [P] In `crates/mmf-sdk/src/pda.rs`, add:
   - `dvp_config(fund_state)`, `escrow_authority(fund_state)`;
   - `unit_escrow(fund_state, mint)` (Token-2022 ATA);
   - `cash_escrow(fund_state, cash_mint, cash_token_program)`;
@@ -201,11 +201,11 @@ green.
 
   Create `crates/mmf-sdk/src/ix_dvp.rs` (empty module, exported) for the builders that the story
   phases add
-- [ ] T013 Update `seed_units` in `tests/src/units.rs` so it also adds `amount` to
+- [X] T013 Update `seed_units` in `tests/src/units.rs` so it also adds `amount` to
   `FundState.units_outstanding`, keeping I4 (research R18). Update the module comment. Add
   `assert_i4(h, ctx)` (`units_outstanding == supply`) to `tests/src/assert.rs`. F001/F002 helper
   edit, to be listed in the PR
-- [ ] T014 [P] Add the independent settlement reference model in `tests/src/dvp_model.rs`
+- [X] T014 [P] Add the independent settlement reference model in `tests/src/dvp_model.rs`
   (research R18). It **must not** use `mmf_common::settlement` or program types:
   - it tracks per-party units and cash, escrow units and cash, units outstanding,
     `redeemed_today` / `units_at_day_start` per UTC day, and each instruction's kind, parties,
