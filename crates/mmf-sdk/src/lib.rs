@@ -7,4 +7,5 @@ pub mod ix_governance;
 pub mod ix_hook;
 pub mod kyc;
 pub mod pda;
+pub mod prepare;
 pub mod transfer;

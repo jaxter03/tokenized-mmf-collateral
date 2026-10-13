@@ -682,18 +682,18 @@ instruction is open and not expired. A signed step never takes effect twice.
 **Independent Test**: a funding step prepared with a durable nonce and submitted 6 h later
 succeeds. One prepared for an instruction that is cancelled before submission is rejected.
 
-- [ ] T067 [P] [US5] Create `crates/mmf-sdk/src/prepare.rs` (research R13):
+- [X] T067 [P] [US5] Create `crates/mmf-sdk/src/prepare.rs` (research R13):
   `with_durable_nonce(ixs, nonce_account, nonce_authority, payer, nonce_value) -> Message`. It
   puts `AdvanceNonceAccount` at index 0 and the nonce value as the blockhash, and returns an
   unsigned legacy message. Add `read_nonce(account_data) -> Hash`. Export it from `lib.rs`
-- [ ] T068 [US5] Add `tests/src/nonce.rs`:
+- [X] T068 [US5] Add `tests/src/nonce.rs`:
   - `harness_with_blockhash_check()`: a `Harness` whose LiteSVM is built with
     `with_blockhash_check(true)`;
   - `create_nonce_account(h, authority) -> Pubkey`;
   - `expire_recent_blockhashes(h)` (call `expire_blockhash` repeatedly).
 
   Check that the T022 fixture works under this harness (send helpers use the latest blockhash)
-- [ ] T069 [US5] Write `tests/tests/f003_slow_signers.rs` (FR-028, FR-029, SC-004):
+- [X] T069 [US5] Write `tests/tests/f003_slow_signers.rs` (FR-028, FR-029, SC-004):
   - prepare the investor's `fund_cash` step with a durable nonce, advance the clock 6 h and expire
     the blockhashes, then sign and submit → succeeds; the same for 23 h;
   - **control**: the same step with an ordinary recent blockhash after expiry →
@@ -707,7 +707,7 @@ succeeds. One prepared for an instruction that is cancelled before submission is
 
   The prepare helper is the code under test, so write this test before T067's body (stub
   returning an empty message first)
-- [ ] T070 [US5] Make T069 pass. No program change is expected; if one is needed, stop and record
+- [X] T070 [US5] Make T069 pass. No program change is expected; if one is needed, stop and record
   why in research R13
 
 **Checkpoint**: all five stories pass their independent tests.

@@ -7,6 +7,7 @@ pub mod events;
 pub mod fixtures;
 pub mod harness;
 pub mod model;
+pub mod nonce;
 pub mod rebuild;
 pub mod settle;
 pub mod squads;
