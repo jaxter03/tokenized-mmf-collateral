@@ -26,9 +26,8 @@ Settles a holder's interest before a mint or burn changes its balance (F002 FR-0
 
 | Account | Kind | Constraint |
 |---|---|---|
-| `fund_authority` | signer | `== registry.fund_state` |
-| `registry` | writable | PDA `["registry", mint]` |
-| `fund_state` | read | `== registry.fund_state`, via `FundStateView` |
+| `fund_state` | signer | `== registry.fund_state`; also read via `FundStateView` for the counter (one account: signer and source of the index) |
+| `registry` | read | PDA `["registry", mint]` (read-only: F003 accrues only the escrow, which never changes `holder_count`) |
 | `holder_state` | writable | PDA `["holder", registry.mint, holding_account.owner]` |
 | `holding_account` | read | Token-2022 account of `registry.mint`; the owner's ATA |
 

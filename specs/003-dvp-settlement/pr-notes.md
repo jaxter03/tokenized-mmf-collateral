@@ -21,3 +21,7 @@ Collected while implementing, so the PR description can list them (Constitution 
 - `HookError::ClassNotAvailable` is retired (T021): nothing returns it any more. It stays in the enum, marked `// retired`, so later error codes keep their numbers. `scripts/check-error-coverage.sh` now skips variants marked `// retired`.
 - `mmf-common` gains a dependency on `anchor-spl` (token_2022 features) for the shared cash-token checks in `mmf_common::cash`, used by `fund` and `dvp_settlement` (T019, T020).
 - `init_dvp` creates the escrow ATAs idempotently: anyone can create an ATA for any owner, so a pre-created escrow account must not block setup (test `init_dvp_is_not_blocked_by_escrow_accounts_created_in_advance`).
+- `fund::instructions::mint_burn::check_settlement` and `compliance_hook::instructions::accrue::check_holder_accounts` are public so tests can call them with forged accounts: `dvp_settlement` already checks the same accounts, and only its PDAs can sign, so no transaction can deliver a forged settlement or holder to them (T032, T033).
+- `fund` checks the hook and Token-2022 program IDs before signing CPIs with its FundState PDA (the mint authority): handing that signature to any other program could create units (T037).
+- `accrue` takes the FundState as its signer and reads the counter from it (one account instead of the contract's two); `settle` takes no role registry. Contracts updated.
+- Measured: a subscription `settle` uses 120 927 CU (budget 200 000, research R15).

@@ -299,7 +299,7 @@ instruction; `units_outstanding` = supply, up 2 000 000.
 
 ### Interface stubs for User Story 1
 
-- [ ] T025 [US1] Add stubs (handlers return `Ok(())`) with full account structs from
+- [X] T025 [US1] Add stubs (handlers return `Ok(())`) with full account structs from
   [contracts/dvp_settlement.md](contracts/dvp_settlement.md):
   - `create_instruction(args)` in `programs/dvp_settlement/src/instructions/create_instruction.rs`.
     `seller_holder` and `buyer_holder` are Anchor `Option<UncheckedAccount>`, absent for the Fund
@@ -308,12 +308,12 @@ instruction; `units_outstanding` = supply, up 2 000 000.
   - `settle()` in `settle.rs`, with optional per-kind accounts.
 
   Wire them into `lib.rs`; `anchor build` succeeds
-- [ ] T026 [P] [US1] Add stubs for `fund::mint_for_subscription(units)` in
+- [X] T026 [P] [US1] Add stubs for `fund::mint_for_subscription(units)` in
   `programs/fund/src/instructions/mint_burn.rs` and `compliance_hook::accrue(post_balance)` in
   `programs/compliance_hook/src/instructions/accrue.rs`, with the account structs from
   [contracts/fund.md](contracts/fund.md) and
   [contracts/compliance_hook.md](contracts/compliance_hook.md)
-- [ ] T027 [US1] Add SDK builders to `crates/mmf-sdk/src/ix_dvp.rs`:
+- [X] T027 [US1] Add SDK builders to `crates/mmf-sdk/src/ix_dvp.rs`:
   - `create_instruction(creator, payer, ctx, args)` (`CreateArgs { kind, seller, buyer, units,
     cash_amount, not_before_ts, expires_at_ts, external_ref }`), which derives the settlement PDA
     from creator + external_ref;
@@ -328,7 +328,7 @@ instruction; `units_outstanding` = supply, up 2 000 000.
 
 ### Tests for User Story 1 (write first; they must fail) ⚠️
 
-- [ ] T028 [P] [US1] Write `tests/tests/f003_create.rs` (FR-004–FR-009, contract check order),
+- [X] T028 [P] [US1] Write `tests/tests/f003_create.rs` (FR-004–FR-009, contract check order),
   covering all three kinds:
   - `FundMismatch`; Setup fund → `FundNotOpen`; before setup or before escrow approval or thaw →
     `EscrowNotReady`;
@@ -348,9 +348,9 @@ instruction; `units_outstanding` = supply, up 2 000 000.
     ref → accepted;
   - seq 1, 2, 3 in creation order; `SettlementCreated` fields; every stored field equals the
     data-model layout values.
-- [ ] T029 [P] [US1] Add to `tests/tests/f003_setup.rs` the FR-003 case: a create before
+- [X] T029 [P] [US1] Add to `tests/tests/f003_setup.rs` the FR-003 case: a create before
   `init_dvp`, before escrow approval and before thaw, each → `EscrowNotReady`
-- [ ] T030 [US1] Write the cash-leg and Fund-side tests in `tests/tests/f003_fund.rs` (FR-011,
+- [X] T030 [US1] Write the cash-leg and Fund-side tests in `tests/tests/f003_fund.rs` (FR-011,
   FR-012, FR-014):
   - `InvalidSide` (2);
   - each final status → `InstructionFinal`; at `expires_at_ts` → `InstructionExpired`;
@@ -363,7 +363,7 @@ instruction; `units_outstanding` = supply, up 2 000 000.
   - statuses: affirm then fund → SellerFunded → Affirmed; fund then affirm → BuyerFunded →
     Affirmed; `seller_funded_at` / `buyer_funded_at` set; `LegFunded` amount (0 for the
     affirmation).
-- [ ] T031 [US1] Write `tests/tests/f003_subscribe.rs`:
+- [X] T031 [US1] Write `tests/tests/f003_subscribe.rs`:
   - **spec independent test** (T022 fixture), with exact balances, escrow empty, I4, and I5 (the
     `SubscriptionMinted` and the treasury +$2M are in one transaction);
   - **acceptance scenarios 1–6**;
@@ -381,45 +381,48 @@ instruction; `units_outstanding` = supply, up 2 000 000.
     identical instruction with identical end state;
   - **price change after creation**: publish a new price before settle; the cash and units are
     unchanged (edge case).
-- [ ] T032 [P] [US1] Write the mint half of `tests/tests/f003_mint_burn_guard.rs` (FR-019):
+- [X] T032 [P] [US1] Write the mint half of `tests/tests/f003_mint_burn_guard.rs` (FR-019):
   - direct `mint_for_subscription` signed by a random key, or by another fund's escrow PDA →
     `UnauthorizedCaller`;
-  - forged settlement accounts planted with LiteSVM `set_account` (wrong owner, wrong address,
-    Instructed status, wrong units, Redemption kind), then `settle` called on them. Each →
-    `SettlementMismatch`. A comment says why `set_account` is used: no instruction can reach
-    these states;
+  - forged settlement accounts (wrong owner, wrong address, other fund, Instructed / BuyerFunded
+    / Settled status, wrong units, Redemption kind, truncated data) → `SettlementMismatch`.
+    `dvp_settlement` checks the same account before calling `fund`, and only its escrow PDA can
+    sign, so no transaction can deliver a forged settlement; the test calls
+    `fund::instructions::mint_burn::check_settlement` directly with forged `AccountInfo`s (the
+    file's header says why);
   - cash escrow short of `cash_amount` (planted) → `CashNotEscrowed`.
-- [ ] T033 [P] [US1] Write `tests/tests/f003_accrual.rs` (R8, R16):
+- [X] T033 [P] [US1] Write `tests/tests/f003_accrual.rs` (R8, R16):
   - direct `accrue` by any key → `UnauthorizedCaller`;
   - with the escrow holding units from a seeded unrelated transfer, and with publishes between,
     a subscription settle leaves the escrow's `accrued_e18`, `last_balance` and `earned_now`
     equal to the F002 reference model (units minted and delivered in one step earn nothing in
     escrow);
   - an `Accrued` event is logged with the pre and post balances;
-  - `WrongHolder` and `ClassNotAccrued` are unit-tested on the account-check function (they're
-    unreachable through `fund`, contracts/compliance_hook.md).
+  - `WrongHolder` and `ClassNotAccrued`: unreachable through `fund`, so the test calls
+    `compliance_hook::instructions::accrue::check_holder_accounts` directly with forged accounts
+    (contracts/compliance_hook.md).
 
 ### Implementation for User Story 1
 
-- [ ] T034 [US1] Implement `create_instruction` per its contract (checks 1–15 in order), using
+- [X] T034 [US1] Implement `create_instruction` per its contract (checks 1–15 in order), using
   `mmf_common::settlement` for the cash amount and `price_fresh`, and `HolderStateView::eligible`.
   Set every field listed in T008, `next_seq += 1`, and emit `SettlementCreated`
-- [ ] T035 [US1] Implement `affirm_and_fund` for the **cash leg and the subscription Fund-side
+- [X] T035 [US1] Implement `affirm_and_fund` for the **cash leg and the subscription Fund-side
   affirmation** (checks 1–9, contract order): cash `transfer_checked` through `token_interface`
   into the cash escrow, then the status update. The unit-leg branch (seller side of a Redemption
   or Secondary) returns `DvpError::InvalidSide` until T047 and is not tested before then. A
   redemption's buyer-side cash leg (from `cash_treasury`) is completed in T048
-- [ ] T036 [US1] Implement `compliance_hook::accrue` per its contract (checks 1–5): settle on the
+- [X] T036 [US1] Implement `compliance_hook::accrue` per its contract (checks 1–5): settle on the
   pre-balance read from the holding account with `mmf_common::accrual::settle`, set
   `last_balance` and `last_slot`, and `emit!(Accrued)`
-- [ ] T037 [US1] Implement `fund::mint_for_subscription` per its contract (checks 1–6), using
+- [X] T037 [US1] Implement `fund::mint_for_subscription` per its contract (checks 1–6), using
   `SettlementView`:
   1. day rollover (data-model pseudocode), in a helper `roll_day(fund, now)` in `mint_burn.rs`;
   2. CPI `accrue` signed by the FundState PDA;
   3. `mint_to` the unit escrow;
   4. `units_outstanding += units`;
   5. `emit_cpi!(SubscriptionMinted)`.
-- [ ] T038 [US1] Implement `settle` for **Subscription** (checks 1–8, contract order):
+- [X] T038 [US1] Implement `settle` for **Subscription** (checks 1–8, contract order):
   1. CPI `fund::mint_for_subscription` signed by the escrow PDA (`dvp_config.escrow_bump`);
   2. `transfer_checked` unit escrow → buyer with the hook's extra accounts (escrow PDA signs);
   3. cash escrow → `cash_treasury`;
@@ -428,7 +431,7 @@ instruction; `units_outstanding` = supply, up 2 000 000.
 
   Redemption and Secondary branches return `DvpError::NotAffirmed` until T050 / T054 (they can't
   reach Affirmed before then)
-- [ ] T039 [US1] Make T028–T033 pass. Check CU of a subscription settle ≤ 200 000 and the call
+- [X] T039 [US1] Make T028–T033 pass. Check CU of a subscription settle ≤ 200 000 and the call
   depth (research R15); if over budget, record the measurement in research R15 and adjust
 
 **Checkpoint**: US1's independent test passes, every creation, cash-funding, subscription-settle
@@ -638,7 +641,9 @@ Unit returns need US2's unit funding (T047). Cash-only cases need only US1.
 
 ### Implementation for User Story 4
 
-- [ ] T061 [US4] Create `programs/dvp_settlement/src/escrow.rs`:
+- [ ] T061 [US4] (The signed transfer helpers already exist: US1 needed them for `settle`, so
+  `programs/dvp_settlement/src/token.rs` has `transfer_cash` and `transfer_units` since T035/T038.
+  This task adds only the earmarking.) Create `programs/dvp_settlement/src/escrow.rs`:
   - `earmark(s)`: sets `units_to_return = s.units_held()` and `cash_to_return = s.cash_held()`
     (computed before the status changes), then `closed_at`;
   - `escrow_transfer_units(...)` and `escrow_transfer_cash(...)`: signed CPI helpers with the

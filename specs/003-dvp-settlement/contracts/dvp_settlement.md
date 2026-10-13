@@ -146,7 +146,7 @@ would reintroduce the risk of paying without receiving.
 | Account | Kind | Constraint |
 |---|---|---|
 | `triggered_by` | signer | any key; recorded only |
-| `fund_state` (writable for Sub/Red), `role_registry`, `registry` (writable), `dvp_config`, `settlement` (writable) | | |
+| `fund_state` (writable for Sub/Red), `registry` (writable), `dvp_config`, `settlement` (writable) | | no role registry: settlement checks no role (FR-015) |
 | `seller_holder`, `buyer_holder` | read / writable | HolderStates of non-Fund parties |
 | `escrow_authority`, `unit_escrow`, `cash_escrow` | | |
 | `buyer_units` | writable | buyer's holding account (Sub, Secondary) |
