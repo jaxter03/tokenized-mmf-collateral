@@ -8,6 +8,7 @@ pub mod fixtures;
 pub mod harness;
 pub mod model;
 pub mod rebuild;
+pub mod settle;
 pub mod squads;
 pub mod units;
 

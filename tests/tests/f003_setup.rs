@@ -447,3 +447,86 @@ fn settlement_ready_fixture() {
     assert_eq!(units::balance(&h, &s.m(), &b.pubkey()), 500);
     tests::assert::assert_i4(&h, &s.m());
 }
+
+#[test]
+fn no_instruction_before_settlement_is_set_up() {
+    // T029 (FR-003): before init_dvp, before the escrow is approved, before it is thawed. Built
+    // by hand: the `SettleCtx` helpers need a fund that is already set up.
+    use tests::settle::ONE;
+    let mut h = Harness::new();
+    tests::clock::set_utc_day(&mut h.svm, fixtures::SETTLE_DAY, 3_600);
+    let ctx = fixtures::launched_fund(&mut h, 0);
+    fixtures::publish(&mut h, &ctx, fixtures::NAV_ONE, 0, 1).unwrap();
+    let investor = fixtures::new_investor(&mut h, &ctx);
+    let fs = ctx.fund_state();
+    let args = |n: u8| dvp_settlement::CreateArgs {
+        external_ref: [n; 32],
+        ..sub_args_for(fs, investor.pubkey())
+    };
+    fn sub_args_for(fs: Pubkey, buyer: Pubkey) -> dvp_settlement::CreateArgs {
+        dvp_settlement::CreateArgs {
+            kind: 0,
+            seller: fs,
+            buyer,
+            units: ONE,
+            cash_amount: 0,
+            not_before_ts: 0,
+            expires_at_ts: 0,
+            external_ref: [1; 32],
+        }
+    }
+    let try_create = |h: &mut Harness, n: u8| {
+        let ix = mmf_sdk::ix_dvp::create_instruction(
+            &investor.pubkey(),
+            &h.payer.pubkey(),
+            &ctx.m(),
+            args(n),
+        );
+        h.send(&[ix], &[&investor])
+    };
+
+    // 1. No DvpConfig yet.
+    let res = try_create(&mut h, 1);
+    assert_anchor_error(&res, DvpError::EscrowNotReady);
+
+    // 2. Config and escrow accounts exist, escrow holder not registered.
+    set_treasury(&mut h, &ctx);
+    init(&mut h, &ctx, None).unwrap();
+    let res = try_create(&mut h, 2);
+    assert_anchor_error(&res, DvpError::EscrowNotReady);
+
+    // 3. Registered but still Pending.
+    let m = ctx.m();
+    let c = ctx.compliance.pubkey();
+    let escrow = mmf_sdk::pda::escrow_authority(&fs).0;
+    h.send(
+        &[mmf_sdk::ix_hook::register_holder(&c, &c, &m, &escrow, 2)],
+        &[&ctx.compliance],
+    )
+    .unwrap();
+    let res = try_create(&mut h, 3);
+    assert_anchor_error(&res, DvpError::EscrowNotReady);
+
+    // 4. Approved, but its unit account is still frozen.
+    h.send(
+        &[mmf_sdk::ix_hook::approve_fund_account(&c, &m, &escrow)],
+        &[&ctx.compliance],
+    )
+    .unwrap();
+    let res = try_create(&mut h, 4);
+    assert_anchor_error(&res, DvpError::EscrowNotReady);
+
+    // 5. Thawed: ready.
+    let unit_escrow = mmf_sdk::pda::unit_escrow(&fs, &m);
+    h.send(
+        &[mmf_sdk::ix_hook::thaw_holding_account(
+            &h.payer.pubkey(),
+            &m,
+            &escrow,
+            &unit_escrow,
+        )],
+        &[],
+    )
+    .unwrap();
+    try_create(&mut h, 5).expect("settlement is ready");
+}

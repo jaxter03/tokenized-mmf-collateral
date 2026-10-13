@@ -498,10 +498,17 @@ pub fn settlement_ready_fund(h: &mut Harness) -> SettleCtx {
 
 /// As `settlement_ready_fund`, with holder cap `cap` (0 = none).
 pub fn settlement_ready_fund_with_cap(h: &mut Harness, cap: u32) -> SettleCtx {
+    settlement_ready_fund_opts(h, cap, true)
+}
+
+/// As `settlement_ready_fund`; `priced = false` skips the $1.00 publish (no price yet).
+pub fn settlement_ready_fund_opts(h: &mut Harness, cap: u32, priced: bool) -> SettleCtx {
     // Time first: onboarding sets KYC expiry a year from "now".
     crate::clock::set_utc_day(&mut h.svm, SETTLE_DAY, 3_600);
     let fund = launched_fund(h, cap);
-    publish(h, &fund, NAV_ONE, 0, 1).expect("publish $1.00");
+    if priced {
+        publish(h, &fund, NAV_ONE, 0, 1).expect("publish $1.00");
+    }
 
     let m = fund.m();
     let fs = fund.fund_state();
@@ -541,6 +548,19 @@ pub fn settlement_ready_fund_with_cap(h: &mut Harness, cap: u32) -> SettleCtx {
         cash_escrow: mmf_sdk::pda::cash_escrow(&fs, &fund.cash_mint, &cash_program),
         fund,
     }
+}
+
+/// Sets a token account's balance directly (`set_account`). Only for planting states no
+/// instruction can reach; each test that uses it says why.
+pub fn patch_token_amount(h: &mut Harness, token_account: &Pubkey, amount: u64) {
+    use t22::extension::StateWithExtensionsMut;
+    let mut acc = h.account(token_account).expect("token account exists");
+    {
+        let mut st = StateWithExtensionsMut::<t22::state::Account>::unpack(&mut acc.data).unwrap();
+        st.base.amount = amount;
+        st.pack_base();
+    }
+    h.svm.set_account(*token_account, acc).unwrap();
 }
 
 /// An onboarded `US` investor holding `cash` in its cash ATA (and no units).
