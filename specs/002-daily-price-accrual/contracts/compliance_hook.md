@@ -48,8 +48,8 @@ publishes since the last settlement (SC-004, `scale.rs`).
 **Tests**:
 - A FundState from another fund, or with the wrong discriminator, gets `WrongMint`.
 - `Overflow` is reached by patching `HolderState.index_at_last_touch` above the fund index with
-  `set_account`. This is the only state patch in F002's tests, and it follows F001's precedent for
-  unreachable defensive checks.
+  `set_account`. Together with the publish `Overflow` and forged-FundState tests, these are F002's
+  only state patches, each for a condition no instruction can reach (F001's precedent).
 - Ordering: a transfer and a publish in consecutive transactions, both ways round.
 - Same-slot publish-then-transfer and transfer-then-publish.
 - Accrual for a fund-treasury holder.

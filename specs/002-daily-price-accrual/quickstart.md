@@ -33,7 +33,7 @@ under `tests/tests/`.
 | FR-007 | `f002_publish.rs` | `PriceMoveTooLarge` just beyond the limit (up and down); exactly at the limit accepted; the first publish measured from the target price |
 | FR-008 | `f002_override.rs` | override → publish at that price accepted, `override_used = true`, override cleared; publish at another price → `PriceMoveTooLarge`, and the override is still cleared; `OverrideAlreadyPending`; `NoOverridePending`; withdraw then publish → rejected; `InvalidReason` for codes 0, 1, 2, 4, 5, 7; `Unauthorized` from the fund admin, issuer and keeper; `UnauthorizedCaller` calling `set_nav_override` / `clear_nav_override` directly; Squads 2-of-3 compliance; cross-fund attempt rejected |
 | FR-009, FR-009a | `f002_publish.rs` | `ZeroDaysCovered`; `PeriodNotStarted` (second publish on a covered day, the day after a 3-day publish); Friday 3-day then Monday; catch-up after an outage of 2 days; periods contiguous (I12) |
-| FR-009b | `f002_publish.rs` | rate `i64::MAX` and `days_covered = u16::MAX` accepted (no cap); `Overflow` reached by repeated maximum publishes |
+| FR-009b | `f002_publish.rs` | rate `i64::MAX` and `days_covered = u16::MAX` accepted (no cap). `Overflow` is unreachable through instructions (it would take about 5.6 × 10^8 maximum publishes), so it is reached by patching `FundState.accrual_index` near `u128::MAX` and, separately, `nav_seq = u64::MAX`, with state checked unchanged afterwards |
 | FR-010, FR-011, SC-003 | `scale.rs` | publish compute units and account list identical with 10 and 10 000 holders; no HolderState changes after a publish |
 | FR-012–FR-014, US2 1/2/4 | `f002_accrual.rs` | the spec's independent test: A holds 1 000 000 units for 10 publishes, sends half to B, then 10 more publishes with a different rate each; A and B equal a hand-computed table exactly |
 | FR-013 ordering | `f002_accrual.rs` | transfer then publish → the receiver earns it; publish then transfer → the sender earns it; same slot both ways |
@@ -41,7 +41,7 @@ under `tests/tests/`.
 | FR-016, US2 5 | `f002_accrual.rs` | a holder registered after 5 publishes earns nothing for them |
 | FR-017 | `f002_accrual.rs` | SDK `earned_e18`, read without any transaction, equals the expected amount. It also equals the stored `accrued_e18` after a 0-unit transfer from that holder to another approved holder, which runs the hook and settles both |
 | FR-018, SC-004 | `scale.rs` | hook CU identical for a holder last settled 1 vs 90 publishes ago, and with 10 vs 10 000 holders; ≤ 60 000 CU |
-| FR-019 | `f002_accrual.rs`, `f002_publish.rs` | hook `Overflow` (patched index, see [contracts/compliance_hook.md](contracts/compliance_hook.md)); publish `Overflow`; state unchanged after each |
+| FR-019 | `f002_accrual.rs`, `f002_publish.rs` | hook `Overflow` (patched `index_at_last_touch`, see [contracts/compliance_hook.md](contracts/compliance_hook.md)); publish `Overflow` (patched FundState); state unchanged after each. These and the forged-FundState test are F002's only `set_account` patches, each for a condition no instruction can reach |
 | FR-020, FR-021, SC-007 | `f002_accrual.rs`, `accrual_prop.rs` | `NavPublished`, `NavOverrideApproved`, `NavOverrideWithdrawn` emitted with full payloads; every holder's earned interest rebuilt from NavRecords + `TransferValidated` events alone equals the stored figure |
 | Hook step 8 | `hook_order.rs` | a failing transfer settles nothing; `WrongMint` for a foreign or forged FundState |
 | SC-001, SC-002 (I11, I12) | `accrual_prop.rs` | see below |
