@@ -14,6 +14,8 @@ Collected while implementing, so the PR description can list them (Constitution 
 | T006 | `tests/src/events.rs` | `sample()` fills the three new `TransferValidated` fields | the event payload grew (shared-model §9); decoding tests unchanged |
 | T008 | `tests/tests/layouts.rs` | FundState test sets the F002 fields, checks size equals F001's, `bump` unmoved, new fields after it, 52 reserved bytes; view decodes `accrual_index`; new NavRecord layout test | FundState took reserved bytes (research R10) |
 | T029 | `tests/tests/hook_order.rs` | three tests **added** at the end (step 8 placement, forged FundState, accrual overflow); no existing test changed | hook step 8 (shared-model §6) |
+| T033 | `tests/tests/invariants_prop.rs` | new `Op::Publish`; `check_i12` after every step; existing operations, predictions and checks unchanged | F001 invariants must hold with the counter moving |
+| T034 | `tests/tests/scale.rs` | new test `publish_and_settlement_cost_do_not_grow` **added**; F001's test unchanged | SC-003, SC-004 |
 | T010 | `tests/src/units.rs` | `seed_units` settles the holder's interest at the fund's current counter before raising `last_balance` | otherwise seeded units would earn for publishes before they arrived (research R12); F001 tests have counter 0, so behaviour for them is unchanged |
 
 ## After Phase 2 (T012, 2026-10-13)
@@ -34,3 +36,8 @@ Collected while implementing, so the PR description can list them (Constitution 
 - `scripts/check-error-coverage.sh`: all 73 error variants asserted
 - More test-only state patches: `hook_order::a_fund_state_that_cannot_be_verified_is_rejected` (FundState owner), `hook_order::accrual_arithmetic_fails_closed` (HolderState `index_at_last_touch`)
 - Note for review: "a rejected transfer settles nothing" is also guaranteed by transaction atomicity; the tests pin it so a future non-reverting path would be caught
+
+## Polish (T032–T034, 2026-10-13)
+
+- `accrual_prop` (64 cases × ~90 days, ~87 s debug): exact per-holder match with the day-by-day model, sum check, I10, I12, and records rebuild. Mutation check: crediting the receiver on its post-balance fails at the first transfer into a holder
+- `scale` (release): publish CU identical at 10 and 10 000 holders (same seq republished after restoring FundState); settlement CU within 16 CU across 10/10 000 holders and 1/90 publishes since (SBF u128 cost varies ±2 CU with values)

@@ -405,7 +405,7 @@ figures plus fair interest.
 
 ## Phase 5: Polish & cross-cutting concerns
 
-- [ ] T032 [P] Write `tests/tests/accrual_prop.rs` (SC-001, SC-002, I11, I12, plus I3 and I10).
+- [X] T032 [P] Write `tests/tests/accrual_prop.rs` (SC-001, SC-002, I11, I12, plus I3 and I10).
   `proptest`, 64 cases by default (`PROPTEST_CASES` to raise). Each case covers 90 days with 6
   investors plus the fund treasury.
   - **Operations**:
@@ -422,16 +422,19 @@ figures plus fair interest.
     - `holder_count` and `last_balance` (I10) match.
   - **At the end of each case**: the earned interest rebuilt from records (T028's rebuild
     helper in `tests/src/rebuild.rs`) equals the stored figures (SC-007)
-- [ ] T033 [P] Extend `tests/tests/invariants_prop.rs` with `Op::Publish`, which publishes for
+- [X] T033 [P] Extend `tests/tests/invariants_prop.rs` with `Op::Publish`, which publishes for
   the next uncovered day at a random rate, so the F001 checks (I3, I10, outcome prediction) run
   with publishes interleaved. The model in `tests/src/model.rs` treats a publish as always
   succeeding on an Open fund
-- [ ] T034 [P] Extend `tests/tests/scale.rs` (`#[ignore]`):
+- [X] T034 [P] Extend `tests/tests/scale.rs` (`#[ignore]`):
   - **SC-003**: `publish_daily` compute units and account count are identical with 10 and 10 000
     registered holders.
   - **SC-004**: hook compute units for a transfer from a holder last settled 1 publish ago and
-    one last settled 90 publishes ago are identical, at 10 and at 10 000 holders, and stay
-    ≤ 60 000 CU.
+    one last settled 90 publishes ago agree within a 16-CU band, at 10 and at 10 000 holders, and
+    stay ≤ 60 000 CU. (SBF u128 arithmetic varies by 1–2 CU with the values; measured
+    21 959–21 961 with 2 holders and nothing else changing. Any real growth costs ~1 500 CU or
+    more.) Publish cost is compared by republishing the same seq after restoring FundState,
+    because each NavRecord address has its own bump.
 - [ ] T035 Run `scripts/check-error-coverage.sh` and add any missing rejection test until it
   reports none. It must list every new `FundError` variant as covered (SC-006)
 - [ ] T036 [P] Extend `scripts/devnet-e2e/src/main.rs` with the F002 steps in
