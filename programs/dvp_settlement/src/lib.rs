@@ -4,6 +4,7 @@
 use anchor_lang::prelude::*;
 
 pub mod errors;
+pub mod escrow;
 pub mod events;
 pub mod instructions;
 pub mod state;
@@ -33,5 +34,31 @@ pub mod dvp_settlement {
 
     pub fn settle(ctx: Context<Settle>) -> Result<()> {
         instructions::settle::handle_settle(ctx)
+    }
+
+    pub fn cancel(ctx: Context<Cancel>, side: u8) -> Result<()> {
+        instructions::cancel::handle_cancel(ctx, side)
+    }
+
+    pub fn withdraw_cancel(ctx: Context<Cancel>, side: u8) -> Result<()> {
+        instructions::cancel::handle_withdraw_cancel(ctx, side)
+    }
+
+    pub fn expire(ctx: Context<Expire>) -> Result<()> {
+        instructions::expire::handle_expire(ctx)
+    }
+
+    /// Governance only (`["dvp-caller"]`), for compliance.
+    pub fn reject(
+        ctx: Context<Reject>,
+        reason: u8,
+        case_ref_hash: [u8; 32],
+        actor: Pubkey,
+    ) -> Result<()> {
+        instructions::reject::handle_reject(ctx, reason, case_ref_hash, actor)
+    }
+
+    pub fn return_leg(ctx: Context<ReturnLeg>, leg: u8) -> Result<()> {
+        instructions::return_leg::handle_return_leg(ctx, leg)
     }
 }

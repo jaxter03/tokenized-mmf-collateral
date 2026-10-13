@@ -242,3 +242,33 @@ pub fn withdraw_nav_override(
         .data(),
     )
 }
+
+/// `reject_settlement` (F003): compliance rejects an open settlement instruction. Reasons: the
+/// F001 list (0, 1, 2, 3, 6).
+pub fn reject_settlement(
+    compliance: &Pubkey,
+    mint: &Pubkey,
+    settlement: &Pubkey,
+    reason: u8,
+    case_ref_hash: [u8; 32],
+) -> Instruction {
+    let fund_state = pda::fund_state(mint).0;
+    let accounts = governance::accounts::RejectSettlement {
+        compliance: *compliance,
+        role_registry: pda::role_registry(&fund_state).0,
+        fund_state,
+        settlement: *settlement,
+        dvp_caller: pda::dvp_caller().0,
+        dvp_event_authority: pda::event_authority(&mmf_common::ids::DVP_SETTLEMENT_PROGRAM_ID).0,
+        dvp_settlement_program: mmf_common::ids::DVP_SETTLEMENT_PROGRAM_ID,
+    };
+    Instruction {
+        program_id: GOVERNANCE_PROGRAM_ID,
+        accounts: accounts.to_account_metas(None),
+        data: governance::instruction::RejectSettlement {
+            reason,
+            case_ref_hash,
+        }
+        .data(),
+    }
+}

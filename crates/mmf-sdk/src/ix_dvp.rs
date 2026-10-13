@@ -270,3 +270,109 @@ pub fn settle_secondary(triggered_by: &Pubkey, d: &Deal) -> Instruction {
     a.seller_cash = Some(pda::ata(&d.seller, &d.cash_mint, &d.cash_program));
     settle_ix(a)
 }
+
+fn cancel_accounts(party: &Pubkey, d: &Deal) -> dvp_settlement::accounts::Cancel {
+    let fund_state = d.fund_state();
+    dvp_settlement::accounts::Cancel {
+        party: *party,
+        fund_state,
+        role_registry: pda::role_registry(&fund_state).0,
+        settlement: d.settlement(),
+        event_authority: pda::event_authority(&DVP_SETTLEMENT_PROGRAM_ID).0,
+        program: DVP_SETTLEMENT_PROGRAM_ID,
+    }
+}
+
+/// `cancel(side)`: `party` (the side's party) cancels, or asks to cancel an Affirmed instruction.
+pub fn cancel(party: &Pubkey, d: &Deal, side: u8) -> Instruction {
+    Instruction {
+        program_id: DVP_SETTLEMENT_PROGRAM_ID,
+        accounts: cancel_accounts(party, d).to_account_metas(None),
+        data: dvp_settlement::instruction::Cancel { side }.data(),
+    }
+}
+
+/// `withdraw_cancel(side)`: `party` withdraws its own cancel request.
+pub fn withdraw_cancel(party: &Pubkey, d: &Deal, side: u8) -> Instruction {
+    Instruction {
+        program_id: DVP_SETTLEMENT_PROGRAM_ID,
+        accounts: cancel_accounts(party, d).to_account_metas(None),
+        data: dvp_settlement::instruction::WithdrawCancel { side }.data(),
+    }
+}
+
+/// `expire()`: anyone, at or after the instruction's expiry.
+pub fn expire(triggered_by: &Pubkey, d: &Deal) -> Instruction {
+    let accounts = dvp_settlement::accounts::Expire {
+        triggered_by: *triggered_by,
+        fund_state: d.fund_state(),
+        settlement: d.settlement(),
+        event_authority: pda::event_authority(&DVP_SETTLEMENT_PROGRAM_ID).0,
+        program: DVP_SETTLEMENT_PROGRAM_ID,
+    };
+    Instruction {
+        program_id: DVP_SETTLEMENT_PROGRAM_ID,
+        accounts: accounts.to_account_metas(None),
+        data: dvp_settlement::instruction::Expire {}.data(),
+    }
+}
+
+fn return_base(triggered_by: &Pubkey, d: &Deal) -> dvp_settlement::accounts::ReturnLeg {
+    let fund_state = d.fund_state();
+    dvp_settlement::accounts::ReturnLeg {
+        triggered_by: *triggered_by,
+        fund_state,
+        dvp_config: pda::dvp_config(&fund_state).0,
+        settlement: d.settlement(),
+        escrow_authority: d.escrow(),
+        escrow_account: d.cash_escrow(),
+        recipient: Pubkey::default(),
+        leg_mint: d.cash_mint,
+        token_program: d.cash_program,
+        registry: None,
+        escrow_holder: None,
+        recipient_holder: None,
+        delegate: None,
+        hook_program: None,
+        extra_account_meta_list: None,
+        event_authority: pda::event_authority(&DVP_SETTLEMENT_PROGRAM_ID).0,
+        program: DVP_SETTLEMENT_PROGRAM_ID,
+    }
+}
+
+fn return_ix(accounts: dvp_settlement::accounts::ReturnLeg, leg: u8) -> Instruction {
+    Instruction {
+        program_id: DVP_SETTLEMENT_PROGRAM_ID,
+        accounts: accounts.to_account_metas(None),
+        data: dvp_settlement::instruction::ReturnLeg { leg }.data(),
+    }
+}
+
+/// `return_leg(Units)`: the earmarked units go back to the seller's holding account, through the
+/// hook.
+pub fn return_units(triggered_by: &Pubkey, d: &Deal) -> Instruction {
+    let mut a = return_base(triggered_by, d);
+    a.escrow_account = d.unit_escrow();
+    a.recipient = pda::holding_account(&d.seller, &d.mint);
+    a.leg_mint = d.mint;
+    a.token_program = TOKEN_2022_PROGRAM_ID;
+    a.registry = Some(pda::registry(&d.mint).0);
+    a.escrow_holder = Some(pda::holder(&d.mint, &d.escrow()).0);
+    a.recipient_holder = Some(pda::holder(&d.mint, &d.seller).0);
+    a.delegate = Some(pda::delegate(&d.mint).0);
+    a.hook_program = Some(COMPLIANCE_HOOK_PROGRAM_ID);
+    a.extra_account_meta_list = Some(pda::extra_metas(&d.mint).0);
+    return_ix(a, 0)
+}
+
+/// `return_leg(Cash)`: the earmarked cash goes back to the buyer's cash ATA, or to
+/// `cash_treasury` for a redemption (the transfer agent funded it from there).
+pub fn return_cash(triggered_by: &Pubkey, d: &Deal, cash_treasury: &Pubkey) -> Instruction {
+    let mut a = return_base(triggered_by, d);
+    a.recipient = if d.buyer == d.fund_state() {
+        *cash_treasury
+    } else {
+        pda::ata(&d.buyer, &d.cash_mint, &d.cash_program)
+    };
+    return_ix(a, 1)
+}

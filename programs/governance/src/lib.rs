@@ -109,4 +109,13 @@ pub mod governance {
             auditor,
         )
     }
+
+    /// Compliance rejects an open settlement instruction (F003).
+    pub fn reject_settlement(
+        ctx: Context<RejectSettlement>,
+        reason: u8,
+        case_ref_hash: [u8; 32],
+    ) -> Result<()> {
+        instructions::reject_settlement::handle_reject_settlement(ctx, reason, case_ref_hash)
+    }
 }
