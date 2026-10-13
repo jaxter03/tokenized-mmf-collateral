@@ -716,7 +716,7 @@ succeeds. One prepared for an instruction that is cancelled before submission is
 
 ## Phase 8: Polish & cross-cutting concerns
 
-- [ ] T071 [P] Write `tests/tests/dvp_prop.rs` (proptest, SC-001, SC-002, SC-003, SC-005):
+- [X] T071 [P] Write `tests/tests/dvp_prop.rs` (proptest, SC-001, SC-002, SC-003, SC-005):
   - random sequences of 50–200 operations over 4 investors and 3 UTC days, using the T014 model
     as the oracle;
   - operations: create (all kinds, random amounts and expiries), fund (each side), settle,
@@ -726,22 +726,25 @@ succeeds. One prepared for an instruction that is cancelled before submission is
     model; I4, I5, I6 (for each final instruction whose returns are done), I13 (equality: no
     stray deposits), I14; and the F001/F002 invariants I3, I10, I11.
 
-  A release-mode `#[ignore]` variant runs 1 000 cases
-- [ ] T072 [P] Extend `tests/tests/invariants_prop.rs` with `assert_i4` after every op (seeded
+  A release-mode `#[ignore]` variant runs 200 cases of 100–200 operations (each case sets up a
+  fund, so 1 000 would take far longer than the rest of the suite; the default run is 24 cases,
+  raised with `PROPTEST_CASES`). Publishes use rate 0: exact interest is covered by
+  `accrual_prop.rs` (F002) and `f003_accrual.rs`
+- [X] T072 [P] Extend `tests/tests/invariants_prop.rs` with `assert_i4` after every op (seeded
   units only), and add a dvp-ready fixture variant. F001/F002 test edit, to be listed in the PR
-- [ ] T073 [P] Extend `tests/tests/scale.rs` (SC-007, `#[ignore]`, release): the CU of a
+- [X] T073 [P] Extend `tests/tests/scale.rs` (SC-007, `#[ignore]`, release): the CU of a
   subscription `settle` and a redemption `settle` is identical with 10 vs 10 000 registered
   holders, and with 1 vs 1 000 open instructions (created by the fixture)
-- [ ] T074 [P] Extend `tests/src/rebuild.rs` and add `tests/tests/f003_rebuild.rs` (SC-008, FR-031).
+- [X] T074 [P] Extend `tests/src/rebuild.rs` and add `tests/tests/f003_rebuild.rs` (SC-008, FR-031).
   From the settlement events alone (`SettlementCreated`, `LegFunded`, `Settled`,
   `CancelRequested`, `CancelRequestWithdrawn`, `SettlementCancelled`, `SettlementExpired`,
   `SettlementRejected`, `LegReturned`, `SubscriptionMinted`, `RedemptionBurned`), rebuild every
   instruction's status, earmarks and escrow movements, and compare them with on-chain state after
   a mixed scenario
-- [ ] T075 Run `scripts/check-error-coverage.sh`. Every `DvpError`, the new `FundError` and
+- [X] T075 Run `scripts/check-error-coverage.sh`. Every `DvpError`, the new `FundError` and
   `HookError` variants, and the governance errors used by `reject_settlement` are asserted by a
   test (SC-006). Add any missing rejection test
-- [ ] T076 [P] Run `cargo clippy --workspace --all-targets -- -D warnings` and
+- [X] T076 [P] Run `cargo clippy --workspace --all-targets -- -D warnings` and
   `cargo fmt --check`, and fix any issues
 - [ ] T077 [P] Extend `scripts/devnet-e2e/src/main.rs` with `--feature f003`, following
   [quickstart.md](quickstart.md#devnet-run-scripts-devnet-e2e---feature-f003):

@@ -199,3 +199,65 @@ fn publish_and_settlement_cost_do_not_grow() {
         "hook used {hook_large_90} CU, ceiling {HOOK_CU_CEILING}"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// F003 T073: SC-007 (settlement cost doesn't grow with holders or open instructions)
+// ---------------------------------------------------------------------------------------------
+
+/// One subscription and one redemption by the same two investors, settled; returns their CU.
+/// The same parties and accounts at both scales, so every address derivation costs the same.
+fn settle_pair(
+    h: &mut Harness,
+    s: &fixtures::SettleCtx,
+    buyer: &solana_keypair::Keypair,
+    seller: &solana_keypair::Keypair,
+    n: u8,
+) -> (u64, u64) {
+    use tests::settle;
+    let d = settle::affirmed_subscription(h, s, buyer, settle::ONE, n);
+    let sub = settle::settle_sub(h, s, &d, &s.keeper)
+        .unwrap()
+        .compute_units_consumed;
+    let d = settle::affirmed_redemption(h, s, seller, settle::ONE, n + 1);
+    let red = settle::settle_red(h, &d, &s.keeper)
+        .unwrap()
+        .compute_units_consumed;
+    (sub, red)
+}
+
+#[test]
+#[ignore = "slow: registers 10 000 holders and 1 000 instructions; run in release"]
+fn settlement_cost_does_not_grow_with_holders_or_open_instructions() {
+    use tests::settle::{self, ONE};
+    let mut h = Harness::new();
+    let s = fixtures::settlement_ready_fund(&mut h);
+    let buyer = fixtures::investor_with_cash(&mut h, &s, 100 * ONE);
+    // Plenty outstanding at the day's start, so the redemption limit never binds.
+    let seller = fixtures::investor_with_units(&mut h, &s, 100_000 * ONE, 0);
+    settle::fill_treasury(&mut h, &s, 100 * ONE);
+    register_many(&mut h, &s, SMALL - 3);
+    // Warm up: the buyer's first units and the day's first mint each write once (holder count,
+    // redemption-day rollover); measure the steady state at both scales.
+    settle_pair(&mut h, &s, &buyer, &seller, 10);
+    let small = settle_pair(&mut h, &s, &buyer, &seller, 1);
+
+    register_many(&mut h, &s, LARGE - SMALL);
+    // 1 000 open instructions (created, never funded).
+    let opener = fixtures::investor_with_cash(&mut h, &s, 0);
+    for i in 0..1_000u32 {
+        let mut args = settle::sub_args(&s, &opener.pubkey(), ONE, 1);
+        args.external_ref = [0; 32];
+        args.external_ref[..4].copy_from_slice(&(i + 1).to_le_bytes());
+        settle::create(&mut h, &s, &opener, args).expect("open instruction");
+    }
+    let large = settle_pair(&mut h, &s, &buyer, &seller, 3);
+
+    println!(
+        "settle CU (subscription, redemption): {small:?} with {SMALL} holders and 1 open \
+         instruction, {large:?} with {LARGE} holders and 1 000 open"
+    );
+    assert_eq!(
+        small, large,
+        "settlement cost must not depend on holders or open instructions"
+    );
+}

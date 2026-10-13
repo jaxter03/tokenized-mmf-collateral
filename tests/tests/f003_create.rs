@@ -483,3 +483,14 @@ fn every_investor_party_must_be_eligible() {
     let res = create(&mut h, &s, &s.transfer_agent, sub_args(&s, &nobody, ONE, 6));
     assert_anchor_error(&res, DvpError::PartyNotEligible);
 }
+
+#[test]
+fn cash_that_does_not_fit_is_an_overflow() {
+    // At $1.0001, u64::MAX units would cost more than u64::MAX cash base units.
+    let (mut h, s) = ready();
+    let a = fixtures::investor_with_cash(&mut h, &s, 0);
+    clock::set_utc_day(&mut h.svm, SETTLE_DAY + 1, 60);
+    fixtures::publish(&mut h, &s, 100_010_000, 0, 1).unwrap();
+    let res = create(&mut h, &s, &a, sub_args(&s, &a.pubkey(), u64::MAX, 1));
+    assert_anchor_error(&res, DvpError::Overflow);
+}
