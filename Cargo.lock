@@ -2521,6 +2521,9 @@ name = "mmf-common"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
+ "anchor-spl",
+ "solana-program-option",
+ "solana-program-pack",
  "solana-sha256-hasher",
 ]
 

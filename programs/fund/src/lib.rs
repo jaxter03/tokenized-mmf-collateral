@@ -56,4 +56,8 @@ pub mod fund {
     ) -> Result<()> {
         instructions::nav_override::handle_clear_nav_override(ctx, reason, case_ref_hash, actor)
     }
+
+    pub fn set_cash_treasury(ctx: Context<SetCashTreasury>) -> Result<()> {
+        instructions::set_cash_treasury::handle_set_cash_treasury(ctx)
+    }
 }

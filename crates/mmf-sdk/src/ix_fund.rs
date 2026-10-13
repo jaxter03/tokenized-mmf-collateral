@@ -146,3 +146,27 @@ pub fn clear_nav_override_raw(
         .data(),
     }
 }
+
+/// `set_cash_treasury` (F003): signed by the issuer; designates the treasury cash account once.
+pub fn set_cash_treasury(
+    issuer: &Pubkey,
+    mint: &Pubkey,
+    cash_treasury: &Pubkey,
+    cash_mint: &Pubkey,
+) -> Instruction {
+    let fund_state = pda::fund_state(mint).0;
+    let accounts = fund::accounts::SetCashTreasury {
+        issuer: *issuer,
+        fund_state,
+        role_registry: pda::role_registry(&fund_state).0,
+        cash_treasury: *cash_treasury,
+        cash_mint: *cash_mint,
+        event_authority: pda::event_authority(&FUND_PROGRAM_ID).0,
+        program: FUND_PROGRAM_ID,
+    };
+    Instruction {
+        program_id: FUND_PROGRAM_ID,
+        accounts: accounts.to_account_metas(None),
+        data: fund::instruction::SetCashTreasury {}.data(),
+    }
+}
