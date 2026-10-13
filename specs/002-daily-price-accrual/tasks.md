@@ -337,7 +337,7 @@ earned interest equal a day-by-day calculation exactly (spec US2).
 
 ### Tests for User Story 2 (write first; they must fail) ⚠️
 
-- [ ] T026 [US2] Write the spec's independent test in `tests/tests/f002_accrual.rs`:
+- [X] T026 [US2] Write the spec's independent test in `tests/tests/f002_accrual.rs`:
   - seed A with `1_000_000_000_000` base units (1 000 000 units, 6 dp) before the first publish;
   - make 10 daily publishes with rates from a fixed list of 20 distinct `i64` values;
   - transfer `500_000_000_000` A → B;
@@ -347,7 +347,7 @@ earned interest equal a day-by-day calculation exactly (spec US2).
   Assert `HolderState.accrued_e18` for A and B equals expected values computed in the test from
   the explicit rate list. The expected values come from a plain loop
   `Σ balance × rate × 1_000_000`, **not** from `mmf_common::accrual` (US2-1, US2-2, US2-4)
-- [ ] T027 [US2] Add ordering and accrual-rule tests to `tests/tests/f002_accrual.rs`:
+- [X] T027 [US2] Add ordering and accrual-rule tests to `tests/tests/f002_accrual.rs`:
   - **Ordering**: transfer then publish → the receiver earns that publish on the received units;
     publish then transfer → the sender does. Both run in the same slot (no slot change between
     transactions) and in different slots (FR-013, US2-6).
@@ -366,11 +366,12 @@ earned interest equal a day-by-day calculation exactly (spec US2).
     both HolderStates byte-identical.
   - **Records (FR-020)**: `TransferValidated` carries `accrual_index`, `source_accrued_e18` and
     `destination_accrued_e18` after settlement.
-- [ ] T028 [US2] Add the records test to `tests/tests/f002_accrual.rs` (FR-021, SC-007). From
+- [X] T028 [US2] Add the records test to `tests/tests/f002_accrual.rs` (FR-021, SC-007). From
   NavRecords and the `TransferValidated` events of a 15-publish scenario with 4 holders, rebuild
   every holder's balance history and earned interest using only those records. Assert they equal
-  the stored `HolderState` figures
-- [ ] T029 [US2] Add hook step 8 cases to `tests/tests/hook_order.rs`:
+  the stored `HolderState` figures. The rebuild lives in `tests/src/rebuild.rs` from the start, so
+  T032 can reuse it
+- [X] T029 [US2] Add hook step 8 cases to `tests/tests/hook_order.rs`:
   - **Ordering**: a transfer failing at steps 3, 4, 6 or 7 leaves `accrued_e18` and
     `index_at_last_touch` unchanged for both holders.
   - **Forged FundState**: patch the FundState account's owner to the system program with
@@ -380,7 +381,7 @@ earned interest equal a day-by-day calculation exactly (spec US2).
 
 ### Implementation for User Story 2
 
-- [ ] T030 [US2] Implement hook step 8 in `programs/compliance_hook/src/hook/execute.rs` per
+- [X] T030 [US2] Implement hook step 8 in `programs/compliance_hook/src/hook/execute.rs` per
   [contracts/compliance_hook.md](contracts/compliance_hook.md):
   - **Index**: after step 7, load
     `FundStateView::load(&a.fund_state, &a.registry.fund_state)`, mapping any error to
@@ -394,7 +395,7 @@ earned interest equal a day-by-day calculation exactly (spec US2).
   - **Event**: fill `TransferValidated.accrual_index`, `source_accrued_e18` and
     `destination_accrued_e18` with the values after settlement.
   - **Docs**: update the module doc's step list to "F002 builds step 8"
-- [ ] T031 [US2] Run `cargo test -p tests --test f002_accrual --test hook_order` until green, then
+- [X] T031 [US2] Run `cargo test -p tests --test f002_accrual --test hook_order` until green, then
   the full suite (Constitution XII)
 
 **Checkpoint**: US2's independent test passes exactly. US1 and US2 together are the MVP: published
@@ -420,7 +421,7 @@ figures plus fair interest.
     - I12 holds;
     - `holder_count` and `last_balance` (I10) match.
   - **At the end of each case**: the earned interest rebuilt from records (T028's rebuild
-    helper, moved to `tests/src/`) equals the stored figures (SC-007)
+    helper in `tests/src/rebuild.rs`) equals the stored figures (SC-007)
 - [ ] T033 [P] Extend `tests/tests/invariants_prop.rs` with `Op::Publish`, which publishes for
   the next uncovered day at a random rate, so the F001 checks (I3, I10, outcome prediction) run
   with publishes interleaved. The model in `tests/src/model.rs` treats a publish as always
