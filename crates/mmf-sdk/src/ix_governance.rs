@@ -188,3 +188,57 @@ pub fn unpause_transfers(
         .data(),
     )
 }
+
+use mmf_common::ids::FUND_PROGRAM_ID;
+
+fn nav_override_accounts(
+    compliance: &Pubkey,
+    mint: &Pubkey,
+) -> governance::accounts::NavOverrideAction {
+    let fund_state = pda::fund_state(mint).0;
+    governance::accounts::NavOverrideAction {
+        compliance: *compliance,
+        role_registry: pda::role_registry(&fund_state).0,
+        fund_state,
+        fund_caller: pda::fund_caller().0,
+        fund_event_authority: pda::event_authority(&FUND_PROGRAM_ID).0,
+        fund_program: FUND_PROGRAM_ID,
+    }
+}
+
+/// `approve_nav_override` (F002): compliance allows `nav` at the next publish, beyond the daily
+/// move limit. Reasons: OperationalError (3) or Other (6).
+pub fn approve_nav_override(
+    compliance: &Pubkey,
+    mint: &Pubkey,
+    nav: u64,
+    reason: u8,
+    case_ref_hash: [u8; 32],
+) -> Instruction {
+    ix(
+        nav_override_accounts(compliance, mint),
+        governance::instruction::ApproveNavOverride {
+            nav,
+            reason,
+            case_ref_hash,
+        }
+        .data(),
+    )
+}
+
+/// `withdraw_nav_override` (F002): compliance withdraws the pending override before use.
+pub fn withdraw_nav_override(
+    compliance: &Pubkey,
+    mint: &Pubkey,
+    reason: u8,
+    case_ref_hash: [u8; 32],
+) -> Instruction {
+    ix(
+        nav_override_accounts(compliance, mint),
+        governance::instruction::WithdrawNavOverride {
+            reason,
+            case_ref_hash,
+        }
+        .data(),
+    )
+}

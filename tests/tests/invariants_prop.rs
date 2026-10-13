@@ -8,6 +8,9 @@
 //! - SC-007 / I10: `holder_count` equals investors with `last_balance > 0`, and every
 //!   `last_balance` equals the holding account's balance;
 //! - `holder_count` never exceeds the cap.
+//!
+//! F002 (T033): `Publish` operations are interleaved, so the F001 invariants are checked with the
+//! interest counter moving, and I12 (index and period continuity) is checked after every step.
 
 use anchor_lang::prelude::Pubkey;
 use compliance_hook::{HolderState, Registry};
@@ -28,15 +31,28 @@ const REASON: u8 = ReasonCode::OperationalError as u8;
 
 #[derive(Clone, Debug)]
 enum Op {
-    Transfer { from: usize, to: usize, amount: u64 },
+    Transfer {
+        from: usize,
+        to: usize,
+        amount: u64,
+    },
     Suspend(usize),
     Reinstate(usize),
     Revoke(usize),
-    Renew { who: usize, days: i64 },
+    Renew {
+        who: usize,
+        days: i64,
+    },
     Pause,
     Unpause,
     Onboard(usize),
-    Warp { days: i64 },
+    Warp {
+        days: i64,
+    },
+    /// F002: publish for the next uncovered day through today, at `rate`.
+    Publish {
+        rate: i64,
+    },
 }
 
 fn op() -> impl Strategy<Value = Op> {
@@ -52,6 +68,7 @@ fn op() -> impl Strategy<Value = Op> {
         1 => Just(Op::Unpause),
         1 => who.prop_map(Op::Onboard),
         3 => (1i64..400).prop_map(|days| Op::Warp { days }),
+        2 => (0i64..=500_000_000).prop_map(|rate| Op::Publish { rate }),
     ]
 }
 
@@ -60,6 +77,8 @@ struct World {
     ctx: FundCtx,
     keys: Vec<Keypair>,
     model: Model,
+    /// F002: last UTC day covered by a publish.
+    period_end: Option<u32>,
 }
 
 impl World {
@@ -92,6 +111,7 @@ impl World {
             ctx,
             keys,
             model,
+            period_end: None,
         }
     }
 
@@ -221,6 +241,23 @@ impl World {
                 self.model.now += days * DAY;
                 (true, true)
             }
+            Op::Publish { rate } => {
+                // The fund is always Open here; a publish succeeds whenever its period has begun.
+                let today = mmf_common::accrual::utc_day(self.model.now).unwrap();
+                let start = self.period_end.map_or(today, |end| end + 1);
+                let predicted = start <= today;
+                let days = if predicted {
+                    (today - start + 1) as u16
+                } else {
+                    1
+                };
+                let actual =
+                    fixtures::publish(&mut self.h, &self.ctx, 100_000_000, rate, days).is_ok();
+                if actual {
+                    self.period_end = Some(today);
+                }
+                (predicted, actual)
+            }
         }
     }
 
@@ -268,6 +305,7 @@ impl World {
             "holder_count exceeds the cap after {after:?}"
         );
         assert_eq!(reg.transfers_paused, self.model.paused);
+        fixtures::check_i12(&self.h, &self.ctx);
     }
 }
 

@@ -1832,6 +1832,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "compliance_hook",
+ "fund",
  "mmf-common",
 ]
 

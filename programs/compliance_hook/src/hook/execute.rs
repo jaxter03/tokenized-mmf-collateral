@@ -2,7 +2,7 @@
 //! Token-2022 calls it during `transfer_checked`, after moving the balances, with the five base
 //! accounts read-only and then the extra accounts from the `ExtraAccountMetaList`.
 //!
-//! Steps (F001 builds 0, 1, 3, 4, 6, 7, 9, 10; step 8 arrives with F002, step 5 with F004 and
+//! Steps (F001 builds 0, 1, 3, 4, 6, 7, 9, 10; F002 builds 8; step 5 arrives with F004 and
 //! step 2 with F005):
 //!  0. both token accounts carry the `transferring` flag      → NotTransferring
 //!  1. accounts belong to this fund's mint                      → WrongMint
@@ -10,6 +10,7 @@
 //!  4. sender approved with valid KYC                           → SenderNotApproved
 //!  6. receiver approved, class allowed, jurisdiction allowed   → ReceiverNotApproved
 //!  7. new investor while the cap is reached                    → HolderCapReached
+//!  8. settle both sides' interest on their old balances         → WrongMint, Overflow
 //!  9. holder count and last_balance / last_slot (once if same owner)
 //! 10. emit! TransferValidated
 
@@ -19,7 +20,9 @@ use anchor_spl::token_2022::spl_token_2022::extension::{
     BaseStateWithExtensions, StateWithExtensions,
 };
 use anchor_spl::token_2022::spl_token_2022::state::Account as TokenAccount;
+use mmf_common::accrual;
 use mmf_common::seeds;
+use mmf_common::views::FundStateView;
 
 use crate::errors::HookError;
 use crate::events::TransferValidated;
@@ -40,7 +43,8 @@ pub struct Execute<'info> {
     /// Extra 1: writable, the hook maintains `holder_count` (research R5).
     #[account(mut)]
     pub registry: Account<'info, Registry>,
-    /// CHECK: extra 2: FundState (checked against `registry.fund_state`).
+    /// CHECK: extra 2: FundState (checked against `registry.fund_state`; decoded with
+    /// `FundStateView` in step 8).
     pub fund_state: UncheckedAccount<'info>,
     /// CHECK: extra 3: HolderState of the source owner; loaded by hand (a missing record counts as
     /// not approved; the same record may also be the destination — research R4).
@@ -107,6 +111,21 @@ fn record_balance(
     Ok(())
 }
 
+/// Step 8 for one holder: credit the interest earned on `pre_balance` since its last settlement,
+/// then move its checkpoint to `index` (shared-model §6; exact, research R1).
+fn settle(holder: &mut HolderState, pre_balance: u64, index: u128) -> Result<()> {
+    let (accrued, at) = accrual::settle(
+        holder.accrued_e18,
+        holder.index_at_last_touch,
+        pre_balance,
+        index,
+    )
+    .ok_or(error!(HookError::Overflow))?;
+    holder.accrued_e18 = accrued;
+    holder.index_at_last_touch = at;
+    Ok(())
+}
+
 pub fn handle_execute(ctx: Context<Execute>, amount: u64) -> Result<()> {
     let a = &ctx.accounts;
 
@@ -161,6 +180,28 @@ pub fn handle_execute(ctx: Context<Execute>, amount: u64) -> Result<()> {
         HookError::HolderCapReached
     );
 
+    // 8. Settle interest on the balances held until now, before step 9 records the new ones
+    // (F002). Only a verified FundState supplies the counter; every check above has passed, so a
+    // rejected transfer settles nothing.
+    let index = FundStateView::load(&a.fund_state, &a.registry.fund_state)
+        .map_err(|_| error!(HookError::WrongMint))?
+        .accrual_index;
+    if same_owner {
+        let total = post_src
+            .checked_add(post_dst)
+            .ok_or(error!(HookError::Overflow))?;
+        settle(&mut src, total, index)?;
+    } else {
+        let pre_src = post_src
+            .checked_add(amount)
+            .ok_or(error!(HookError::Overflow))?;
+        let pre_dst = post_dst
+            .checked_sub(amount)
+            .ok_or(error!(HookError::Overflow))?;
+        settle(&mut src, pre_src, index)?;
+        settle(&mut dst, pre_dst, index)?;
+    }
+
     // 9. Holder count and recorded balances (once when both sides are the same owner).
     let reg = &mut ctx.accounts.registry;
     if same_owner {
@@ -183,6 +224,14 @@ pub fn handle_execute(ctx: Context<Execute>, amount: u64) -> Result<()> {
         destination_owner: dst_owner,
         amount,
         holder_count: reg.holder_count,
+        // The settlement's record (FR-020): both sides' interest after step 8.
+        accrual_index: index,
+        source_accrued_e18: src.accrued_e18,
+        destination_accrued_e18: if same_owner {
+            src.accrued_e18
+        } else {
+            dst.accrued_e18
+        },
         slot: clock.slot,
         unix_ts: now,
     });

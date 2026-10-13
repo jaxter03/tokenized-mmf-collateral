@@ -512,3 +512,119 @@ fn holder_count_arithmetic_is_checked() {
         "nothing moved"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// F002 T029: hook step 8 (accrual) sits after every check and fails closed
+// ---------------------------------------------------------------------------------------------
+
+/// Tuesday 2026-10-13.
+const F002_TUE: u32 = 20_739;
+/// 4.5 % a year.
+const F002_RATE: i64 = 123_287_671;
+
+fn f002_publish_on(h: &mut Harness, ctx: &FundCtx, day: u32) {
+    clock::set_utc_day(&mut h.svm, day, 15 * 3_600);
+    fixtures::publish(h, ctx, 100_000_000, F002_RATE, 1).expect("publish");
+}
+
+fn holder_bytes(h: &Harness, ctx: &FundCtx, owners: &[&Pubkey]) -> Vec<Vec<u8>> {
+    owners
+        .iter()
+        .map(|o| h.data(&pda::holder(&ctx.m(), o).0))
+        .collect()
+}
+
+#[test]
+fn a_transfer_rejected_at_any_check_settles_nothing() {
+    let mut h = Harness::new();
+    clock::set_utc_day(&mut h.svm, F002_TUE, 15 * 3_600);
+    let (ctx, alice) = fixtures::fund_with_investor_units(&mut h, 2, 1_000_000);
+    let bob = fixtures::new_investor(&mut h, &ctx);
+    let carol = fixtures::new_investor(&mut h, &ctx);
+    let (a, b, c) = (alice.pubkey(), bob.pubkey(), carol.pubkey());
+    f002_publish_on(&mut h, &ctx, F002_TUE);
+    f002_publish_on(&mut h, &ctx, F002_TUE + 1);
+    // Alice has two publishes' interest waiting to be settled.
+
+    // Step 4: sender suspended.
+    suspend(&mut h, &ctx, &a);
+    let before = holder_bytes(&h, &ctx, &[&a, &b]);
+    let res = fixtures::transfer(&mut h, &ctx, &alice, &b, 10);
+    assert_anchor_error(&res, HookError::SenderNotApproved);
+    assert_eq!(holder_bytes(&h, &ctx, &[&a, &b]), before);
+    let reinstate =
+        ix_governance::reinstate_holder(&ctx.compliance.pubkey(), &ctx.m(), &a, REASON, [0; 32]);
+    h.send(&[reinstate], &[&ctx.compliance]).unwrap();
+
+    // Step 6: receiver suspended.
+    suspend(&mut h, &ctx, &b);
+    let before = holder_bytes(&h, &ctx, &[&a, &b]);
+    let res = fixtures::transfer(&mut h, &ctx, &alice, &b, 10);
+    assert_anchor_error(&res, HookError::ReceiverNotApproved);
+    assert_eq!(holder_bytes(&h, &ctx, &[&a, &b]), before);
+    let reinstate =
+        ix_governance::reinstate_holder(&ctx.compliance.pubkey(), &ctx.m(), &b, REASON, [0; 32]);
+    h.send(&[reinstate], &[&ctx.compliance]).unwrap();
+
+    // Step 7: the cap (2) is reached once Bob holds units; Carol can't become a third holder.
+    fixtures::transfer(&mut h, &ctx, &alice, &b, 10).expect("Bob becomes the second holder");
+    f002_publish_on(&mut h, &ctx, F002_TUE + 2);
+    let before = holder_bytes(&h, &ctx, &[&a, &c]);
+    let res = fixtures::transfer(&mut h, &ctx, &alice, &c, 10);
+    assert_anchor_error(&res, HookError::HolderCapReached);
+    assert_eq!(holder_bytes(&h, &ctx, &[&a, &c]), before);
+
+    // Step 3: paused.
+    pause(&mut h, &ctx);
+    let before = holder_bytes(&h, &ctx, &[&a, &b]);
+    let res = fixtures::transfer(&mut h, &ctx, &alice, &b, 10);
+    assert_anchor_error(&res, HookError::TransfersPaused);
+    assert_eq!(holder_bytes(&h, &ctx, &[&a, &b]), before);
+}
+
+#[test]
+fn a_fund_state_that_cannot_be_verified_is_rejected() {
+    // Step 8 reads the interest counter only from a verified FundState. Token-2022 always passes
+    // this mint's FundState, so its owner is patched to prove the check fires (unreachable by
+    // instruction; one of F002's few state patches).
+    let mut h = Harness::new();
+    let (ctx, alice) = fixtures::fund_with_investor_units(&mut h, 0, 1_000);
+    let bob = fixtures::new_investor(&mut h, &ctx);
+    let mut acc = h.account(&ctx.fund_state()).unwrap();
+    acc.owner = solana_system_interface::program::ID;
+    h.svm.set_account(ctx.fund_state(), acc).unwrap();
+    let before = holder_bytes(&h, &ctx, &[&alice.pubkey(), &bob.pubkey()]);
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &ctx, &alice, &bob.pubkey(), 1),
+        HookError::WrongMint,
+    );
+    assert_eq!(
+        holder_bytes(&h, &ctx, &[&alice.pubkey(), &bob.pubkey()]),
+        before
+    );
+}
+
+#[test]
+fn accrual_arithmetic_fails_closed() {
+    // A holder checkpoint ahead of the fund's counter can't arise through instructions (the
+    // counter only grows and the hook only copies it), so it's patched in to prove the hook
+    // aborts instead of wrapping.
+    let mut h = Harness::new();
+    clock::set_utc_day(&mut h.svm, F002_TUE, 15 * 3_600);
+    let (ctx, alice) = fixtures::fund_with_investor_units(&mut h, 0, 1_000);
+    let bob = fixtures::new_investor(&mut h, &ctx);
+    f002_publish_on(&mut h, &ctx, F002_TUE);
+    let index = fixtures::read::<fund::FundState>(&h, &ctx.fund_state()).accrual_index;
+    fixtures::patch::<HolderState>(&mut h, &pda::holder(&ctx.m(), &alice.pubkey()).0, |hs| {
+        hs.index_at_last_touch = index + 1
+    });
+    let before = holder_bytes(&h, &ctx, &[&alice.pubkey(), &bob.pubkey()]);
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &ctx, &alice, &bob.pubkey(), 1),
+        HookError::Overflow,
+    );
+    assert_eq!(
+        holder_bytes(&h, &ctx, &[&alice.pubkey(), &bob.pubkey()]),
+        before
+    );
+}

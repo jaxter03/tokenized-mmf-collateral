@@ -4,10 +4,11 @@ Open-source, issuer-side infrastructure for a tokenized money market fund on Sol
 used as collateral. The fund's token enforces its own rules: only approved, KYC-checked
 institutions can hold it, and every compliance action is on-chain and on record.
 
-Built feature by feature with [Spec Kit](https://github.com/github/spec-kit). Feature **F001 — fund
-launch, roles and holder onboarding** is implemented. F002–F008 (daily price and yield,
-subscription/redemption, collateral, enforcement, distributions, governance, operator tooling)
-follow in order; see [docs/speckit-inputs.md](docs/speckit-inputs.md).
+Built feature by feature with [Spec Kit](https://github.com/github/spec-kit). **F001 — fund
+launch, roles and holder onboarding** is merged; **F002 — daily price and interest accrual** is
+implemented on its branch. F003–F008 (subscription/redemption, collateral, enforcement,
+distributions, governance, operator tooling) follow in order; see
+[docs/speckit-inputs.md](docs/speckit-inputs.md).
 
 ## What F001 does
 
@@ -23,8 +24,25 @@ follow in order; see [docs/speckit-inputs.md](docs/speckit-inputs.md).
 - **No unpaid units**: no instruction mints or burns in F001, and Token-2022's permissioned burn
   stops holders destroying their own units.
 
-The specification, plan and design are in [specs/001-fund-launch-onboarding/](specs/001-fund-launch-onboarding/);
-the rules every feature follows are in the [constitution](.specify/memory/constitution.md) and
+## What F002 does
+
+- **Daily publish**: the fund admin publishes the price per unit and the daily interest rate for
+  the days it covers: 1 normally, 3 on a Friday, more before a holiday or after an outage.
+  Coverage is contiguous: each publish starts the day after the last covered day and can't start
+  in the future, so no day is skipped or paid twice. Each publish is kept forever as a numbered
+  price record that later features cite. A price that moves more than the fund's daily limit is
+  rejected unless compliance has approved an override for exactly that price.
+- **Override**: compliance (a Squads vault, typically) approves or withdraws an override through
+  governance, with a reason code. The next publish uses it up whether or not it needed it, so an
+  old override can never be used later.
+- **Interest without touching holders**: a publish adds `rate × days` to one counter on the fund
+  and writes no holder account, so it costs the same with 10 or 10 000 holders. The transfer hook
+  settles each side's interest on its old balance before every transfer, exactly (in units ×
+  10^18, no rounding). Whoever holds units at a publish earns it, whatever their status. Rounding
+  to whole units happens only at payout (F006).
+
+The specifications, plans and designs are in [specs/](specs/); the rules every feature follows
+are in the [constitution](.specify/memory/constitution.md) and
 [docs/shared-model.md](docs/shared-model.md).
 
 ## Architecture
@@ -120,7 +138,8 @@ flowchart TD
     G -->|no| X6["ReceiverNotApproved"]
     G -->|yes| H{"New investor holder while<br/>the cap is reached?"}
     H -->|yes| X7["HolderCapReached"]
-    H -->|no| I["Update holder count and recorded balances<br/>emit TransferValidated"]
+    H -->|no| S["F002: settle both sides' interest<br/>on their old balances"]
+    S --> I["Update holder count and recorded balances<br/>emit TransferValidated"]
 ```
 
 ### Holder status
@@ -143,10 +162,20 @@ holder's full status history can be rebuilt from those events alone.
 
 ## Tests
 
-**141 tests pass**: 110 program tests on LiteSVM (one rejection test per rule, each asserting the
-exact error — all 63 error variants covered), unit tests in the shared crates, 128 randomized
-operation sequences checked against a reference model, and a scale test showing the hook costs the
-same 15 449 compute units with 10 or 10 000 holders.
+**157 tests pass in the LiteSVM suite, plus 23 shared-crate unit tests.**
+- Every rule has a rejection test asserting the exact error; all 73 error variants are covered.
+- 128 randomized F001 operation sequences, now with publishes interleaved, are checked against a
+  reference model.
+- F002 suites: `f002_publish`, `f002_override` and `f002_accrual`. The spec's own test is in
+  `f002_accrual`: A holds 1 000 000 units for 10 days at a different rate each day, sends half to
+  B, then 10 more days; interest matches a day-by-day calculation exactly.
+- `accrual_prop`: 64 randomized 90-day simulations with transfers, suspensions and pauses. Every
+  holder's interest equals an independent day-by-day model exactly after every step, and an
+  auditor's rebuild from the records alone agrees.
+- Two scale tests, run in release. The hook's cost and a publish's cost are identical with 10 or
+  10 000 holders. A settlement's cost doesn't change with the number of holders or with how many
+  publishes have passed since the holder's last one; it varies by 1–2 compute units with the
+  amounts involved, and the test allows a 16-unit band.
 
 ![F001 program tests passing on LiteSVM](docs/images/tests-litesvm.png)
 
@@ -157,7 +186,11 @@ on-chain records.
 
 ![F001 end-to-end run on a local validator](docs/images/e2e-localnet.png)
 
-Transfers on a cluster move zero units: F001 deliberately has no way to create units (FR-035), and a
+The F002 steps follow on the same fund: an over-limit price rejected, an override approved, the
+override price published, a same-day publish rejected (34 steps in all). Running the script with
+`--continue <mint>` on later days publishes the next records.
+
+Transfers on a cluster move zero units: there is no way to create units before F003, and a
 zero-unit transfer still runs every hook check. Tests that move real units run on LiteSVM, which can
 place units in an account. **Devnet deployment is pending**; the same script runs there unchanged
 once the programs are deployed. Screenshots are rendered from the captured output with
@@ -167,9 +200,10 @@ once the programs are deployed. Screenshots are rendered from the captured outpu
 
 ```text
 programs/
-  fund/             fund terms, status, the Token-2022 mint (create_fund, launch)
-  compliance_hook/  holder register, onboarding, and the transfer hook
-  governance/       roles and compliance actions
+  fund/             fund terms, status, the Token-2022 mint, daily price records (create_fund,
+                    launch, publish_daily, set_/clear_nav_override)
+  compliance_hook/  holder register, onboarding, and the transfer hook (incl. interest settlement)
+  governance/       roles, compliance actions, price overrides
 crates/
   mmf-common/       program ids, seeds, enums, ISO 3166 table, KYC statement format, account views
   mmf-sdk/          instruction builders, PDA helpers, mock KYC provider, hooked transfers
@@ -190,7 +224,7 @@ Solana CLI 3.1.10 or newer.
 anchor build                                          # the three programs
 cargo test -p mmf-common                              # shared types
 cargo test -p tests                                   # LiteSVM suites, incl. randomized invariants
-cargo test -p tests --release --test scale -- --ignored   # 10 vs 10 000 holders
+cargo test -p tests --release --test scale -- --ignored   # 10 vs 10 000 holders (hook, publish, settlement)
 scripts/check-error-coverage.sh                       # every error variant has a test
 ```
 
@@ -199,12 +233,16 @@ and verify them is in [tests/fixtures/README.md](tests/fixtures/README.md).
 
 ## End-to-end run
 
-`scripts/devnet-e2e` runs the whole F001 flow against a cluster, using zero-unit transfers (F001
-can't create units, and a zero-unit transfer still runs every hook check). Rehearse it free on a
-local validator, then run it on devnet once the programs are deployed. Commands are in
-[quickstart.md](specs/001-fund-launch-onboarding/quickstart.md#devnet-run-r16).
+`scripts/devnet-e2e` runs the whole F001 flow and F002's first publish and override against a
+cluster, using zero-unit transfers (no units can be created before F003, and a zero-unit transfer
+still runs every hook check). `--continue <mint>` publishes the next record on a later UTC day.
+Rehearse it free on a local validator, then run it on devnet once the programs are deployed.
+Commands are in the [F001](specs/001-fund-launch-onboarding/quickstart.md#devnet-run-r16) and
+[F002](specs/002-daily-price-accrual/quickstart.md#devnet-run-research-r13) quickstarts.
 
 ## Status
 
-F001 is implemented and tested; devnet deployment and the human review gate are pending before it
-merges to `main`. Nothing here is audited — don't use it with real assets.
+F001 is merged. F002 is implemented and tested on `002-daily-price-accrual`; its devnet run and
+human review gate ([review.md](specs/002-daily-price-accrual/review.md)) are pending before it
+merges. Devnet deployment of the programs is still pending. Nothing here is audited — don't use it
+with real assets.
