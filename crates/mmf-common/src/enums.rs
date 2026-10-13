@@ -75,6 +75,12 @@ impl ReasonCode {
                 | Self::Other
         )
     }
+
+    /// Reasons a price override may give (F002, research R5): correcting an operational error, or
+    /// "other" with a case reference to the valuation decision.
+    pub const fn allowed_for_nav_override(self) -> bool {
+        matches!(self, Self::OperationalError | Self::Other)
+    }
 }
 
 #[cfg(test)]
@@ -100,6 +106,14 @@ mod tests {
             .filter(|v| ReasonCode::try_from(*v).unwrap().allowed_in_f001())
             .collect();
         assert_eq!(allowed, vec![0, 1, 2, 3, 6]);
+    }
+
+    #[test]
+    fn nav_override_reasons() {
+        let allowed: Vec<u8> = (0..=6)
+            .filter(|v| ReasonCode::try_from(*v).unwrap().allowed_for_nav_override())
+            .collect();
+        assert_eq!(allowed, vec![3, 6]);
     }
 
     #[test]

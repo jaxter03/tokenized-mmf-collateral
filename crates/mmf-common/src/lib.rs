@@ -1,5 +1,6 @@
-//! Types shared by the F001 programs, the SDK and the tests.
+//! Types shared by the programs, the SDK and the tests.
 
+pub mod accrual;
 pub mod enums;
 pub mod ids;
 pub mod iso3166;

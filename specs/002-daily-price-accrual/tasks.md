@@ -61,7 +61,7 @@ both stories use.
 
 **⚠️ CRITICAL**: no story work starts until Phase 2 is complete, and T012 shows F001 still green.
 
-- [ ] T003 [P] Create `crates/mmf-common/src/accrual.rs` and export it from `lib.rs`. All
+- [X] T003 [P] Create `crates/mmf-common/src/accrual.rs` and export it from `lib.rs`. All
   functions are pure, use checked `u128` math, return `None` on overflow, and never divide except
   in `utc_day`:
   - `utc_day(ts: i64) -> Option<u32>` = `ts.div_euclid(86_400)`, `None` if negative or > `u32::MAX`
@@ -84,7 +84,7 @@ both stories use.
     `99_499_999` and `100_500_001`;
   - `settle` with pre-balance 0 only moves the checkpoint;
   - overflow cases return `None`
-- [ ] T004 [P] In `crates/mmf-common/src/seeds.rs`, add `NAV = b"nav"` (fund:
+- [X] T004 [P] In `crates/mmf-common/src/seeds.rs`, add `NAV = b"nav"` (fund:
   `["nav", fund_state, seq.to_le_bytes()]` → NavRecord) and `FUND_CALLER = b"fund-caller"`
   (governance: signs `fund::set_/clear_nav_override`). In `crates/mmf-common/src/enums.rs`, add
   `ReasonCode::allowed_for_nav_override()`, true only for `OperationalError` (3) and `Other` (6),

@@ -18,3 +18,7 @@ pub const TOKEN_ADMIN: &[u8] = b"token-admin";
 pub const HOOK_ADMIN: &[u8] = b"hook-admin";
 /// fund: `["treasury", fund_state]` → owner of the fund treasury holding account.
 pub const TREASURY: &[u8] = b"treasury";
+/// fund: `["nav", fund_state, seq.to_le_bytes()]` → NavRecord. [F002]
+pub const NAV: &[u8] = b"nav";
+/// governance: `["fund-caller"]` → signs fund `set_nav_override` / `clear_nav_override`. [F002]
+pub const FUND_CALLER: &[u8] = b"fund-caller";
