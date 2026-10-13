@@ -44,10 +44,10 @@ UTC day numbers (`unix_timestamp.div_euclid(86_400)`, research R2): 2026-10-13 =
 
 **Purpose**: confirm a green F001 baseline and add the one new crate edge.
 
-- [ ] T001 Run `anchor build && cargo test -p mmf-common && cargo test -p tests` on the branch
+- [X] T001 Run `anchor build && cargo test -p mmf-common && cargo test -p tests` on the branch
   before any change and confirm F001 is green (Constitution XII baseline). Record the test count
   in the PR description draft
-- [ ] T002 Add `fund = { path = "../fund", features = ["cpi", "no-entrypoint"] }` to
+- [X] T002 Add `fund = { path = "../fund", features = ["cpi", "no-entrypoint"] }` to
   `programs/governance/Cargo.toml` (contracts/governance.md "New cross-program edge"). Confirm
   `fund` doesn't depend on `governance` (`cargo tree -p fund | grep governance` is empty, so no
   cycle) and that `anchor build` still succeeds
