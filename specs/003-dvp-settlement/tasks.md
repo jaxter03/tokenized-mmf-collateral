@@ -220,7 +220,7 @@ green.
 
 ### Settlement setup (FR-001–FR-003)
 
-- [ ] T015 Interface stubs (handlers return `Ok(())`), with full account structs from the
+- [X] T015 Interface stubs (handlers return `Ok(())`), with full account structs from the
   contracts:
   - `fund::set_cash_treasury` in `programs/fund/src/instructions/set_cash_treasury.rs`
     ([contracts/fund.md](contracts/fund.md#set_cash_treasury-issuer));
@@ -228,11 +228,11 @@ green.
     `programs/dvp_settlement/src/instructions/init_dvp.rs`, wired into `lib.rs`.
 
   `anchor build` succeeds
-- [ ] T016 [P] Add SDK builders: `ix_fund::set_cash_treasury(issuer, fund_state, cash_treasury,
+- [X] T016 [P] Add SDK builders: `ix_fund::set_cash_treasury(issuer, fund_state, cash_treasury,
   cash_mint)` in `crates/mmf-sdk/src/ix_fund.rs`, and `ix_dvp::init_dvp(issuer, payer,
   fund_state, mint, cash_mint, cash_token_program, default_expiry_secs)` in
   `crates/mmf-sdk/src/ix_dvp.rs`
-- [ ] T017 Write `tests/tests/f003_setup.rs` (tests must fail):
+- [X] T017 Write `tests/tests/f003_setup.rs` (tests must fail):
   - `set_cash_treasury`: `RoleRegistryMismatch`; non-issuer (fund admin, compliance, transfer
     agent, keeper, investor) → `Unauthorized`; second call → `CashTreasuryAlreadySet`; account of
     another mint or not a token account → `InvalidCashTreasury`; a Token-2022 cash mint with a
@@ -242,7 +242,7 @@ green.
     `CashTreasuryNotSet`; `Some(0)` → `InvalidExpiry`; a second call fails (account in use);
     `None` stores `86_400` and `Some(3_600)` stores `3_600`; `next_seq == 1`, the correct
     `escrow_bump`, both escrow ATAs exist and the unit escrow is frozen; `DvpInitialized`
-- [ ] T018 In `tests/tests/us2_onboarding.rs`, replace F001's "escrow class →
+- [X] T018 In `tests/tests/us2_onboarding.rs`, replace F001's "escrow class →
   `ClassNotAvailable`" test with:
   - escrow registration by an investor (self-registration) → `SelfRegistrationClassNotAllowed`
     (F001's existing error for a non-investor class);
@@ -251,21 +251,23 @@ green.
   - compliance registering this fund's escrow PDA → Pending, then `approve_fund_account` →
     Approved with `kyc_expiry_ts = i64::MAX`.
 
-  `CollateralVault` stays `ClassNotAvailable`. F001 test edit, to be listed in the PR. Tests must
-  fail
-- [ ] T019 Implement `fund::set_cash_treasury` per its contract (checks 1–6 in order; the
+  `CollateralVault` is still rejected, as before, with `InvalidClass` (it is checked earlier).
+  `ClassNotAvailable` is no longer returned by anything; it stays in `HookError` marked
+  `// retired` so later codes keep their numbers, and `check-error-coverage.sh` skips retired
+  variants. F001 test edit, to be listed in the PR. Tests must fail
+- [X] T019 Implement `fund::set_cash_treasury` per its contract (checks 1–6 in order; the
   extension check reads the cash mint's TLV for TransferFeeConfig and TransferHook when it's a
   Token-2022 mint). Emit `CashTreasurySet`
-- [ ] T020 Implement `dvp_settlement::init_dvp` per its contract. Create DvpConfig, and create
+- [X] T020 Implement `dvp_settlement::init_dvp` per its contract. Create DvpConfig, and create
   both escrow ATAs through the associated-token program (unit escrow under Token-2022, cash escrow
   under `cash_mint.owner`). Emit `DvpInitialized`
-- [ ] T021 In `programs/compliance_hook/src/instructions/register_holder.rs` and
+- [X] T021 In `programs/compliance_hook/src/instructions/register_holder.rs` and
   `approve_fund_account.rs`, accept class `Escrow` when
   "owner == PDA(["escrow", registry.fund_state], DVP_SETTLEMENT_PROGRAM_ID)", otherwise
   `NotSystemControlled`. In `approve_fund_account`, replace the treasury-only check with "class
   is FundTreasury or Escrow, else `NotFundAccount`", plus the per-class owner check. Update the
   R17 comment
-- [ ] T022 Add `settlement_ready_fund(h) -> SettleCtx` to `tests/src/fixtures.rs`, following
+- [X] T022 Add `settlement_ready_fund(h) -> SettleCtx` to `tests/src/fixtures.rs`, following
   quickstart "Setting up a fund for settlement":
   - a launched fund with a price of $1.00 published on day 20 739;
   - a cash treasury ATA owned by the transfer agent's key;
@@ -275,9 +277,9 @@ green.
   treasury, and the transfer agent and keeper keypairs. Add `investor_with_cash(h, ctx, cash) ->
   Keypair` (onboarded, cash ATA funded) and `investor_with_units(h, ctx, units, cash) -> Keypair`
   (via `seed_units`)
-- [ ] T023 Make T017 and T018 pass. FR-003's creation checks need `create_instruction` and are
+- [X] T023 Make T017 and T018 pass. FR-003's creation checks need `create_instruction` and are
   written in US1 (T029)
-- [ ] T024 Run the whole suite. F001, F002 and the Phase 2 tests are green, and I4 holds in every
+- [X] T024 Run the whole suite. F001, F002 and the Phase 2 tests are green, and I4 holds in every
   test that seeds units
 
 **Checkpoint**: shared code, layouts, model and settlement setup are ready, and F001/F002 are
