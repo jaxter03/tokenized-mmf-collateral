@@ -60,3 +60,89 @@ pub fn launch(issuer: &Pubkey, mint: &Pubkey) -> Instruction {
         data: fund::instruction::Launch {}.data(),
     }
 }
+
+/// `publish_daily` (F002): signed by the fund admin; `payer` funds the new NavRecord. `next_seq`
+/// is `FundState.nav_seq + 1` (wrapping, matching the program's address derivation).
+pub fn publish_daily(
+    fund_admin: &Pubkey,
+    payer: &Pubkey,
+    mint: &Pubkey,
+    next_seq: u64,
+    nav: u64,
+    daily_rate_e12: i64,
+    days_covered: u16,
+) -> Instruction {
+    let fund_state = pda::fund_state(mint).0;
+    let accounts = fund::accounts::PublishDaily {
+        fund_admin: *fund_admin,
+        payer: *payer,
+        fund_state,
+        role_registry: pda::role_registry(&fund_state).0,
+        nav_record: pda::nav_record(&fund_state, next_seq).0,
+        system_program: system_program::ID,
+        event_authority: pda::event_authority(&FUND_PROGRAM_ID).0,
+        program: FUND_PROGRAM_ID,
+    };
+    Instruction {
+        program_id: FUND_PROGRAM_ID,
+        accounts: accounts.to_account_metas(None),
+        data: fund::instruction::PublishDaily {
+            nav,
+            daily_rate_e12,
+            days_covered,
+        }
+        .data(),
+    }
+}
+
+fn override_accounts(fund_caller: &Pubkey, mint: &Pubkey) -> fund::accounts::SetNavOverride {
+    fund::accounts::SetNavOverride {
+        fund_caller: *fund_caller,
+        fund_state: pda::fund_state(mint).0,
+        event_authority: pda::event_authority(&FUND_PROGRAM_ID).0,
+        program: FUND_PROGRAM_ID,
+    }
+}
+
+/// Raw `set_nav_override` with any signer as `fund_caller`. Real calls come only from governance
+/// (`ix_governance::approve_nav_override`); this builder exists for direct-call rejection tests.
+pub fn set_nav_override_raw(
+    fund_caller: &Pubkey,
+    mint: &Pubkey,
+    nav: u64,
+    reason: u8,
+    case_ref_hash: [u8; 32],
+    actor: &Pubkey,
+) -> Instruction {
+    Instruction {
+        program_id: FUND_PROGRAM_ID,
+        accounts: override_accounts(fund_caller, mint).to_account_metas(None),
+        data: fund::instruction::SetNavOverride {
+            nav,
+            reason,
+            case_ref_hash,
+            actor: *actor,
+        }
+        .data(),
+    }
+}
+
+/// Raw `clear_nav_override` with any signer as `fund_caller` (direct-call rejection tests).
+pub fn clear_nav_override_raw(
+    fund_caller: &Pubkey,
+    mint: &Pubkey,
+    reason: u8,
+    case_ref_hash: [u8; 32],
+    actor: &Pubkey,
+) -> Instruction {
+    Instruction {
+        program_id: FUND_PROGRAM_ID,
+        accounts: override_accounts(fund_caller, mint).to_account_metas(None),
+        data: fund::instruction::ClearNavOverride {
+            reason,
+            case_ref_hash,
+            actor: *actor,
+        }
+        .data(),
+    }
+}

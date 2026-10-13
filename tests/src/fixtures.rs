@@ -301,6 +301,70 @@ pub fn transfer(
     h.send(&[ix], &[from])
 }
 
+/// Publishes as the fund's fund admin (F002), signed and paid by keys the harness controls.
+/// The record address uses `FundState.nav_seq + 1`.
+pub fn publish(
+    h: &mut Harness,
+    ctx: &FundCtx,
+    nav: u64,
+    daily_rate_e12: i64,
+    days_covered: u16,
+) -> crate::harness::TxResult {
+    let next = read::<fund::FundState>(h, &ctx.fund_state())
+        .nav_seq
+        .wrapping_add(1);
+    let ix = mmf_sdk::ix_fund::publish_daily(
+        &ctx.fund_admin.pubkey(),
+        &h.payer.pubkey(),
+        &ctx.m(),
+        next,
+        nav,
+        daily_rate_e12,
+        days_covered,
+    );
+    h.send(&[ix], &[&ctx.fund_admin])
+}
+
+/// The NavRecord with sequence number `seq` (F002).
+pub fn read_nav_record(h: &Harness, ctx: &FundCtx, seq: u64) -> fund::NavRecord {
+    read(h, &mmf_sdk::pda::nav_record(&ctx.fund_state(), seq).0)
+}
+
+/// Invariant I12 (shared-model §7), checked from the records alone and written out here rather
+/// than through `mmf_common::accrual`: the counter equals the latest record's `index_after`, each
+/// record adds `rate × 10^6 × days`, periods are contiguous, and the fund's last covered day is
+/// the latest record's.
+#[track_caller]
+pub fn check_i12(h: &Harness, ctx: &FundCtx) {
+    let fs: fund::FundState = read(h, &ctx.fund_state());
+    let mut index: u128 = 0;
+    let mut next_start: Option<u32> = None;
+    for seq in 1..=fs.nav_seq {
+        let r = read_nav_record(h, ctx, seq);
+        assert_eq!(r.seq, seq, "record {seq} seq");
+        index += u128::from(r.daily_rate_e12) * 1_000_000 * u128::from(r.days_covered);
+        assert_eq!(r.index_after, index, "record {seq} index_after");
+        if let Some(start) = next_start {
+            assert_eq!(
+                r.period_start_day, start,
+                "record {seq} starts after the previous period"
+            );
+        }
+        next_start = Some(r.period_start_day + u32::from(r.days_covered));
+    }
+    assert_eq!(
+        fs.accrual_index, index,
+        "accrual_index == latest index_after"
+    );
+    if fs.nav_seq > 0 {
+        assert_eq!(
+            fs.nav_period_end_day,
+            next_start.unwrap() - 1,
+            "nav_period_end_day"
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
