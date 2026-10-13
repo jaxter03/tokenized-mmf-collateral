@@ -156,13 +156,18 @@ fn registration_rejections_in_contract_order() {
         assert_anchor_error(&res, HookError::SelfRegistrationClassNotAllowed);
     }
 
-    // ClassNotAvailable: escrow arrives with the settlement feature (F003, research R17).
+    // NotSystemControlled for escrow (F003 T018; replaces F001's ClassNotAvailable check, now
+    // that the settlement program exists): any owner other than this fund's escrow PDA, including
+    // the escrow PDA of another fund.
     let escrow_owner = Pubkey::new_unique();
-    let res = h.send(
-        &[ix_hook::register_holder(&c, &c, &m, &escrow_owner, ESCROW)],
-        &[&ctx.compliance],
-    );
-    assert_anchor_error(&res, HookError::ClassNotAvailable);
+    let other_funds_escrow = pda::escrow_authority(&Pubkey::new_unique()).0;
+    for owner in [escrow_owner, other_funds_escrow] {
+        let res = h.send(
+            &[ix_hook::register_holder(&c, &c, &m, &owner, ESCROW)],
+            &[&ctx.compliance],
+        );
+        assert_anchor_error(&res, HookError::NotSystemControlled);
+    }
 
     // NotSystemControlled: a treasury record for any owner other than the fund's treasury PDA.
     let res = h.send(
@@ -632,6 +637,33 @@ fn compliance_approves_the_fund_treasury_without_a_statement() {
         (ev.owner, ev.class, ev.renewal),
         (treasury, TREASURY, false)
     );
+}
+
+#[test]
+fn escrow_is_registered_and_approved_by_compliance_only_for_this_funds_escrow_pda() {
+    // F003 T018 (contracts/compliance_hook.md): the settlement escrow is a fund-operated holder.
+    let (mut h, ctx) = setup();
+    let m = ctx.m();
+    let c = ctx.compliance.pubkey();
+    let escrow = pda::escrow_authority(&ctx.fund_state()).0;
+    h.send(
+        &[ix_hook::register_holder(&c, &c, &m, &escrow, ESCROW)],
+        &[&ctx.compliance],
+    )
+    .expect("compliance registers the escrow");
+    let key = pda::holder(&m, &escrow).0;
+    let r: HolderState = fixtures::read(&h, &key);
+    assert_eq!((r.status, r.class), (HolderStatus::Pending.as_u8(), ESCROW));
+
+    approve_fund(&mut h, &ctx, &ctx.compliance, &escrow).expect("approved without KYC");
+    let r: HolderState = fixtures::read(&h, &key);
+    assert_eq!(r.status, HolderStatus::Approved.as_u8());
+    assert_eq!(
+        r.kyc_expiry_ts,
+        i64::MAX,
+        "fund-operated accounts never expire"
+    );
+    assert_eq!(r.jurisdiction, [0; 2]);
 }
 
 #[test]
