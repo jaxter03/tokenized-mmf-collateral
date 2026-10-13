@@ -9,6 +9,7 @@
 //! - `devnet-e2e`: a new fund through the F001 steps, then F002's first publish and override steps.
 //! - `devnet-e2e --continue <mint>`: on a later UTC day, publish the next record for that fund
 //!   (3 days on a Friday, else 1) and print its full price history.
+//! - `devnet-e2e --feature f003 [--continue <mint>]`: the F003 settlement run (see `f003.rs`).
 //!
 //! Environment:
 //! - `RPC_URL` (default `https://api.devnet.solana.com`)
@@ -16,7 +17,9 @@
 //! - `STATE_DIR` (default `target/devnet-e2e`): where the fund admin key is kept between runs.
 //!   It is named `*-keypair.json` and lives under `target/`, both ignored by git; never commit it.
 //!
-//! The three programs must already be deployed at the IDs in `mmf_common::ids`.
+//! The programs must already be deployed at the IDs in `mmf_common::ids` (four from F003).
+
+mod f003;
 
 use std::process::ExitCode;
 
@@ -355,6 +358,22 @@ fn main() -> ExitCode {
         step: 0,
     };
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("--feature") {
+        if args.get(1).map(String::as_str) != Some("f003") {
+            eprintln!("usage: devnet-e2e --feature f003 [--continue <mint>]");
+            return ExitCode::FAILURE;
+        }
+        if args.get(2).map(String::as_str) == Some("--continue") {
+            let Some(mint) = args.get(3).and_then(|m| m.parse::<Pubkey>().ok()) else {
+                eprintln!("usage: devnet-e2e --feature f003 --continue <mint>");
+                return ExitCode::FAILURE;
+            };
+            println!("F003 continue run on {url} for fund mint {mint}");
+            return f003::continue_run(run, mint);
+        }
+        println!("F003 run on {url}");
+        return f003::run(run);
+    }
     if args.first().map(String::as_str) == Some("--continue") {
         let Some(mint) = args.get(1).and_then(|m| m.parse::<Pubkey>().ok()) else {
             eprintln!("usage: devnet-e2e --continue <mint>");

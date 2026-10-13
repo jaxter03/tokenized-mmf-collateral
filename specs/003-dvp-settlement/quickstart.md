@@ -84,16 +84,24 @@ cargo run -p devnet-e2e -- --feature f003   # one devnet run (below)
 
 ## Devnet run (`scripts/devnet-e2e`, `--feature f003`)
 
-On a fund launched by the F001/F002 run, with a mock 6-decimal stablecoin minted by the script:
-1. Set the cash treasury, run `init_dvp`, approve and thaw the escrow.
-2. Subscribe 1 000 units. The funding is prepared with a durable nonce, the clock is moved on by
-   waiting at least 2 minutes (past blockhash expiry), and then it is signed and submitted.
-3. Settle as the keeper.
-4. Redeem 400 units.
-5. Create a one-sided secondary transfer, let it expire (short expiry), expire it, and return its
-   leg.
+`devnet-e2e --feature f003` builds a new fund with a mock 6-decimal stablecoin (Token-2022, no
+extensions). Compliance is a plain key, as in the F002 steps; the Squads path for rejection is
+proven in LiteSVM (`f003_reject.rs`). It then:
+1. launches the fund, publishes $1.00, sets the treasury cash account, runs `init_dvp`, and has
+   compliance approve the escrow (then thaws it);
+2. onboards investors A and B and gives them cash; puts cash in the treasury;
+3. subscribes 1 000 units for A. The transfer agent affirms; A's funding is prepared on A's
+   durable nonce and signed 130 s later, past any recent blockhash; the keeper settles;
+4. B creates a secondary for 100 of A's units with a 60 s expiry; A funds its units; once it has
+   expired the keeper expires it and returns the units in one transaction;
+5. A redeems 400 units: both legs are funded, and settling today is refused with
+   `RedemptionLimitExceeded`. No units were outstanding at the start of the day (research R9).
 
-Print every signature and the final balances; the run fails on any mismatch.
+`devnet-e2e --feature f003 --continue <mint>` on a later UTC day publishes the day's price and
+settles that redemption. The keys it needs are kept in `STATE_DIR` (`*-keypair.json`, ignored
+by git).
+
+Each step prints its signature, and the run exits 0 only if every outcome matches.
 
 ## Known behaviours (documented, not handled)
 

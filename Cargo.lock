@@ -1334,6 +1334,7 @@ dependencies = [
  "anchor-spl",
  "bs58",
  "compliance_hook",
+ "dvp_settlement",
  "fund",
  "mmf-common",
  "mmf-sdk",

@@ -31,3 +31,4 @@ Collected while implementing, so the PR description can list them (Constitution 
 - `cancel`, `expire`, `reject` and `return_leg` check the instruction's fund by its stored `fund_state` (`FundMismatch`) rather than by an Anchor seeds constraint, so a mismatched fund reports the contract's error (T056). `affirm_and_fund` and `settle` keep the seeds constraint.
 - Measured (T073, release): a subscription `settle` 129 585 CU and a redemption 89 869 CU, identical with 10 vs 10 000 holders and 1 vs 1 000 open instructions (steady state, after the day's first mint and the buyer's first units).
 - All 113 error variants are asserted by a test (T075).
+- Devnet script (T077) rehearsed on a local validator with the four programs and Token-2022 v11: 31 of 31 steps matched, including a funding signed 130 s after it was prepared on a durable nonce. `--continue` (the next UTC day's redemption) not yet rehearsed; LiteSVM covers that path.

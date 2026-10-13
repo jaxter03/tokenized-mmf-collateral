@@ -746,20 +746,24 @@ succeeds. One prepared for an instruction that is cancelled before submission is
   test (SC-006). Add any missing rejection test
 - [X] T076 [P] Run `cargo clippy --workspace --all-targets -- -D warnings` and
   `cargo fmt --check`, and fix any issues
-- [ ] T077 [P] Extend `scripts/devnet-e2e/src/main.rs` with `--feature f003`, following
+- [X] T077 [P] Extend `scripts/devnet-e2e` with `--feature f003` (in `src/f003.rs`), following
   [quickstart.md](quickstart.md#devnet-run-scripts-devnet-e2e---feature-f003):
   - mock stablecoin;
-  - `set_cash_treasury`, `init_dvp`, then escrow approve and thaw through Squads;
+  - `set_cash_treasury`, `init_dvp`, then escrow approve and thaw (compliance as a plain key, as
+    in F002's devnet steps; the Squads path is proven in `f003_reject.rs`);
   - a subscription whose funding is prepared with a real durable nonce and submitted after more
     than 2 minutes;
-  - a redemption;
-  - an expired one-sided secondary, then its return.
+  - an expired one-sided secondary, then its return;
+  - a redemption refused today by the first-day rule (research R9). `--feature f003 --continue
+    <mint>` settles it on a later UTC day.
 
-  Print the signatures and balances, and exit 0 only if every outcome matches
-- [ ] T078 [P] Update the root `README.md`: F003 status, one paragraph on how settlement works
+  Print the signatures and balances, and exit 0 only if every outcome matches. Rehearse on a
+  local validator
+
+- [X] T078 [P] Update the root `README.md`: F003 status, one paragraph on how settlement works
   (create → fund → settle; cancel, expire or reject → return), the new program, and the new test
   files. Link [quickstart.md](quickstart.md)
-- [ ] T079 [P] Write `specs/003-dvp-settlement/review.md`, the human review checklist in the F002
+- [X] T079 [P] Write `specs/003-dvp-settlement/review.md`, the human review checklist in the F002
   `review.md` format, with code links for:
   - money math against shared-model §8 (subscription ceil, redemption floor, limit
     cross-multiplied);
@@ -770,7 +774,7 @@ succeeds. One prepared for an instruction that is cancelled before submission is
   - the Constitution IV exception for `settle`;
   - FundState offsets unchanged;
   - every F001/F002 test edit (T011, T013, T018, T072).
-- [ ] T080 Devnet run (needs the user's go-ahead, devnet SOL, and the issuer and compliance
+- [ ] T080 *(not done: needs the user's go-ahead, devnet SOL and the deployed programs. Rehearsed on a local validator 2026-10-13: 31 of 31 steps of `--feature f003` matched; the `--continue` step needs a later UTC day)* Devnet run (needs the user's go-ahead, devnet SOL, and the issuer and compliance
   Squads vaults): deploy `dvp_settlement`, upgrade the three programs, and run
   `cargo run -p devnet-e2e -- --feature f003`. Record program IDs and signatures in
   `specs/003-dvp-settlement/devnet-run.md`
