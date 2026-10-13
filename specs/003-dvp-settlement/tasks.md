@@ -582,7 +582,7 @@ Unit returns need US2's unit funding (T047). Cash-only cases need only US1.
 
 ### Interface stubs for User Story 4
 
-- [ ] T056 [US4] Add stubs, with account structs per
+- [X] T056 [US4] Add stubs, with account structs per
   [contracts/dvp_settlement.md](contracts/dvp_settlement.md):
   - `cancel(side)` and `withdraw_cancel(side)` in
     `programs/dvp_settlement/src/instructions/cancel.rs`;
@@ -592,7 +592,7 @@ Unit returns need US2's unit funding (T047). Cash-only cases need only US1.
   - `governance::reject_settlement(reason, case_ref_hash)` in
     `programs/governance/src/instructions/reject_settlement.rs`
     ([contracts/governance.md](contracts/governance.md)).
-- [ ] T057 [P] [US4] Add SDK builders:
+- [X] T057 [P] [US4] Add SDK builders:
   - `ix_dvp::{cancel, withdraw_cancel, expire, return_units, return_cash}`. `return_cash` picks
     ATA(buyer, cash_mint), or `cash_treasury` for a Redemption. `return_units` adds the hook
     extra accounts for escrow → seller;
@@ -603,7 +603,7 @@ Unit returns need US2's unit funding (T047). Cash-only cases need only US1.
 
 ### Tests for User Story 4 (write first; they must fail) ⚠️
 
-- [ ] T058 [US4] Write `tests/tests/f003_cancel_expire_reject.rs`:
+- [X] T058 [US4] Write `tests/tests/f003_cancel_expire_reject.rs`:
   - **spec independent test**;
   - **cancel**: either side cancels Instructed, SellerFunded and BuyerFunded, with the earmarks
     equal to the held amounts; an outsider → `Unauthorized`; `InvalidSide`;
@@ -616,7 +616,7 @@ Unit returns need US2's unit funding (T047). Cash-only cases need only US1.
   - **final**: every step on each final status → `InstructionFinal` (all of `affirm_and_fund`,
     `settle`, `cancel`, `withdraw_cancel`, `expire` and `reject`);
   - **events**: `SettlementCancelled`, `SettlementExpired` and `closed_at`.
-- [ ] T059 [P] [US4] Write `tests/tests/f003_reject.rs` (FR-025; contracts/governance.md):
+- [X] T059 [P] [US4] Write `tests/tests/f003_reject.rs` (FR-025; contracts/governance.md):
   - compliance via Squads rejects an instruction in each open status; earmarks are set; one
     `SettlementRejected` with `reason`, `case_ref_hash` and `actor`;
   - signer is the issuer, fund admin, transfer agent, keeper, auditor or an investor →
@@ -626,7 +626,7 @@ Unit returns need US2's unit funding (T047). Cash-only cases need only US1.
   - a final instruction → `InstructionFinal`;
   - `dvp_settlement::reject` called directly by compliance → `UnauthorizedCaller`;
   - the edge case "suspended after funding, then compliance rejects".
-- [ ] T060 [P] [US4] Write `tests/tests/f003_returns.rs` (FR-026, FR-027):
+- [X] T060 [P] [US4] Write `tests/tests/f003_returns.rs` (FR-026, FR-027):
   - units and cash returned after cancel, expire and reject, for all three kinds (a redemption's
     cash goes back to `cash_treasury`);
   - `NothingToReturn` after a return and for an unfunded leg; `NotReturnable` on open and
@@ -644,7 +644,7 @@ Unit returns need US2's unit funding (T047). Cash-only cases need only US1.
 
 ### Implementation for User Story 4
 
-- [ ] T061 [US4] (The signed transfer helpers already exist: US1 needed them for `settle`, so
+- [X] T061 [US4] (The signed transfer helpers already exist: US1 needed them for `settle`, so
   `programs/dvp_settlement/src/token.rs` has `transfer_cash` and `transfer_units` since T035/T038.
   This task adds only the earmarking.) Create `programs/dvp_settlement/src/escrow.rs`:
   - `earmark(s)`: sets `units_to_return = s.units_held()` and `cash_to_return = s.cash_held()`
@@ -654,20 +654,20 @@ Unit returns need US2's unit funding (T047). Cash-only cases need only US1.
 
   Refactor `settle` (T038, T050, T054) to use the transfer helpers, with no behaviour change; US1
   to US3 tests stay green
-- [ ] T062 [US4] Implement `cancel` and `withdraw_cancel` per their contracts (R17): bit 0 seller
+- [X] T062 [US4] Implement `cancel` and `withdraw_cancel` per their contracts (R17): bit 0 seller
   side, bit 1 buyer side; `CancelRequested`, `CancelRequestWithdrawn` and `SettlementCancelled`
   (the last one when cancelled)
-- [ ] T063 [US4] Implement `expire` per its contract (checks 1–3; no Fund status or pause check),
+- [X] T063 [US4] Implement `expire` per its contract (checks 1–3; no Fund status or pause check),
   `earmark`, `SettlementExpired`
-- [ ] T064 [US4] Implement `dvp_settlement::reject` (signer must be governance's
+- [X] T064 [US4] Implement `dvp_settlement::reject` (signer must be governance's
   `["dvp-caller"]`, derived with `GOVERNANCE_PROGRAM_ID`, else `UnauthorizedCaller`; then
   `FundMismatch`, then `InstructionFinal`), `earmark`, and `SettlementRejected`. Implement
   `governance::reject_settlement` (checks 1–3, then a CPI signed by `["dvp-caller"]` with
   `actor = compliance`)
-- [ ] T065 [US4] Implement `return_leg` per its contract (checks 1–5): transfer the earmarked
+- [X] T065 [US4] Implement `return_leg` per its contract (checks 1–5): transfer the earmarked
   amount out of escrow through the `escrow.rs` helpers (units through the hook), zero the
   earmark, and emit `LegReturned`
-- [ ] T066 [US4] Make T058–T060 pass
+- [X] T066 [US4] Make T058–T060 pass
 
 **Checkpoint**: no funded leg can be stuck. Every unwind completes, and each return either
 succeeds or stays earmarked and can be retried.

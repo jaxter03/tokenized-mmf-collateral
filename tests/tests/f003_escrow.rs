@@ -86,3 +86,30 @@ fn stray_deposits_stay_in_escrow_and_every_instruction_releases_only_its_own() {
     assert_eq!(units::balance(&h, &s.m(), &a.pubkey()), 973 * ONE);
     assert_eq!(settle::cash_of(&h, &s, &a.pubkey()), 117 * ONE);
 }
+
+#[test]
+fn returns_after_expiry_release_only_their_own_earmarks() {
+    // T060 (moved from T049): returns never touch amounts sent to escrow outside an instruction.
+    let mut h = Harness::new();
+    let s = fixtures::settlement_ready_fund(&mut h);
+    let a = fixtures::investor_with_units(&mut h, &s, 100 * ONE, 0);
+    let b = fixtures::investor_with_cash(&mut h, &s, 10 * ONE);
+    fixtures::transfer(&mut h, &s, &a, &s.escrow, 7 * ONE).expect("stray units");
+    let stray = (7 * ONE, 0);
+
+    let d = settle::affirmed_secondary(&mut h, &s, &a, &b, 5 * ONE, 2 * ONE, 1);
+    let deals = vec![d];
+    assert_escrow(&h, &s, &deals, stray);
+    tests::clock::advance(&mut h.svm, 86_400);
+    settle::expire(&mut h, &d, &s.keeper).unwrap();
+    assert_escrow(&h, &s, &deals, stray);
+    settle::return_units(&mut h, &d, &s.keeper).unwrap();
+    assert_escrow(&h, &s, &deals, stray);
+    settle::return_cash(&mut h, &s, &d, &s.keeper).unwrap();
+    assert_escrow(&h, &s, &deals, stray);
+    assert_eq!(
+        units::token_balance(&h, &s.unit_escrow),
+        7 * ONE,
+        "only the stray units remain"
+    );
+}

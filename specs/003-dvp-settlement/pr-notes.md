@@ -26,3 +26,4 @@ Collected while implementing, so the PR description can list them (Constitution 
 - `accrue` takes the FundState as its signer and reads the counter from it (one account instead of the contract's two); `settle` takes no role registry. Contracts updated.
 - Measured: a subscription `settle` uses 120 927 CU (budget 200 000, research R15).
 - Measured (T051): funding units 69 436 CU (budget 90 000); a redemption `settle` 80 857 CU (budget 120 000).
+- `cancel`, `expire`, `reject` and `return_leg` check the instruction's fund by its stored `fund_state` (`FundMismatch`) rather than by an Anchor seeds constraint, so a mismatched fund reports the contract's error (T056). `affirm_and_fund` and `settle` keep the seeds constraint.

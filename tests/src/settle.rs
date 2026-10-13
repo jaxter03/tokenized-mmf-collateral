@@ -189,3 +189,44 @@ pub fn affirmed_secondary(
     fund_cash(h, s, &d, buyer).expect("fund cash");
     d
 }
+
+pub const SELLER: u8 = 0;
+pub const BUYER: u8 = 1;
+
+pub fn cancel(h: &mut Harness, d: &Deal, party: &Keypair, side: u8) -> TxResult {
+    h.send(&[ix_dvp::cancel(&party.pubkey(), d, side)], &[party])
+}
+
+pub fn withdraw_cancel(h: &mut Harness, d: &Deal, party: &Keypair, side: u8) -> TxResult {
+    h.send(
+        &[ix_dvp::withdraw_cancel(&party.pubkey(), d, side)],
+        &[party],
+    )
+}
+
+pub fn expire(h: &mut Harness, d: &Deal, by: &Keypair) -> TxResult {
+    h.send(&[ix_dvp::expire(&by.pubkey(), d)], &[by])
+}
+
+/// Compliance (a keypair in the fixture) rejects through governance.
+pub fn reject(h: &mut Harness, s: &SettleCtx, d: &Deal, reason: u8) -> TxResult {
+    let ix = mmf_sdk::ix_governance::reject_settlement(
+        &s.compliance.pubkey(),
+        &s.m(),
+        &d.settlement(),
+        reason,
+        [0xC5; 32],
+    );
+    h.send(&[ix], &[&s.compliance])
+}
+
+pub fn return_units(h: &mut Harness, d: &Deal, by: &Keypair) -> TxResult {
+    h.send(&[ix_dvp::return_units(&by.pubkey(), d)], &[by])
+}
+
+pub fn return_cash(h: &mut Harness, s: &SettleCtx, d: &Deal, by: &Keypair) -> TxResult {
+    h.send(
+        &[ix_dvp::return_cash(&by.pubkey(), d, &s.cash_treasury)],
+        &[by],
+    )
+}
