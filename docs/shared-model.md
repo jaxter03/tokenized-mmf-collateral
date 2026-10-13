@@ -20,6 +20,7 @@
 | Daily rate | Fraction of value earned that day × 10^12, stored as `u64`. 4.5 % a year ≈ 0.000123288/day = `123_287_671`. |
 | Accrual index | `u128`, scale 10^18 (interest per unit since launch). `index += daily_rate_e12 × 10^6` on each publish. |
 | Time | `i64` Unix seconds from the Clock sysvar. |
+| Day | UTC calendar day number `unix_timestamp.div_euclid(86_400)`, stored as `u32`. Price records cover whole days; coverage is contiguous (§4.2 NavRecord). [F002] |
 | Jurisdiction | ISO 3166-1 alpha-2 country code, stored as `[u8; 2]` ASCII. Bit index in a jurisdiction set: `(c1 − 'A') × 26 + (c2 − 'A')` (0..675). A compile-time constant lists the assigned codes; any other code is rejected. [F001] |
 | Holding account | Each owner holds units in exactly one token account: its associated token account (ATA) for the fund mint under Token-2022. Only `compliance_hook::thaw_holding_account` thaws accounts, and only that ATA; any other account stays frozen. [F001] |
 | Seeds | Integers in seeds are little-endian `u64` (`seq.to_le_bytes()`). |
@@ -139,7 +140,9 @@ day_start_ts           i64      [F003]
 cash_treasury          Pubkey   [F003]  token account for cash
 current_cycle          u32      [F006]
 bump                   u8
-_reserved              [u8; 64]
+nav_period_end_day     u32      [F002]  last UTC day covered by a NavRecord (0 = none); after bump so F001 offsets don't move
+pending_override_nav   u64      [F002]  price the next publish may use beyond max_nav_move_bps (0 = none); set only via governance ["fund-caller"]; cleared by every publish
+_reserved              [u8; 52]
 ```
 
 **FundTerms** (embedded)
@@ -156,11 +159,13 @@ terms_hash             [u8; 32]
 terms_uri              [u8; 128] fixed-size, zero-padded
 ```
 
-**NavRecord**: PDA `["nav", fund_state, seq]`, immutable once written
+**NavRecord**: PDA `["nav", fund_state, seq]`, immutable once written, never closed. No `_reserved` (immutable). Rent paid by a separate payer signer. [F002]
 
 ```text
-version u8 · seq u64 · nav u64 · daily_rate_e12 u64 · index_after u128 · as_of_ts i64 · published_by Pubkey · bump u8
+version u8 · seq u64 · nav u64 · daily_rate_e12 u64 · days_covered u16 · period_start_day u32 · index_after u128 · as_of_ts i64 · published_by Pubkey · override_used bool · bump u8
 ```
+
+`period_start_day` = the UTC day of the publish for seq 1, else `nav_period_end_day + 1` of the fund before the publish; it must not be after today. `days_covered ≥ 1`, no upper cap. `index_after − previous index_after = daily_rate_e12 × 10^6 × days_covered`.
 
 **DistributionCycle**: PDA `["dist", fund_state, cycle_u32]` [F006]
 
@@ -299,6 +304,8 @@ _reserved       [u8; 64]
 
 **Hook admin**: PDA `["hook-admin"]` of governance. Signs `compliance_hook::set_status` / `set_paused` CPIs. [F001]
 
+**Fund caller**: PDA `["fund-caller"]` of governance. Signs `fund::set_nav_override` / `clear_nav_override` CPIs. Shared by every fund, so governance checks that the role registry is bound to the target fund. [F002]
+
 **Token admin**: PDA `["token-admin", mint]` of governance. Holds the mint's transfer hook authority. Signs nothing until F007. [F001]
 
 **Delegate authority**: PDA `["delegate", mint]`. This is the mint's permanent delegate. It signs only inside `execute_enforcement` [F005] and `execute_action` for Seize or ForcedTransfer [F007].
@@ -312,7 +319,7 @@ kind             u8   0 FreezeHolder, 1 ThawHolder, 2 SuspendHolder, 3 RevokeHol
                       5 UnpauseTransfers, 6 Seize, 7 ForcedTransfer, 8 Enforcement, 9 EnforcementHold,
                       10 LiftHold, 11 RejectSettlement, 12 SetRules, 13 CommitRegisterRoot, 14 NavOverride
 reason           u8   0 CourtOrder, 1 SanctionsHit, 2 LostKey, 3 OperationalError, 4 CollateralDefault,
-                      5 IssuerWindDown, 6 Other
+                      5 IssuerWindDown, 6 Other   (NavOverride accepts only 3 and 6 [F002])
 case_ref_hash    [u8; 32]
 actor            Pubkey
 target           Pubkey   holder, call, settlement or zero
@@ -348,7 +355,9 @@ version u8 · epoch u64 · slot u64 · register_root [u8; 32] · pledge_root [u8
 | `approve_fund_account` | compliance_hook | compliance (owner must be the system PDA for its class) | F001 |
 | `thaw_holding_account` | compliance_hook | anyone (permissionless, state-checked: owner Approved, target is the owner's ATA) | F001 |
 | `suspend/reinstate/revoke_holder`, `pause/unpause_transfers` | governance → compliance_hook | compliance | F001 (record from F007) |
-| `publish_daily` | fund | fund_admin | F002 |
+| `publish_daily` | fund | fund_admin (+ separate payer) | F002 |
+| `approve_nav_override`, `withdraw_nav_override` | governance → fund | compliance | F002 (record from F007) |
+| `set_nav_override`, `clear_nav_override` | fund | governance PDA `["fund-caller"]` only | F002 |
 | `create_instruction`, `affirm_and_fund`, `cancel` | dvp_settlement | parties | F003 |
 | `settle`, `expire` | dvp_settlement | keeper or anyone (permissionless, state-checked) | F003 |
 | `propose/sign_agreement`, `pledge`, `release`, `substitute`, `dispute_call` | collateral | giver / taker per section 4.4 | F004 |
@@ -367,11 +376,12 @@ version u8 · epoch u64 · slot u64 · register_root [u8; 32] · pledge_root [u8
 | Caller | Callee instruction | Callee checks |
 |---|---|---|
 | Token-2022 | `compliance_hook::execute` | standard transfer-hook checks (section 6) |
-| `fund` | `compliance_hook::accrue(owner, pre_balance)` | signer = `FundState` PDA |
+| `fund` | `compliance_hook::accrue(owner, pre_balance)` | signer = `FundState` PDA [F003: built with mint/burn, the first callers] |
 | `dvp_settlement` | `fund::mint_for_subscription`, `fund::burn_for_redemption` | signer = escrow authority PDA; instruction Affirmed |
 | `collateral` | `compliance_hook::set_lien(owner, ±units)` | signer = PDA `["hook-caller"]` of `registry.collateral_program` |
 | `collateral` | `governance::execute_enforcement(call)` | signer = collateral PDA `["gov-caller"]`; call account owned by collateral and status Defaulted |
 | `governance` | `compliance_hook::set_status` / `set_paused` | signer = governance PDA `["hook-admin"]` |
+| `governance` | `fund::set_nav_override` / `clear_nav_override` | signer = governance PDA `["fund-caller"]` [F002] |
 | `fund`, `dvp_settlement`, `collateral`, `compliance_hook` | `governance::record_action(kind, reason, ref, target, amount)` | signer = the caller's registered PDA; kind allowed for that caller |
 
 No other CPI edge is allowed without updating this table.
@@ -393,6 +403,8 @@ No other CPI edge is allowed without updating this table.
 7. if dst.class == Investor && dst.last_balance == 0 && amount > 0 &&
    max_holders > 0 && holder_count >= max_holders            → HolderCapReached
 8. accrue(src, pre_src_balance); accrue(dst, pre_dst_balance)   [F002]
+   index = FundState.accrual_index (FundState verified: owner, address, discriminator → WrongMint)
+   accrue(h, pre): h.accrued_e18 += pre × (index − h.index_at_last_touch); h.index_at_last_touch = index
 9. for each Investor touched (once if src owner == dst owner):
    holder_count += (post_balance > 0) − (last_balance > 0); then
    src.last_balance, dst.last_balance, last_slot updated
@@ -401,7 +413,7 @@ No other CPI edge is allowed without updating this table.
 
 `pre_src = post_src + amount`, `pre_dst = post_dst − amount`. When source and destination are the same owner, accrue once.
 
-Features insert their logic only at their step. F001 builds steps 0, 1, 3, 4, 6, 7, 9 and 10. Step 8 is a no-op until F002 fills it. Step 5 lands with F004 and step 2 with F005, because neither can be exercised by a test before then (Constitution VI). A missing or foreign `HolderState` counts as not approved (steps 4 and 6). Token-2022 rejects frozen source or destination accounts (`AccountFrozen`) before the hook runs, so that check comes first in the documented order.
+Features insert their logic only at their step. F001 builds steps 0, 1, 3, 4, 6, 7, 9 and 10. F002 builds step 8. Step 5 lands with F004 and step 2 with F005, because neither can be exercised by a test before then (Constitution VI). A missing or foreign `HolderState` counts as not approved (steps 4 and 6). Token-2022 rejects frozen source or destination accounts (`AccountFrozen`) before the hook runs, so that check comes first in the documented order.
 
 Mint and burn do not trigger the hook, so `fund` calls `compliance_hook::accrue` before every mint or burn.
 
@@ -421,6 +433,8 @@ Mint and burn do not trigger the hook, so `fund` calls `compliance_hook::accrue`
 | I8 | Every discretionary admin action has an `ActionRecord` | F007 (F001–F006 call `record_action` once F007 lands; before that, events only) |
 | I9 | Σ distribution receipts for a cycle == total due, within rounding (section 8) | F006 |
 | I10 | `Registry.holder_count == |{Investor HolderState with last_balance > 0}|`, and never below the number of Investors with an actual balance > 0 | F001 |
+| I11 | For every holder, `accrued_e18 + last_balance × (accrual_index − index_at_last_touch)` == Σ over publishes of (units held at that publish × daily_rate_e12 × 10^6 × days_covered) | F002 |
+| I12 | `FundState.accrual_index == NavRecord(nav_seq).index_after`; consecutive records' index difference == rate × 10^6 × days; periods contiguous (`period_start_day(n+1) == period_end(n) + 1`) and `nav_period_end_day == period_end(nav_seq)`; every `index_at_last_touch ≤ accrual_index` | F002 |
 
 ---
 
@@ -434,6 +448,8 @@ Mint and burn do not trigger the hook, so `fund` calls `compliance_hook::accrue`
 | Subscription cash for N units: `N × nav / 10^8` | up | Fund never under-paid |
 | Redemption cash for N units | down | Fund never over-pays |
 | Interest accrued: `balance × Δindex` (exact in e18) | exact; paid amount = floor(accrued_e18 / 10^18) | Remainder stays in `accrued_e18` for the next cycle |
+| Index increment per publish: `daily_rate_e12 × 10^6 × days_covered` | exact | No division [F002] |
+| Price-move check: `abs(nav − prev) × 10_000 ≤ prev × max_nav_move_bps` (prev = last nav, or target_nav before the first publish) | exact (cross-multiplied); equal to the limit passes | No division, so no boundary rounding [F002] |
 
 Worked check (used in tests): NAV 1.00, haircut 2 %:
 - $1,000,000 needs ceil(1,020,408.16…) = **1,020,409** units.
@@ -443,7 +459,7 @@ Worked check (used in tests): NAV 1.00, haircut 2 %:
 
 ## 9. Events (names are shared; payloads include `fund`, `slot`, `unix_ts`)
 
-`RolesInitialized`, `RolesAssigned`, `FundCreated`, `RegistryInitialized`, `RegisterRulesSet`, `FundLaunched`, `HolderRegistered`, `HolderApproved`, `HolderStatusChanged`, `TransfersPaused`, `HoldingAccountThawed`, `TransferValidated`, `Accrued`, `NavPublished`, `SettlementCreated`, `LegFunded`, `Settled`, `SettlementCancelled`, `SettlementExpired`, `SettlementRejected`, `AgreementProposed`, `AgreementActive`, `ExposureUpdated`, `CallIssued`, `CallMet`, `CallDisputed`, `CallDefaulted`, `Pledged`, `Released`, `Substituted`, `LienSet`, `HoldPlaced`, `HoldLifted`, `Enforced`, `CycleClosed`, `Distributed`, `CycleFinalised`, `ActionProposed`, `ActionExecuted`, `ActionCancelled`, `RegisterRootCommitted`, `FundWindingDown`, `FundClosed`.
+`RolesInitialized`, `RolesAssigned`, `FundCreated`, `RegistryInitialized`, `RegisterRulesSet`, `FundLaunched`, `HolderRegistered`, `HolderApproved`, `HolderStatusChanged`, `TransfersPaused`, `HoldingAccountThawed`, `TransferValidated` (from F002 also carries `accrual_index`, `source_accrued_e18`, `destination_accrued_e18`), `Accrued` (compliance_hook::accrue, F003), `NavPublished`, `NavOverrideApproved`, `NavOverrideWithdrawn`, `SettlementCreated`, `LegFunded`, `Settled`, `SettlementCancelled`, `SettlementExpired`, `SettlementRejected`, `AgreementProposed`, `AgreementActive`, `ExposureUpdated`, `CallIssued`, `CallMet`, `CallDisputed`, `CallDefaulted`, `Pledged`, `Released`, `Substituted`, `LienSet`, `HoldPlaced`, `HoldLifted`, `Enforced`, `CycleClosed`, `Distributed`, `CycleFinalised`, `ActionProposed`, `ActionExecuted`, `ActionCancelled`, `RegisterRootCommitted`, `FundWindingDown`, `FundClosed`.
 
 ---
 
@@ -464,8 +480,8 @@ Worked check (used in tests): NAV 1.00, haircut 2 %:
 | Feature | Must create | Must fill or activate |
 |---|---|---|
 | F001 | mint + extensions, `FundState` (Setup/Open), `Registry`, `ExtraAccountMetaList` (all 5 entries), `HolderState`, `RoleRegistry` | hook steps 0, 1, 3, 4, 6, 7, 9, 10; `holder_count`, `last_balance`, `last_slot` |
-| F002 | `NavRecord` | `FundState.nav*`, `accrual_index`, `daily_rate_e12`; `HolderState.index_at_last_touch`, `accrued_e18`, `last_balance`; hook step 8; `fund::accrue` CPI |
-| F003 | `DvpConfig`, escrow authority + its `HolderState`, `SettlementInstruction` | `FundState.units_outstanding`, `redeemed_today`, `cash_treasury` |
+| F002 | `NavRecord` | `FundState.nav*`, `accrual_index`, `daily_rate_e12`, `nav_period_end_day`, `pending_override_nav`; `HolderState.index_at_last_touch`, `accrued_e18`; hook step 8; governance `["fund-caller"]` and the override instructions |
+| F003 | `DvpConfig`, escrow authority + its `HolderState`, `SettlementInstruction` | `FundState.units_outstanding`, `redeemed_today`, `cash_treasury`; `compliance_hook::accrue` and the `fund → accrue` CPI before every mint and burn (moved from F002: no caller existed) |
 | F004 | `PledgeAgreement`, `Pledge`, `CollateralCall` | `Registry.collateral_program`; `HolderState.pledged_amount`, `active_liens`; hook step 5 |
 | F005 | `EnforcementHold` | `CollateralCall.enforced_*`; delegate PDA signing in `execute_enforcement`; hook step 2 |
 | F006 | `DistributionCycle`, `DistributionReceipt` | `FundState.current_cycle`; `HolderState.last_paid_cycle` |

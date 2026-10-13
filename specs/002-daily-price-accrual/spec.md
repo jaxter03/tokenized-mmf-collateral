@@ -145,7 +145,10 @@ Compare A's and B's earned interest with a day-by-day calculation: they must mat
   realistic rates this cannot happen within the fund's life.
 - **Unused or unwanted override**: an override allows only the exact price it names, only for the
   next publish, and can be withdrawn before it is used. A publish at any other price is checked
-  against the normal limit.
+  against the normal limit, and the next publish discards the override whether or not it used it.
+  Only one override can be pending at a time; a second approval is rejected until the first is
+  used or withdrawn. An override must give its reason as an operational error or "other", with a
+  reference to the valuation decision.
 
 ## Requirements *(mandatory)*
 
@@ -217,7 +220,8 @@ Compare A's and B's earned interest with a day-by-day calculation: they must mat
 - **FR-020**: System MUST leave a permanent record of every publish, every override approval,
   use and withdrawal, and every holder settlement that credits interest. Each record MUST show the
   Fund, the holder where relevant, the amounts or figures involved, the signer, the time and, for
-  overrides, the reason.
+  overrides, the reason. A settlement's record is the record of the transfer that caused it, which
+  carries both holders' earned interest after settlement.
 - **FR-021**: An auditor MUST be able to rebuild every holder's earned interest from the price
   records and the holder's settlement and transfer records alone.
 
@@ -267,6 +271,10 @@ Compare A's and B's earned interest with a day-by-day calculation: they must mat
   this feature.
 - **Record-date rule**: interest for a publish goes to whoever holds the units at the moment it is
   published, as in a conventional money market fund's daily record date.
+- **A day is a UTC calendar day** (00:00 to 24:00 UTC). The fund admin publishes for the UTC
+  date the figures apply to; a fund that strikes its price in the evening in New York is still on
+  the same UTC date. Publishing after midnight UTC for the previous local day would be one day off,
+  and is an operational error.
 - **Interest is counted in units**: the daily rate is the fraction of a unit earned per unit held
   per day. It does not depend on the price. Converting interest to cash, if the Fund pays in cash,
   happens in the distributions feature at that feature's price.
