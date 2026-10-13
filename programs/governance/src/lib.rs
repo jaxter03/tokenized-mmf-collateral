@@ -75,6 +75,23 @@ pub mod governance {
         instructions::compliance_actions::handle_pause_action(ctx, false, reason, case_ref_hash)
     }
 
+    pub fn approve_nav_override(
+        ctx: Context<NavOverrideAction>,
+        nav: u64,
+        reason: u8,
+        case_ref_hash: [u8; 32],
+    ) -> Result<()> {
+        instructions::nav_override::handle_approve_nav_override(ctx, nav, reason, case_ref_hash)
+    }
+
+    pub fn withdraw_nav_override(
+        ctx: Context<NavOverrideAction>,
+        reason: u8,
+        case_ref_hash: [u8; 32],
+    ) -> Result<()> {
+        instructions::nav_override::handle_withdraw_nav_override(ctx, reason, case_ref_hash)
+    }
+
     pub fn set_roles(
         ctx: Context<SetRoles>,
         fund_admin: Pubkey,

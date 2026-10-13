@@ -162,7 +162,7 @@ history by sequence number and check each record's price, rate, days covered, ti
 
 ### Interface stubs for User Story 1
 
-- [ ] T013 [US1] Create `programs/fund/src/instructions/publish_daily.rs`. Add an Accounts struct
+- [X] T013 [US1] Create `programs/fund/src/instructions/publish_daily.rs`. Add an Accounts struct
   exactly as in [contracts/fund.md](contracts/fund.md), with `#[event_cpi]`:
   - `fund_admin` signer;
   - `payer` signer mut;
@@ -174,13 +174,13 @@ history by sequence number and check each record's price, rate, days covered, ti
 
   Add a stub handler, and wire `publish_daily(nav: u64, daily_rate_e12: i64, days_covered: u16)`
   in `programs/fund/src/lib.rs`
-- [ ] T014 [US1] Create `programs/fund/src/instructions/nav_override.rs` with Accounts
+- [X] T014 [US1] Create `programs/fund/src/instructions/nav_override.rs` with Accounts
   `SetNavOverride { fund_caller: Signer, fund_state: mut }` (`#[event_cpi]`), used by both
   instructions, and stub handlers. Wire
   `set_nav_override(nav: u64, reason: u8, case_ref_hash: [u8; 32], actor: Pubkey)` and
   `clear_nav_override(reason: u8, case_ref_hash: [u8; 32], actor: Pubkey)` in
   `programs/fund/src/lib.rs` (depends on T013, which edits the same `lib.rs`)
-- [ ] T015 [P] [US1] Create `programs/governance/src/instructions/nav_override.rs`. Add Accounts
+- [X] T015 [P] [US1] Create `programs/governance/src/instructions/nav_override.rs`. Add Accounts
   `NavOverrideAction` per [contracts/governance.md](contracts/governance.md):
   - `compliance` signer;
   - `role_registry: Account<RoleRegistry>`;
@@ -191,25 +191,27 @@ history by sequence number and check each record's price, rate, days covered, ti
 
   Add stub handlers, and wire `approve_nav_override(nav, reason, case_ref_hash)` and
   `withdraw_nav_override(reason, case_ref_hash)` in `programs/governance/src/lib.rs`
-- [ ] T016 [US1] Add SDK builders (depends on T013–T015). Accounts go in contract order,
+- [X] T016 [US1] Add SDK builders (depends on T013–T015). Accounts go in contract order,
   including the event authority and program:
   - `crates/mmf-sdk/src/ix_fund.rs`: `publish_daily(fund_admin, payer, mint, next_seq, nav, rate: i64, days)`
     and raw `set_nav_override` / `clear_nav_override` builders taking any signer (for the
     direct-call tests);
   - `crates/mmf-sdk/src/ix_governance.rs`: `approve_nav_override(compliance, mint, nav, reason, case_ref_hash)`
     and `withdraw_nav_override(...)`
-- [ ] T017 [P] [US1] Add test helpers:
+- [X] T017 [P] [US1] Add test helpers:
   - `clock::set_utc_day(svm, day: u32, secs_into_day: i64)` in `tests/src/clock.rs`;
   - `fixtures::publish(h, ctx, nav, rate: i64, days) -> Result<TxMeta, TxFailure>` in
     `tests/src/fixtures.rs`, signed by the fund's `fund_admin` key and reading
     `FundState.nav_seq` for the next seq;
   - `fixtures::read_nav_record(h, ctx, seq)` in `tests/src/fixtures.rs`;
-  - a `NavRecord` decoder in `tests/src/events.rs` for `NavPublished`, `NavOverrideApproved` and
-    `NavOverrideWithdrawn`
+  - decoding for `NavPublished`, `NavOverrideApproved` and `NavOverrideWithdrawn`. The existing
+    generic `tests::events::cpi_events::<T>` already handles them, so no new decoder was needed;
+  - `fixtures::check_i12(h, ctx)` (from T020), placed in `tests/src/fixtures.rs` so T032 can
+    reuse it
 
 ### Tests for User Story 1 (write first; they must fail) ⚠️
 
-- [ ] T018 [US1] Write the US1 happy path in `tests/tests/f002_publish.rs` (FR-002–FR-004, US1-1,
+- [X] T018 [US1] Write the US1 happy path in `tests/tests/f002_publish.rs` (FR-002–FR-004, US1-1,
   US1-5, SC-005):
   - on a launched fund, publish on days 20 739, 20 740 and 20 741 with three different rates;
   - assert NavRecords 1, 2 and 3 field by field: seq, nav, `daily_rate_e12`,
@@ -219,7 +221,7 @@ history by sequence number and check each record's price, rate, days covered, ti
     `nav_period_end_day = 20 741`;
   - assert three `NavPublished` events with full payloads;
   - after 90 more daily publishes, records 1–3 are byte-for-byte unchanged
-- [ ] T019 [US1] Add `publish_daily` rejection tests to `tests/tests/f002_publish.rs`, in contract
+- [X] T019 [US1] Add `publish_daily` rejection tests to `tests/tests/f002_publish.rs`, in contract
   order. Each asserts the exact error and that FundState is unchanged and no NavRecord was
   created:
   - `RoleRegistryMismatch` (another fund's registry; a non-governance account);
@@ -238,7 +240,7 @@ history by sequence number and check each record's price, rate, days covered, ti
     `nav_seq` to `u64::MAX`, each with `fixtures::patch` and a comment explaining that no
     instruction can reach it;
   - a `nav_record` address for the wrong seq fails Anchor `ConstraintSeeds` (2006)
-- [ ] T020 [US1] Add the coverage and acceptance tests to `tests/tests/f002_publish.rs`
+- [X] T020 [US1] Add the coverage and acceptance tests to `tests/tests/f002_publish.rs`
   (FR-007, FR-009, FR-009b, FR-010, I12):
   - a move exactly at the limit is accepted (`100_500_000` and `99_500_000` from $1.00);
   - Friday 20 742 with `days_covered = 3`, then Monday 20 745 is accepted with
@@ -252,7 +254,7 @@ history by sequence number and check each record's price, rate, days covered, ti
   - every HolderState account's data is byte-identical before and after a publish (FR-010);
   - I12 holds after every publish in this file (a `check_i12(h, ctx)` helper reading every
     NavRecord)
-- [ ] T021 [US1] Write `tests/tests/f002_override.rs` (FR-008, US1-4):
+- [X] T021 [US1] Write `tests/tests/f002_override.rs` (FR-008, US1-4):
   - **Happy path**: compliance `approve_nav_override(99_000_000, Other, case)` gives
     `NavOverrideApproved` and `pending_override_nav = 99_000_000`; the publish at `99_000_000`
     (1 % from $1.00, limit 50 bps) is accepted with `override_used = true`,
@@ -281,7 +283,7 @@ history by sequence number and check each record's price, rate, days covered, ti
 
 ### Implementation for User Story 1
 
-- [ ] T022 [US1] Implement `publish_daily` in `programs/fund/src/instructions/publish_daily.rs`.
+- [X] T022 [US1] Implement `publish_daily` in `programs/fund/src/instructions/publish_daily.rs`.
   Checks run in contract order, using `mmf_common::accrual` and `RoleRegistryView`:
   1. `RoleRegistryMismatch`;
   2. `Unauthorized` (signer ≠ `role_registry.fund_admin`);
@@ -298,7 +300,7 @@ history by sequence number and check each record's price, rate, days covered, ti
   Then write the NavRecord and update FundState. `override_used` is true only when the move check
   failed and the override matched. Set `pending_override_nav = 0` and emit `NavPublished` with
   `override_cleared_nav` = the previous pending value. Read no HolderState (FR-010)
-- [ ] T023 [US1] Implement `set_nav_override` and `clear_nav_override` in
+- [X] T023 [US1] Implement `set_nav_override` and `clear_nav_override` in
   `programs/fund/src/instructions/nav_override.rs`:
   - `UnauthorizedCaller` unless `fund_caller.key() == Pubkey::find_program_address(&[FUND_CALLER], &GOVERNANCE_PROGRAM_ID).0`
     and it signed;
@@ -307,7 +309,7 @@ history by sequence number and check each record's price, rate, days covered, ti
   - clear only: `NoOverridePending`.
 
   Emit `NavOverrideApproved` or `NavOverrideWithdrawn` (`actor` = the compliance key passed in)
-- [ ] T024 [US1] Implement `approve_nav_override` and `withdraw_nav_override` in
+- [X] T024 [US1] Implement `approve_nav_override` and `withdraw_nav_override` in
   `programs/governance/src/instructions/nav_override.rs`. Checks in order:
   1. `Unauthorized` (signer ≠ `role_registry.compliance`);
   2. `FundNotOpen` (`FundStateView` load fails or status ≠ Open);
@@ -315,7 +317,7 @@ history by sequence number and check each record's price, rate, days covered, ti
 
   Then CPI `fund::cpi::set_nav_override` or `clear_nav_override`, signed with seeds
   `[FUND_CALLER, bump]`, passing `actor = compliance` (depends on T002, T023)
-- [ ] T025 [US1] Run `cargo test -p tests --test f002_publish --test f002_override` until green,
+- [X] T025 [US1] Run `cargo test -p tests --test f002_publish --test f002_override` until green,
   then the full suite (Constitution XII)
 
 **Checkpoint**: US1's independent test passes, and every publish and override rule rejects with

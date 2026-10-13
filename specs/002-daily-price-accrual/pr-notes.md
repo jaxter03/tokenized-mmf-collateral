@@ -19,3 +19,9 @@ Collected while implementing, so the PR description can list them (Constitution 
 
 - `cargo test -p tests`: 112 passed, 1 ignored, 0 failed (baseline 110 + `nav_record_layout` + `three_days_by_hand`)
 - `cargo test -p mmf-common`: 23 passed (baseline 15 + 7 accrual + 1 override reasons)
+
+## After US1 (T025, 2026-10-13)
+
+- `cargo test -p tests`: 141 passed, 1 ignored, 0 failed (+17 `f002_publish`, +12 `f002_override`)
+- `scripts/check-error-coverage.sh`: all 73 error variants asserted
+- Test-only state patches so far (each for a condition no instruction reaches): `f002_publish::counter_and_sequence_overflow_fail_closed` (FundState `accrual_index`, `nav_seq`)
