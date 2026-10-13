@@ -435,7 +435,7 @@ figures plus fair interest.
     21 959–21 961 with 2 holders and nothing else changing. Any real growth costs ~1 500 CU or
     more.) Publish cost is compared by republishing the same seq after restoring FundState,
     because each NavRecord address has its own bump.
-- [ ] T035 Run `scripts/check-error-coverage.sh` and add any missing rejection test until it
+- [X] T035 Run `scripts/check-error-coverage.sh` and add any missing rejection test until it
   reports none. It must list every new `FundError` variant as covered (SC-006)
 - [ ] T036 [P] Extend `scripts/devnet-e2e/src/main.rs` with the F002 steps in
   [quickstart.md](quickstart.md#devnet-run-research-r13):

@@ -139,7 +139,10 @@ fn publish_and_settlement_cost_do_not_grow() {
     );
     assert_eq!(ix.accounts.len(), 8, "publish's account list is fixed");
     clock::set_utc_day(&mut h.svm, TUE + 1, 15 * 3_600);
-    let small_pub = fund_cu(&h.send(&[ix.clone()], &[&ctx.fund_admin]).unwrap());
+    let small_pub = fund_cu(
+        &h.send(std::slice::from_ref(&ix), &[&ctx.fund_admin])
+            .unwrap(),
+    );
 
     // Settlement, 10 holders: last settled 1 publish ago, then 90 publishes ago.
     let hook_small_1 = hook_cu(&fixtures::transfer(&mut h, &ctx, &a, &b, 1).unwrap());
