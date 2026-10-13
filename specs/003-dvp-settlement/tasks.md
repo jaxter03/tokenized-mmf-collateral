@@ -774,9 +774,12 @@ succeeds. One prepared for an instruction that is cancelled before submission is
   - the Constitution IV exception for `settle`;
   - FundState offsets unchanged;
   - every F001/F002 test edit (T011, T013, T018, T072).
-- [ ] T080 *(not done: needs the user's go-ahead, devnet SOL and the deployed programs. Rehearsed on a local validator 2026-10-13: 31 of 31 steps of `--feature f003` matched; the `--continue` step needs a later UTC day)* Devnet run (needs the user's go-ahead, devnet SOL, and the issuer and compliance
-  Squads vaults): deploy `dvp_settlement`, upgrade the three programs, and run
-  `cargo run -p devnet-e2e -- --feature f003`. Record program IDs and signatures in
+- [ ] T080 *(not done: needs the user's go-ahead, devnet SOL and the deployed programs. Rehearsed on a local validator 2026-10-13: 31 of 31 steps of `--feature f003` matched; the `--continue` step needs a later UTC day)* Devnet run (needs the user's go-ahead, about 15–20 devnet SOL, and the issuer's
+  Squads vault). No program is on devnet yet (F001 T079 and F002 T039 are also open), so this
+  is a first deployment of all four programs: `anchor deploy --provider.cluster devnet`, then each
+  upgrade authority moved to the issuer's Squads vault with a time lock ≥ 1 h. Then run
+  `cargo run -p devnet-e2e` (F001/F002 steps) and `cargo run -p devnet-e2e -- --feature f003`,
+  and `--feature f003 --continue <mint>` on a later UTC day. Record program IDs and signatures in
   `specs/003-dvp-settlement/devnet-run.md`
 - [ ] T081 Run the full suite and validation:
   `anchor build && cargo test -p mmf-common && cargo test -p tests && cargo test -p tests --release -- --ignored`
