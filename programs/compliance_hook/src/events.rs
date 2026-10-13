@@ -89,6 +89,12 @@ pub struct TransferValidated {
     pub destination_owner: Pubkey,
     pub amount: u64,
     pub holder_count: u32,
+    /// F002: the fund's interest counter both sides were settled at.
+    pub accrual_index: u128,
+    /// F002: each side's earned interest after settlement (base units × 10^18). The settlement's
+    /// record (FR-020).
+    pub source_accrued_e18: u128,
+    pub destination_accrued_e18: u128,
     pub slot: u64,
     pub unix_ts: i64,
 }

@@ -1,6 +1,7 @@
 //! Read-only views of accounts owned by other F001 programs (research R12).
 //!
-//! `compliance_hook` reads `FundState` (fund) and `RoleRegistry` (governance); `fund` reads
+//! `compliance_hook` reads `FundState` (fund; from F002 also its `accrual_index` in the transfer
+//! hook) and `RoleRegistry` (governance); `fund` reads
 //! `Registry` (compliance_hook) and `RoleRegistry`; `governance` reads `FundState`. Depending on
 //! each other's program crates would create a cycle, so each view decodes only the fields other
 //! programs need, at fixed offsets in the Anchor/Borsh layout.
@@ -38,6 +39,8 @@ mod offsets {
     pub const FUND_MINT: usize = BASE;
     pub const FUND_ROLE_REGISTRY: usize = FUND_MINT + 32;
     pub const FUND_STATUS: usize = FUND_ROLE_REGISTRY + 32 + FUND_TERMS_LEN;
+    /// After `status`, `nav u64`, `nav_ts i64` and `nav_seq u64` (F002).
+    pub const FUND_ACCRUAL_INDEX: usize = FUND_STATUS + 1 + 8 + 8 + 8;
 
     pub const ROLES_FUND_STATE: usize = BASE;
     pub const ROLES_ISSUER: usize = ROLES_FUND_STATE + 32;
@@ -87,6 +90,8 @@ pub struct FundStateView {
     pub role_registry: Pubkey,
     /// `crate::enums::FundStatus` as stored.
     pub status: u8,
+    /// Interest per base unit × 10^18 since the first publish (F002).
+    pub accrual_index: u128,
 }
 
 impl FundStateView {
@@ -96,7 +101,7 @@ impl FundStateView {
             &FUND_PROGRAM_ID,
             expected,
             &FUND_STATE_DISCRIMINATOR,
-            offsets::FUND_STATUS + 1,
+            offsets::FUND_ACCRUAL_INDEX + 16,
         )?;
         Ok(Self::decode(&d))
     }
@@ -107,6 +112,11 @@ impl FundStateView {
             mint: key_at(d, offsets::FUND_MINT),
             role_registry: key_at(d, offsets::FUND_ROLE_REGISTRY),
             status: d[offsets::FUND_STATUS],
+            accrual_index: u128::from_le_bytes(
+                d[offsets::FUND_ACCRUAL_INDEX..offsets::FUND_ACCRUAL_INDEX + 16]
+                    .try_into()
+                    .expect("16 bytes"),
+            ),
         }
     }
 }

@@ -1,10 +1,11 @@
-//! T019: account layouts are fixed, and the read-only views in `mmf_common::views` decode
-//! program-serialized accounts to the same values (guards against layout drift, research R12).
+//! T019 (F001), T008 (F002): account layouts are fixed, and the read-only views in
+//! `mmf_common::views` decode program-serialized accounts to the same values (guards against
+//! layout drift, F001 research R12).
 
 use anchor_lang::prelude::Pubkey;
 use anchor_lang::{AccountSerialize, Discriminator, Space};
 use compliance_hook::{HolderState, Registry};
-use fund::{FundState, FundTerms};
+use fund::{FundState, FundTerms, NavRecord};
 use governance::RoleRegistry;
 use mmf_common::jurisdiction::{self, SET_WORDS};
 use mmf_common::views::{
@@ -13,6 +14,11 @@ use mmf_common::views::{
 };
 
 const RESERVED: [u8; 64] = [0xAB; 64];
+/// FundState's reserved bytes after F002 took 12 of them (research R10).
+const FUND_RESERVED: [u8; 52] = [0xAB; 52];
+/// `8 + FundState::INIT_SPACE` as shipped in F001; F002 must not change it.
+const F001_FUND_STATE_LEN: usize =
+    8 + 1 + 32 + 32 + 219 + 1 + 8 + 8 + 8 + 16 + 8 + 8 + 8 + 8 + 32 + 4 + 1 + 64;
 
 fn bytes<T: AccountSerialize>(account: &T) -> Vec<u8> {
     let mut out = Vec::new();
@@ -55,30 +61,81 @@ fn fund_state_layout_and_view() {
         role_registry: Pubkey::new_unique(),
         terms,
         status: 1,
-        nav: 0,
-        nav_ts: 0,
-        nav_seq: 0,
-        accrual_index: 0,
-        daily_rate_e12: 0,
+        nav: 100_000_000,
+        nav_ts: 1_791_849_600,
+        nav_seq: 3,
+        accrual_index: 0x0102_0304_0506_0708_090A_0B0C_0D0E_0F10,
+        daily_rate_e12: 123_287_671,
         units_outstanding: 0,
         redeemed_today: 0,
         day_start_ts: 0,
         cash_treasury: Pubkey::default(),
         current_cycle: 0,
         bump: 254,
-        _reserved: RESERVED,
+        nav_period_end_day: 20_741,
+        pending_override_nav: 99_000_000,
+        _reserved: FUND_RESERVED,
     };
     let d = bytes(&fs);
-    assert_frame::<FundState>(&d, FundState::DISCRIMINATOR, 1);
+
+    // F002 took reserved bytes without resizing or moving any F001 field (research R10).
+    assert_eq!(
+        d.len(),
+        F001_FUND_STATE_LEN,
+        "FundState size unchanged since F001"
+    );
+    assert_eq!(d.len(), 8 + FundState::INIT_SPACE);
+    assert_eq!(&d[..8], FundState::DISCRIMINATOR);
+    assert_eq!(d[8], 1, "version first");
+    // In F001 the last 64 bytes were `_reserved`, right after `bump`.
+    let tail = d.len() - 64;
+    assert_eq!(d[tail - 1], 254, "bump stays where F001 put it");
+    assert_eq!(
+        &d[tail..tail + 4],
+        &20_741u32.to_le_bytes(),
+        "nav_period_end_day after bump"
+    );
+    assert_eq!(
+        &d[tail + 4..tail + 12],
+        &99_000_000u64.to_le_bytes(),
+        "then pending_override_nav"
+    );
+    assert_eq!(&d[tail + 12..], &FUND_RESERVED, "then 52 reserved bytes");
+
     let v = FundStateView::decode(&d);
     assert_eq!(
         v,
         FundStateView {
             mint: fs.mint,
             role_registry: fs.role_registry,
-            status: 1
+            status: 1,
+            accrual_index: fs.accrual_index,
         }
     );
+}
+
+#[test]
+fn nav_record_layout() {
+    let r = NavRecord {
+        version: NavRecord::VERSION,
+        seq: 7,
+        nav: 100_000_000,
+        daily_rate_e12: 123_287_671,
+        days_covered: 3,
+        period_start_day: 20_742,
+        index_after: 9,
+        as_of_ts: 1_792_108_800,
+        published_by: Pubkey::new_unique(),
+        override_used: true,
+        bump: 250,
+    };
+    let d = bytes(&r);
+    // 8 + 1 + 8 + 8 + 8 + 2 + 4 + 16 + 8 + 32 + 1 + 1 (data-model.md). No `_reserved`: immutable.
+    assert_eq!(d.len(), 97);
+    assert_eq!(d.len(), 8 + NavRecord::INIT_SPACE);
+    assert_eq!(&d[..8], NavRecord::DISCRIMINATOR);
+    assert_eq!(d[8], 1, "version first");
+    assert_eq!(&d[9..17], &7u64.to_le_bytes(), "seq after version");
 }
 
 #[test]

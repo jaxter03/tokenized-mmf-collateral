@@ -5,7 +5,7 @@ use anchor_lang::prelude::*;
 pub enum FundError {
     #[msg("Role registry is not governance's registry for this fund")]
     RoleRegistryMismatch,
-    #[msg("Signer is not the issuer")]
+    #[msg("Signer does not hold the required role")]
     Unauthorized,
     #[msg("Fund identifier must not be all zero")]
     InvalidFundId,
@@ -39,4 +39,25 @@ pub enum FundError {
     NoKycProvider,
     #[msg("Register must allow at least one jurisdiction")]
     NoAllowedJurisdiction,
+    // --- F002 (appended so F001 codes keep their numbers) ---
+    #[msg("Fund is not Open")]
+    FundNotOpen,
+    #[msg("Price must be greater than zero")]
+    ZeroPrice,
+    #[msg("Daily rate must not be negative")]
+    NegativeRate,
+    #[msg("A publish must cover at least one day")]
+    ZeroDaysCovered,
+    #[msg("The period this publish would cover has not begun")]
+    PeriodNotStarted,
+    #[msg("Price moves more than the largest allowed daily move and no override names it")]
+    PriceMoveTooLarge,
+    #[msg("Arithmetic overflow")]
+    Overflow,
+    #[msg("Only governance may call this instruction")]
+    UnauthorizedCaller,
+    #[msg("A price override is already pending")]
+    OverrideAlreadyPending,
+    #[msg("No price override is pending")]
+    NoOverridePending,
 }

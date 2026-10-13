@@ -183,6 +183,14 @@ pub fn handle_execute(ctx: Context<Execute>, amount: u64) -> Result<()> {
         destination_owner: dst_owner,
         amount,
         holder_count: reg.holder_count,
+        // Step 8 (F002 T030) settles first and reports the settled values.
+        accrual_index: 0,
+        source_accrued_e18: src.accrued_e18,
+        destination_accrued_e18: if same_owner {
+            src.accrued_e18
+        } else {
+            dst.accrued_e18
+        },
         slot: clock.slot,
         unix_ts: now,
     });

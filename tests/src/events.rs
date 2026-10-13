@@ -69,6 +69,9 @@ mod tests {
             destination_owner: Default::default(),
             amount: 42,
             holder_count: 3,
+            accrual_index: 11,
+            source_accrued_e18: 12,
+            destination_accrued_e18: 13,
             slot: 7,
             unix_ts: 9,
         }

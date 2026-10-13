@@ -1,5 +1,5 @@
-//! `FundState` and `FundTerms` in their final layout (docs/shared-model.md §4.2). Fields used by
-//! later features exist from the start and stay zero in F001.
+//! `FundState`, `FundTerms` and `NavRecord` (docs/shared-model.md §4.2). Fields used by later
+//! features exist from the start and stay zero until that feature ships.
 
 use anchor_lang::prelude::*;
 
@@ -51,9 +51,47 @@ pub struct FundState {
     // --- F006: distributions (zero in F001) ---
     pub current_cycle: u32,
     pub bump: u8,
-    pub _reserved: [u8; 64],
+    // --- F002, taken from the reserved bytes after `bump` so F001 offsets don't move
+    // (research R10) ---
+    /// Last UTC day covered by any publish; 0 = none.
+    pub nav_period_end_day: u32,
+    /// Price allowed by an approved override at the next publish; 0 = none.
+    pub pending_override_nav: u64,
+    pub _reserved: [u8; 52],
 }
 
 impl FundState {
+    pub const VERSION: u8 = 1;
+}
+
+/// PDA `["nav", fund_state, seq.to_le_bytes()]`: one per publish, written once by
+/// `publish_daily` and never modified or closed (FR-003). No `_reserved`: it is immutable
+/// (research R9).
+#[account]
+#[derive(Debug, InitSpace)]
+pub struct NavRecord {
+    pub version: u8,
+    /// 1, 2, 3, … (`FundState.nav_seq` after this publish).
+    pub seq: u64,
+    /// Price of one whole unit in cash, 8 decimals.
+    pub nav: u64,
+    /// Units earned per unit held per day × 10^12, as published.
+    pub daily_rate_e12: u64,
+    /// ≥ 1.
+    pub days_covered: u16,
+    /// First UTC day this record pays for.
+    pub period_start_day: u32,
+    /// `FundState.accrual_index` after this publish.
+    pub index_after: u128,
+    /// Clock time of the publish.
+    pub as_of_ts: i64,
+    /// The fund admin that signed.
+    pub published_by: Pubkey,
+    /// The price passed only because an approved override named it.
+    pub override_used: bool,
+    pub bump: u8,
+}
+
+impl NavRecord {
     pub const VERSION: u8 = 1;
 }

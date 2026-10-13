@@ -89,7 +89,7 @@ both stories use.
   (governance: signs `fund::set_/clear_nav_override`). In `crates/mmf-common/src/enums.rs`, add
   `ReasonCode::allowed_for_nav_override()`, true only for `OperationalError` (3) and `Other` (6),
   with a unit test that the allowed list is exactly `[3, 6]`. `allowed_in_f001` stays unchanged
-- [ ] T005 Extend `programs/fund/src/state.rs`, `errors.rs` and `events.rs` per
+- [X] T005 Extend `programs/fund/src/state.rs`, `errors.rs` and `events.rs` per
   [data-model.md](data-model.md):
   - **FundState**: after `bump`, add `nav_period_end_day: u32` ("last UTC day covered by any
     publish; 0 = none") and `pending_override_nav: u64` ("price allowed by an approved override;
@@ -106,14 +106,14 @@ both stories use.
     - `NavPublished { fund, seq, nav, daily_rate_e12, days_covered, period_start_day, index_after, publisher, override_used, override_cleared_nav, slot, unix_ts }`
     - `NavOverrideApproved { fund, nav, reason, case_ref_hash, actor, slot, unix_ts }`
     - `NavOverrideWithdrawn { fund, nav, reason, case_ref_hash, actor, slot, unix_ts }`
-- [ ] T006 [P] In `programs/compliance_hook/src/events.rs`, extend `TransferValidated` with
+- [X] T006 [P] In `programs/compliance_hook/src/events.rs`, extend `TransferValidated` with
   `accrual_index: u128`, `source_accrued_e18: u128`, `destination_accrued_e18: u128`, placed after
   `holder_count`. Until T030, `execute.rs` fills them with the holders' current stored values so
   F001 still compiles and passes
-- [ ] T007 In `crates/mmf-common/src/views.rs`, add `accrual_index: u128` to `FundStateView`. Its
+- [X] T007 In `crates/mmf-common/src/views.rs`, add `accrual_index: u128` to `FundStateView`. Its
   offset is `FUND_STATUS + 1 + 8 + 8 + 8` (after `nav`, `nav_ts`, `nav_seq`); raise `load`'s
   minimum length to cover it, and decode it as little-endian `u128` (depends on T005)
-- [ ] T008 Update `tests/tests/layouts.rs` (depends on T005, T007):
+- [X] T008 Update `tests/tests/layouts.rs` (depends on T005, T007):
   - FundState's serialized size is unchanged from F001;
   - `nav_period_end_day` sits right after `bump`, then `pending_override_nav`, then `_reserved`
     52 bytes;

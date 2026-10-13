@@ -8,7 +8,7 @@ pub mod token_setup;
 
 pub use errors::FundError;
 pub use instructions::*;
-pub use state::{FundState, FundTerms};
+pub use state::{FundState, FundTerms, NavRecord};
 
 declare_id!("HV75Ur4qgfHHTNwbJdpiTMkq2sA7YoynBXFtzpsZzYT5");
 
