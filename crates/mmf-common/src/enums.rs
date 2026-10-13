@@ -50,6 +50,44 @@ u8_enum! {
     StatusAction { Suspend = 0, Reinstate = 1, Revoke = 2 }
 }
 
+u8_enum! {
+    /// `SettlementInstruction.kind` (shared-model §4.3). [F003]
+    SettlementKind { Subscription = 0, Redemption = 1, SecondaryTransfer = 2 }
+}
+
+u8_enum! {
+    /// `SettlementInstruction.status` (shared-model §4.3). [F003]
+    SettlementStatus {
+        Instructed = 0, SellerFunded = 1, BuyerFunded = 2, Affirmed = 3,
+        Settled = 4, Cancelled = 5, Expired = 6, Rejected = 7,
+    }
+}
+
+u8_enum! {
+    /// Side of a settlement instruction: the seller delivers units, the buyer pays cash. [F003]
+    Side { Seller = 0, Buyer = 1 }
+}
+
+u8_enum! {
+    /// Leg of a settlement instruction, for `return_leg`. [F003]
+    Leg { Units = 0, Cash = 1 }
+}
+
+impl SettlementStatus {
+    /// Not yet final: Instructed, SellerFunded, BuyerFunded or Affirmed.
+    pub const fn is_open(self) -> bool {
+        matches!(
+            self,
+            Self::Instructed | Self::SellerFunded | Self::BuyerFunded | Self::Affirmed
+        )
+    }
+
+    /// Final without settling, so funded legs are earmarked for return (research R3).
+    pub const fn is_returnable(self) -> bool {
+        matches!(self, Self::Cancelled | Self::Expired | Self::Rejected)
+    }
+}
+
 impl HolderClass {
     /// Classes a transfer may deliver to (hook `class_allowed`).
     pub const fn transfer_allowed(self) -> bool {
@@ -81,6 +119,12 @@ impl ReasonCode {
     pub const fn allowed_for_nav_override(self) -> bool {
         matches!(self, Self::OperationalError | Self::Other)
     }
+
+    /// Reasons compliance may give when rejecting a settlement (F003, research R11): the F001
+    /// list.
+    pub const fn allowed_for_reject_settlement(self) -> bool {
+        self.allowed_in_f001()
+    }
 }
 
 #[cfg(test)]
@@ -98,6 +142,38 @@ mod tests {
         assert_eq!(HolderClass::try_from(4), Err(4));
         assert_eq!(StatusAction::try_from(3), Err(3));
         assert_eq!(ReasonCode::try_from(7), Err(7));
+        for v in 0..=2u8 {
+            assert_eq!(SettlementKind::try_from(v).unwrap().as_u8(), v);
+        }
+        assert_eq!(SettlementKind::try_from(3), Err(3));
+        for v in 0..=7u8 {
+            assert_eq!(SettlementStatus::try_from(v).unwrap().as_u8(), v);
+        }
+        assert_eq!(SettlementStatus::try_from(8), Err(8));
+        assert_eq!(Side::try_from(1), Ok(Side::Buyer));
+        assert_eq!(Side::try_from(2), Err(2));
+        assert_eq!(Leg::try_from(1), Ok(Leg::Cash));
+        assert_eq!(Leg::try_from(2), Err(2));
+    }
+
+    #[test]
+    fn settlement_status_groups() {
+        let open: Vec<u8> = (0..=7)
+            .filter(|v| SettlementStatus::try_from(*v).unwrap().is_open())
+            .collect();
+        assert_eq!(open, vec![0, 1, 2, 3]);
+        let returnable: Vec<u8> = (0..=7)
+            .filter(|v| SettlementStatus::try_from(*v).unwrap().is_returnable())
+            .collect();
+        assert_eq!(returnable, vec![5, 6, 7]);
+    }
+
+    #[test]
+    fn reject_settlement_reasons() {
+        let allowed: Vec<u8> = (0..=6)
+            .filter(|v| ReasonCode::try_from(*v).unwrap().allowed_for_reject_settlement())
+            .collect();
+        assert_eq!(allowed, vec![0, 1, 2, 3, 6]);
     }
 
     #[test]

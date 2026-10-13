@@ -7,5 +7,6 @@ pub mod iso3166;
 pub mod jurisdiction;
 pub mod permissioned_burn;
 pub mod seeds;
+pub mod settlement;
 pub mod statement;
 pub mod views;

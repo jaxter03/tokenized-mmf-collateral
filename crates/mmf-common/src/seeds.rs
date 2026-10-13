@@ -22,3 +22,11 @@ pub const TREASURY: &[u8] = b"treasury";
 pub const NAV: &[u8] = b"nav";
 /// governance: `["fund-caller"]` → signs fund `set_nav_override` / `clear_nav_override`. [F002]
 pub const FUND_CALLER: &[u8] = b"fund-caller";
+/// dvp_settlement: `["dvp", fund_state]` → DvpConfig. [F003]
+pub const DVP: &[u8] = b"dvp";
+/// dvp_settlement: `["escrow", fund_state]` → escrow authority (owns the unit and cash escrow). [F003]
+pub const ESCROW: &[u8] = b"escrow";
+/// dvp_settlement: `["settlement", fund_state, created_by, external_ref]` → SettlementInstruction. [F003]
+pub const SETTLEMENT: &[u8] = b"settlement";
+/// governance: `["dvp-caller"]` → signs `dvp_settlement::reject`. [F003]
+pub const DVP_CALLER: &[u8] = b"dvp-caller";

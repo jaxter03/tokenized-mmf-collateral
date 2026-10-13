@@ -85,4 +85,9 @@ pub enum HookError {
     HolderCapReached,
     #[msg("Arithmetic overflow")]
     Overflow,
+    // --- F003 (appended so F001/F002 codes keep their numbers) ---
+    #[msg("Holder record or holding account does not match the owner")]
+    WrongHolder,
+    #[msg("Interest is settled here only for the escrow holder")]
+    ClassNotAccrued,
 }

@@ -1,5 +1,5 @@
 //! Records (FR-033). Admin and onboarding events are emitted with `emit_cpi!`; the hook's
-//! `TransferValidated` uses `emit!` (research R7). Every payload carries `fund`, `slot`, `unix_ts`.
+//! `TransferValidated` and `Accrued` use `emit!` (research R7; F003 research R15). Every payload carries `fund`, `slot`, `unix_ts`.
 
 use anchor_lang::prelude::*;
 
@@ -95,6 +95,22 @@ pub struct TransferValidated {
     /// record (FR-020).
     pub source_accrued_e18: u128,
     pub destination_accrued_e18: u128,
+    pub slot: u64,
+    pub unix_ts: i64,
+}
+
+/// Interest settled before a mint or burn changed a holder's balance (F003, `accrue`).
+#[event]
+pub struct Accrued {
+    pub fund: Pubkey,
+    pub owner: Pubkey,
+    /// Holding account balance before the mint or burn; interest was settled on it.
+    pub pre_balance: u64,
+    /// Balance after the mint or burn, now the holder's `last_balance`.
+    pub post_balance: u64,
+    pub accrual_index: u128,
+    /// The holder's earned interest after settlement.
+    pub accrued_e18: u128,
     pub slot: u64,
     pub unix_ts: i64,
 }
