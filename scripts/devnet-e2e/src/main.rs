@@ -1,12 +1,20 @@
-//! F001 end-to-end run against a real cluster (research R16, quickstart.md "Devnet run").
+//! End-to-end run against a real cluster: F001 (research R16) and F002 (research R13);
+//! quickstart.md "Devnet run" of each feature.
 //!
-//! F001 can't create units (FR-035), so every transfer here moves zero units; a zero-unit
+//! Units can't be created before F003, so every transfer here moves zero units; a zero-unit
 //! `transfer_checked` still runs every hook check. Each step prints its signature and outcome, and
 //! the program exits 0 only if every outcome matches the expectation.
+//!
+//! Usage:
+//! - `devnet-e2e`: a new fund through the F001 steps, then F002's first publish and override steps.
+//! - `devnet-e2e --continue <mint>`: on a later UTC day, publish the next record for that fund
+//!   (3 days on a Friday, else 1) and print its full price history.
 //!
 //! Environment:
 //! - `RPC_URL` (default `https://api.devnet.solana.com`)
 //! - `WALLET`  (default `~/.config/solana/id.json`): becomes the issuer and pays for everything.
+//! - `STATE_DIR` (default `target/devnet-e2e`): where the fund admin key is kept between runs.
+//!   It is named `*-keypair.json` and lives under `target/`, both ignored by git; never commit it.
 //!
 //! The three programs must already be deployed at the IDs in `mmf_common::ids`.
 
@@ -15,16 +23,17 @@ use std::process::ExitCode;
 use anchor_lang::event::EVENT_IX_TAG_LE;
 use anchor_lang::prelude::Pubkey;
 use anchor_lang::solana_program::instruction::Instruction;
-use anchor_lang::{AnchorDeserialize, Discriminator};
+use anchor_lang::{AccountDeserialize, AnchorDeserialize, Discriminator};
 use anchor_spl::token_2022::spl_token_2022 as t22;
 use compliance_hook::events::{HolderApproved, HolderRegistered, HolderStatusChanged};
 use compliance_hook::HookError;
+use fund::{FundError, FundState, NavRecord};
 use mmf_common::enums::{HolderStatus, ReasonCode};
 use mmf_common::ids::TOKEN_2022_PROGRAM_ID;
 use mmf_sdk::ix_governance::{self, Roles};
 use mmf_sdk::{ix_fund, ix_hook, kyc, pda, transfer};
 use solana_commitment_config::CommitmentConfig;
-use solana_keypair::{read_keypair_file, Keypair};
+use solana_keypair::{read_keypair_file, write_keypair_file, Keypair};
 use solana_message::Message;
 use solana_program_pack::Pack;
 use solana_rpc_client::rpc_client::RpcClient;
@@ -35,6 +44,11 @@ use solana_transaction_status_client_types::option_serializer::OptionSerializer;
 use solana_transaction_status_client_types::{UiInstruction, UiTransactionEncoding};
 
 const YEAR: i64 = 365 * 24 * 60 * 60;
+const ONE: u64 = 100_000_000;
+/// 4.5 % a year, × 10^12 per day.
+const RATE: i64 = 123_287_671;
+/// 1 % below the $1.00 target: beyond the 50 bps limit.
+const BREAK: u64 = 99_000_000;
 const REASON: u8 = ReasonCode::OperationalError as u8;
 
 /// What a step should do.
@@ -117,6 +131,124 @@ fn custom_code(e: &solana_rpc_client_api::client_error::Error) -> Option<u32> {
 
 fn hook(e: HookError) -> u32 {
     e.into()
+}
+
+fn fund_err(e: FundError) -> u32 {
+    e.into()
+}
+
+fn read<T: AccountDeserialize>(rpc: &RpcClient, key: &Pubkey) -> Option<T> {
+    let data = rpc.get_account_data(key).ok()?;
+    T::try_deserialize(&mut &data[..]).ok()
+}
+
+fn today() -> u32 {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    mmf_common::accrual::utc_day(now).unwrap_or(0)
+}
+
+/// 3 on a Friday (covering the weekend), else 1. Day 0 (1970-01-01) was a Thursday.
+fn days_for(day: u32) -> u16 {
+    if (day + 4) % 7 == 5 {
+        3
+    } else {
+        1
+    }
+}
+
+fn state_dir() -> std::path::PathBuf {
+    std::env::var("STATE_DIR")
+        .unwrap_or_else(|_| "target/devnet-e2e".into())
+        .into()
+}
+
+fn admin_key_path(mint: &Pubkey) -> std::path::PathBuf {
+    state_dir().join(format!("{mint}-fund-admin-keypair.json"))
+}
+
+/// Prints every NavRecord of the fund behind `mint`, oldest first.
+fn print_history(rpc: &RpcClient, mint: &Pubkey) {
+    let fs_key = pda::fund_state(mint).0;
+    let Some(fs) = read::<FundState>(rpc, &fs_key) else {
+        println!("  (fund not found)");
+        return;
+    };
+    println!("\nPrice history of {mint} ({} records):", fs.nav_seq);
+    for seq in 1..=fs.nav_seq {
+        match read::<NavRecord>(rpc, &pda::nav_record(&fs_key, seq).0) {
+            Some(r) => println!(
+                "  #{:<3} days {}..={} price {} rate_e12 {} index_after {}{}",
+                r.seq,
+                r.period_start_day,
+                r.period_start_day + u32::from(r.days_covered) - 1,
+                r.nav,
+                r.daily_rate_e12,
+                r.index_after,
+                if r.override_used { " (override)" } else { "" }
+            ),
+            None => println!("  #{seq}: MISSING"),
+        }
+    }
+}
+
+/// `--continue <mint>`: the next day's publish for an existing fund (research R13).
+fn continue_run(mut run: Run, mint: Pubkey) -> ExitCode {
+    let path = admin_key_path(&mint);
+    let admin = match read_keypair_file(&path) {
+        Ok(k) => k,
+        Err(e) => {
+            eprintln!("cannot read the fund admin key {}: {e}", path.display());
+            return ExitCode::FAILURE;
+        }
+    };
+    let fs_key = pda::fund_state(&mint).0;
+    let Some(fs) = read::<FundState>(&run.rpc, &fs_key) else {
+        eprintln!("no fund at {fs_key}");
+        return ExitCode::FAILURE;
+    };
+    let day = today();
+    let next_start = fs.nav_period_end_day + 1;
+    if fs.nav_seq > 0 && next_start > day {
+        print_history(&run.rpc, &mint);
+        println!(
+            "\nThe next record starts on UTC day {next_start}; today is {day}. Run again then."
+        );
+        return ExitCode::FAILURE;
+    }
+    let days = days_for(day);
+    let payer = run.payer.pubkey();
+    run.send(
+        &format!(
+            "continue: publish record {} for day {day} ({days} day(s))",
+            fs.nav_seq + 1
+        ),
+        &[ix_fund::publish_daily(
+            &admin.pubkey(),
+            &payer,
+            &mint,
+            fs.nav_seq + 1,
+            fs.nav,
+            RATE,
+            days,
+        )],
+        &[&admin],
+        Expect::Ok,
+    );
+    print_history(&run.rpc, &mint);
+    finish(&run)
+}
+
+fn finish(run: &Run) -> ExitCode {
+    if run.failures == 0 {
+        println!("\nAll {} steps matched their expected outcome.", run.step);
+        ExitCode::SUCCESS
+    } else {
+        println!("\n{} of {} steps did not match.", run.failures, run.step);
+        ExitCode::FAILURE
+    }
 }
 
 /// Payloads of every `emit_cpi!` event in transactions touching `account`, oldest first and in
@@ -215,14 +347,26 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    println!("F001 end-to-end run on {url} as {}", payer.pubkey());
-    let rpc = RpcClient::new_with_commitment(url, CommitmentConfig::confirmed());
+    let rpc = RpcClient::new_with_commitment(url.clone(), CommitmentConfig::confirmed());
     let mut run = Run {
         rpc,
         payer,
         failures: 0,
         step: 0,
     };
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("--continue") {
+        let Some(mint) = args.get(1).and_then(|m| m.parse::<Pubkey>().ok()) else {
+            eprintln!("usage: devnet-e2e --continue <mint>");
+            return ExitCode::FAILURE;
+        };
+        println!("F002 continue run on {url} for fund mint {mint}");
+        return continue_run(run, mint);
+    }
+    println!(
+        "F001 + F002 end-to-end run on {url} as {}",
+        run.payer.pubkey()
+    );
     let issuer = run.payer.insecure_clone();
     let i = issuer.pubkey();
 
@@ -291,8 +435,21 @@ fn main() -> ExitCode {
         Pubkey::default(),
         Pubkey::default(),
     ];
+    // F002: the fund admin is a real key, kept for `--continue` runs on later days.
+    let fund_admin = Keypair::new();
+    let key_path = admin_key_path(&m);
+    if let Err(e) = std::fs::create_dir_all(state_dir())
+        .map_err(|e| e.to_string())
+        .and_then(|_| write_keypair_file(&fund_admin, &key_path).map_err(|e| e.to_string()))
+    {
+        eprintln!(
+            "cannot save the fund admin key to {}: {e}",
+            key_path.display()
+        );
+        return ExitCode::FAILURE;
+    }
     let roles = Roles {
-        fund_admin: Pubkey::new_unique(),
+        fund_admin: fund_admin.pubkey(),
         transfer_agent: Pubkey::new_unique(),
         compliance: compliance.pubkey(),
         keeper: Pubkey::new_unique(),
@@ -455,13 +612,80 @@ fn main() -> ExitCode {
     for (name, o) in [("A", a), ("B", b)] {
         println!("  {name} {o}: {}", history(&run.rpc, &m, &o).join(" → "));
     }
-    println!("\nFund mint: {m}\nIssuer: {i}\nCompliance: {c}");
 
-    if run.failures == 0 {
-        println!("\nAll {} steps matched their expected outcome.", run.step);
-        ExitCode::SUCCESS
-    } else {
-        println!("\n{} of {} steps did not match.", run.failures, run.step);
-        ExitCode::FAILURE
+    // F002 (quickstart.md "Devnet run", research R13). Compliance is a plain key here; the Squads
+    // path for overrides is proven in LiteSVM (f002_override.rs).
+    let fa = fund_admin.pubkey();
+    let day = today();
+    let days = days_for(day);
+    let publish = |signer: &Pubkey, seq: u64, nav: u64| {
+        ix_fund::publish_daily(signer, &i, &m, seq, nav, RATE, days)
+    };
+    run.send(
+        "F002-1. publish $0.99 (1 % from the $1.00 target, limit 50 bps)",
+        &[publish(&fa, 1, BREAK)],
+        &[&fund_admin],
+        Expect::Err(fund_err(FundError::PriceMoveTooLarge), "PriceMoveTooLarge"),
+    );
+    run.send(
+        "F002-2. publish signed by A (not the fund admin)",
+        &[publish(&a, 1, ONE)],
+        &[&alice],
+        Expect::Err(fund_err(FundError::Unauthorized), "Unauthorized"),
+    );
+    let other = ReasonCode::Other as u8;
+    let case = [0x0c; 32];
+    run.send(
+        "F002-3. compliance approves an override for $0.99",
+        &[ix_governance::approve_nav_override(
+            &c, &m, BREAK, other, case,
+        )],
+        &[&compliance],
+        Expect::Ok,
+    );
+    run.send(
+        &format!("F002-4. publish $0.99 covering {days} day(s)"),
+        &[publish(&fa, 1, BREAK)],
+        &[&fund_admin],
+        Expect::Ok,
+    );
+    run.send(
+        "F002-5. publish again the same day",
+        &[publish(&fa, 2, BREAK)],
+        &[&fund_admin],
+        Expect::Err(fund_err(FundError::PeriodNotStarted), "PeriodNotStarted"),
+    );
+    run.send(
+        "F002-6. compliance approves an override for $0.985",
+        &[ix_governance::approve_nav_override(
+            &c, &m, 98_500_000, other, case,
+        )],
+        &[&compliance],
+        Expect::Ok,
+    );
+    run.send(
+        "F002-6. compliance withdraws it",
+        &[ix_governance::withdraw_nav_override(&c, &m, other, case)],
+        &[&compliance],
+        Expect::Ok,
+    );
+    let fs_key = pda::fund_state(&m).0;
+    match read::<NavRecord>(&run.rpc, &pda::nav_record(&fs_key, 1).0) {
+        Some(r) if r.nav == BREAK && r.override_used && r.days_covered == days => {
+            println!("F002-7. NavRecord 1 read back: {r:?}")
+        }
+        other => {
+            println!("F002-7. NavRecord 1 NOT as expected: {other:?}");
+            run.failures += 1;
+        }
     }
+    print_history(&run.rpc, &m);
+
+    println!("\nFund mint: {m}\nIssuer: {i}\nCompliance: {c}\nFund admin: {fa}");
+    println!(
+        "Fund admin key: {} (needed by --continue; never commit it)",
+        key_path.display()
+    );
+    println!("Next days: devnet-e2e --continue {m}");
+    finish(&run)
 }

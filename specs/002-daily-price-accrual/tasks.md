@@ -437,7 +437,7 @@ figures plus fair interest.
     because each NavRecord address has its own bump.
 - [X] T035 Run `scripts/check-error-coverage.sh` and add any missing rejection test until it
   reports none. It must list every new `FundError` variant as covered (SC-006)
-- [ ] T036 [P] Extend `scripts/devnet-e2e/src/main.rs` with the F002 steps in
+- [X] T036 [P] Extend `scripts/devnet-e2e/src/main.rs` with the F002 steps in
   [quickstart.md](quickstart.md#devnet-run-research-r13):
   - create the fund with `max_nav_move_bps = 50`;
   - rejected over-limit first publish (`PriceMoveTooLarge`);

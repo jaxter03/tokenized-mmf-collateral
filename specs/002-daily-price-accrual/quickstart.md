@@ -74,16 +74,27 @@ The reference model lives in `tests/src/model.rs` and doesn't use `mmf-common::a
 1. `publish_daily(0.99, 4.5 %/yr, 1)` by the fund admin → **fails `PriceMoveTooLarge`** (1 % from
    the $1.00 target).
 2. `publish_daily` by holder A's key → **fails `Unauthorized`**.
-3. Compliance (Squads) `approve_nav_override(0.99, Other, case)` → `NavOverrideApproved`.
-4. `publish_daily(0.99, 4.5 %/yr, 1)` → **succeeds**, record 1 with `override_used = true`.
+3. Compliance `approve_nav_override(0.99, Other, case)` → `NavOverrideApproved`. In the script
+   compliance is a plain key, as in F001's run; the Squads 2-of-3 path is proved in LiteSVM
+   (`f002_override.rs`).
+4. `publish_daily(0.99, 4.5 %/yr, days)` → **succeeds**, record 1 with `override_used = true`
+   (`days` = 3 on a Friday, else 1).
 5. `publish_daily(0.99, 4.5 %/yr, 1)` again → **fails `PeriodNotStarted`**.
 6. Approve then withdraw an override → `NavOverrideWithdrawn`.
 7. Read NavRecord 1 and print it.
 
-`cargo run -p devnet-e2e -- --continue <fund>` on each of the next two days publishes the next
-record (days covered = 1, or 3 on a Friday) and prints the full history: three records with
-contiguous periods. Units, and so interest, can't exist on devnet before F003. Accrual with units
+`cargo run -p devnet-e2e -- --continue <mint>` on each of the next two UTC days publishes the
+next record (days covered = 1, or 3 on a Friday) and prints the full history: three records with
+contiguous periods. Run on a day whose period hasn't begun, it prints the history and the day the
+next record is due, and exits non-zero without sending anything.
+
+The first run creates the fund admin key and saves it as
+`$STATE_DIR/<mint>-fund-admin-keypair.json` (default `STATE_DIR=target/devnet-e2e`). It lives
+under `target/` and matches `*-keypair.json`, both ignored by git. Never commit it. Units, and so interest, can't exist on devnet before F003. Accrual with units
 is proved in LiteSVM.
 
 **Rehearse locally first**: same as F001 (local validator with the three programs and Token-2022
 v11). The local validator's clock follows wall time, so `--continue` behaves the same as on devnet.
+`WALLET` (default `~/.config/solana/id.json`) must hold SOL on the validator. It may differ from
+the `solana` CLI's configured keypair, so airdrop to the issuer address the script prints.
+Rehearsed 2026-10-13: all 34 steps matched (F001 1–27, F002 28–34).
