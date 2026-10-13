@@ -261,3 +261,12 @@ pub fn settle_redemption(triggered_by: &Pubkey, d: &Deal) -> Instruction {
     a.seller_cash = Some(pda::ata(&d.seller, &d.cash_mint, &d.cash_program));
     settle_ix(a)
 }
+
+/// `settle` for a secondary transfer: units from escrow to the buyer's holding account (through
+/// the hook), cash from escrow to the seller's cash ATA.
+pub fn settle_secondary(triggered_by: &Pubkey, d: &Deal) -> Instruction {
+    let mut a = settle_base(triggered_by, d);
+    a.buyer_units = Some(pda::holding_account(&d.buyer, &d.mint));
+    a.seller_cash = Some(pda::ata(&d.seller, &d.cash_mint, &d.cash_program));
+    settle_ix(a)
+}

@@ -286,8 +286,55 @@ pub fn handle_settle(ctx: Context<Settle>) -> Result<()> {
                 signer,
             )?;
         }
-        // US3 (T054); can't be Affirmed before its unit leg exists.
-        SettlementKind::SecondaryTransfer => return err!(DvpError::NotAffirmed),
+        SettlementKind::SecondaryTransfer => {
+            // 8 (cont.). Units to the buyer's own holding account, cash to the seller's own ATA.
+            let buyer_units = present(&a.buyer_units)?;
+            let seller_cash = present(&a.seller_cash)?;
+            let buyer_holder = present(&a.buyer_holder)?;
+            require!(
+                buyer_units.key()
+                    == get_associated_token_address_with_program_id(
+                        &si.buyer,
+                        &fund.mint,
+                        &TOKEN_2022_PROGRAM_ID
+                    )
+                    && seller_cash.key()
+                        == get_associated_token_address_with_program_id(
+                            &si.seller,
+                            &fund.cash_mint,
+                            &cash_program
+                        ),
+                DvpError::WrongAccount
+            );
+            // The units through the hook, then the cash, in this one instruction.
+            token::transfer_units(
+                UnitTransfer {
+                    token_2022_program: &a.token_2022_program,
+                    source: &a.unit_escrow,
+                    mint: &a.mint,
+                    destination: buyer_units,
+                    authority: &a.escrow_authority,
+                    registry: &a.registry,
+                    fund_state: &a.fund_state,
+                    source_holder: &a.escrow_holder,
+                    destination_holder: buyer_holder,
+                    delegate: &a.delegate,
+                    hook_program: &a.hook_program,
+                    extra_account_meta_list: &a.extra_account_meta_list,
+                },
+                si.units,
+                signer,
+            )?;
+            token::transfer_cash(
+                &a.cash_token_program,
+                &a.cash_escrow,
+                &a.cash_mint,
+                seller_cash,
+                &a.escrow_authority,
+                si.cash_amount,
+                signer,
+            )?;
+        }
     }
 
     let triggered_by = a.triggered_by.key();

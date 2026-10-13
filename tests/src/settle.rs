@@ -162,3 +162,30 @@ pub fn affirmed_redemption(
     fund_redemption_cash(h, s, &d).expect("fund cash");
     d
 }
+
+/// `by` settles a secondary transfer.
+pub fn settle_sec(h: &mut Harness, d: &Deal, by: &Keypair) -> TxResult {
+    let ix = ix_dvp::settle_secondary(&by.pubkey(), d);
+    h.send(&[ix], &[by])
+}
+
+/// An Affirmed secondary transfer created by the buyer: the seller funds units, the buyer cash.
+pub fn affirmed_secondary(
+    h: &mut Harness,
+    s: &SettleCtx,
+    seller: &Keypair,
+    buyer: &Keypair,
+    units: u64,
+    cash: u64,
+    n: u8,
+) -> Deal {
+    let d = created(
+        h,
+        s,
+        buyer,
+        sec_args(&seller.pubkey(), &buyer.pubkey(), units, cash, n),
+    );
+    fund_units(h, &d, seller).expect("fund units");
+    fund_cash(h, s, &d, buyer).expect("fund cash");
+    d
+}

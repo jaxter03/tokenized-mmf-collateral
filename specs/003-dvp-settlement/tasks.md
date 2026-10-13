@@ -545,10 +545,10 @@ guarantee. No units are created or destroyed.
 **Independent Test**: A (1 000 000 units) and B agree 1 000 000 units for $999 500. Both fund,
 the keeper settles; B holds the units, A has the cash, and `units_outstanding` is unchanged.
 
-- [ ] T052 [P] [US3] Add `settle_secondary(triggered_by, settlement)` to
+- [X] T052 [P] [US3] Add `settle_secondary(triggered_by, settlement)` to
   `crates/mmf-sdk/src/ix_dvp.rs`, with the buyer's holding account, the seller's cash ATA and the
   hook extra accounts for escrow → buyer
-- [ ] T053 [US3] Write `tests/tests/f003_secondary.rs` (tests must fail):
+- [X] T053 [US3] Write `tests/tests/f003_secondary.rs` (tests must fail):
   - **spec independent test**; acceptance scenarios 1–4 (scenario 5's `SameParty` / `ZeroCash`
     are in `f003_create.rs`, so reference them in a comment);
   - creation by the buyer, then funding in both orders;
@@ -559,10 +559,10 @@ the keeper settles; B holds the units, A has the cash, and `units_outstanding` i
     (I10) and the buyer is;
   - supply and `units_outstanding` unchanged; both sides' interest settled (F002 I11 with a
     publish between funding and settle).
-- [ ] T054 [US3] Implement `settle` for **SecondaryTransfer**: unit escrow → buyer
+- [X] T054 [US3] Implement `settle` for **SecondaryTransfer**: unit escrow → buyer
   (`transfer_checked` with the hook's extra accounts, escrow PDA signs), cash escrow → seller's
   cash ATA, then Settled and `Settled`. Remove the T038 placeholder for this kind
-- [ ] T055 [US3] Make T053 pass
+- [X] T055 [US3] Make T053 pass
 
 **Checkpoint**: all three kinds settle both-or-neither.
 
