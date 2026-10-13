@@ -121,26 +121,29 @@ both stories use.
   - `FundStateView.accrual_index` matches a program-serialized FundState with a non-zero index.
 
   This is one of the F001 test edits the PR must list (Constitution XII)
-- [ ] T009 [P] In `crates/mmf-sdk/src/pda.rs`, add `nav_record(fund_state, seq: u64)` and
+- [X] T009 [P] In `crates/mmf-sdk/src/pda.rs`, add `nav_record(fund_state, seq: u64)` and
   `fund_caller()`. Add `crates/mmf-sdk/src/accrual.rs` with
-  `earned_e18(holder: &HolderState, fund: &FundState) -> u128` (read-only, FR-017, using
+  `earned_e18(holder: &HolderState, fund: &FundState) -> Option<u128>` (read-only, FR-017; `None` only for inconsistent accounts or overflow; using
   `mmf_common::accrual::earned_e18`), and export it from `lib.rs`
-- [ ] T010 Update `seed_units` in `tests/src/units.rs` (research R12). Before raising
+- [X] T010 Update `seed_units` in `tests/src/units.rs` (research R12). Before raising
   `last_balance`, read `FundState.accrual_index` and settle the holder:
   `accrued_e18 += last_balance × (index − index_at_last_touch); index_at_last_touch = index`. This
   is exactly what a hook-checked transfer in would do. Update the module doc comment. This is an
   F001 helper edit the PR must list (depends on T005)
-- [ ] T011 [P] Add the independent accrual reference model in `tests/src/model.rs` (research R11).
+- [X] T011 [P] Add the independent accrual reference model in `tests/src/model.rs` (research R11).
   It **must not** use `mmf_common::accrual`:
   - `AccrualModel { balances: Vec<u64>, earned_e18: Vec<u128>, index_e18: u128, period_end_day: Option<u32>, last_nav: Option<u64> }`;
-  - `publish(rate_e12: u64, days: u16)` loops **once per covered day**, adding
-    `balance × rate_e12 × 1_000_000` to every holder, and advances the index the same way;
+  - `next_start(today) -> u32` (`today` before the first publish, else the day after the last
+    covered day);
+  - `publish(start_day: u32, nav: u64, rate_e12: u64, days: u16)` loops **once per covered
+    day**, adding `balance × rate_e12 × 1_000_000` to every holder, and advances the index the
+    same way; it also records `period_end_day` and `last_nav`;
   - `transfer(from, to, amount)` moves balances only;
   - `seed(to, amount)`;
   - `total_earned()`.
 
   Unit-test it against a 3-day hand-written table
-- [ ] T012 Run `cargo test -p mmf-common && cargo test -p tests` and confirm every F001 test still
+- [X] T012 Run `cargo test -p mmf-common && cargo test -p tests` and confirm every F001 test still
   passes with the new layouts and helpers (Constitution XII)
 
 **Checkpoint**: math, layouts, views and model are ready, and F001 is still green.

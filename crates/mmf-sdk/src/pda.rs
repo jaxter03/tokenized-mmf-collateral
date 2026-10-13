@@ -1,4 +1,4 @@
-//! Every F001 PDA (docs/shared-model.md §4, §4.5; data-model.md). Each function returns
+//! Every PDA (F001, F002) (docs/shared-model.md §4, §4.5; data-model.md). Each function returns
 //! `(address, bump)`.
 
 use anchor_lang::prelude::Pubkey;
@@ -11,6 +11,14 @@ use mmf_common::seeds;
 /// fund `["fund", mint]` → FundState.
 pub fn fund_state(mint: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[seeds::FUND, mint.as_ref()], &FUND_PROGRAM_ID)
+}
+
+/// fund `["nav", fund_state, seq.to_le_bytes()]` → NavRecord (F002).
+pub fn nav_record(fund_state: &Pubkey, seq: u64) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[seeds::NAV, fund_state.as_ref(), &seq.to_le_bytes()],
+        &FUND_PROGRAM_ID,
+    )
 }
 
 /// governance `["roles", fund_state]` → RoleRegistry.
@@ -55,6 +63,11 @@ pub fn token_admin(mint: &Pubkey) -> (Pubkey, u8) {
 /// governance `["hook-admin"]` → signs compliance_hook `set_status` / `set_paused`.
 pub fn hook_admin() -> (Pubkey, u8) {
     Pubkey::find_program_address(&[seeds::HOOK_ADMIN], &GOVERNANCE_PROGRAM_ID)
+}
+
+/// governance `["fund-caller"]` → signs fund `set_nav_override` / `clear_nav_override` (F002).
+pub fn fund_caller() -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[seeds::FUND_CALLER], &GOVERNANCE_PROGRAM_ID)
 }
 
 /// fund `["treasury", fund_state]` → owner of the fund treasury holding account.

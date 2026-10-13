@@ -13,3 +13,9 @@ Collected while implementing, so the PR description can list them (Constitution 
 |---|---|---|---|
 | T006 | `tests/src/events.rs` | `sample()` fills the three new `TransferValidated` fields | the event payload grew (shared-model §9); decoding tests unchanged |
 | T008 | `tests/tests/layouts.rs` | FundState test sets the F002 fields, checks size equals F001's, `bump` unmoved, new fields after it, 52 reserved bytes; view decodes `accrual_index`; new NavRecord layout test | FundState took reserved bytes (research R10) |
+| T010 | `tests/src/units.rs` | `seed_units` settles the holder's interest at the fund's current counter before raising `last_balance` | otherwise seeded units would earn for publishes before they arrived (research R12); F001 tests have counter 0, so behaviour for them is unchanged |
+
+## After Phase 2 (T012, 2026-10-13)
+
+- `cargo test -p tests`: 112 passed, 1 ignored, 0 failed (baseline 110 + `nav_record_layout` + `three_days_by_hand`)
+- `cargo test -p mmf-common`: 23 passed (baseline 15 + 7 accrual + 1 override reasons)

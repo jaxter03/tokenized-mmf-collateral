@@ -1,5 +1,6 @@
-//! Client helpers for the F001 programs.
+//! Client helpers for the programs.
 
+pub mod accrual;
 pub mod ix_fund;
 pub mod ix_governance;
 pub mod ix_hook;
