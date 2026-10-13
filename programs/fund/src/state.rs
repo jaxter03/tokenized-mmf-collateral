@@ -44,9 +44,13 @@ pub struct FundState {
     pub accrual_index: u128,
     pub daily_rate_e12: u64,
     // --- F003: subscriptions and redemptions (zero in F001) ---
+    /// Equals the mint's supply (invariant I4).
     pub units_outstanding: u64,
+    /// Units burned by redemptions since `day_start_ts`.
     pub redeemed_today: u64,
+    /// 00:00 UTC of the current redemption day; 0 = never rolled over.
     pub day_start_ts: i64,
+    /// Token account of `terms.cash_mint`, set once by `set_cash_treasury`.
     pub cash_treasury: Pubkey,
     // --- F006: distributions (zero in F001) ---
     pub current_cycle: u32,
@@ -57,7 +61,10 @@ pub struct FundState {
     pub nav_period_end_day: u32,
     /// Price allowed by an approved override at the next publish; 0 = none.
     pub pending_override_nav: u64,
-    pub _reserved: [u8; 52],
+    // --- F003, also from the reserved bytes (research R9) ---
+    /// `units_outstanding` when the redemption day last rolled over: the daily limit's base.
+    pub units_at_day_start: u64,
+    pub _reserved: [u8; 44],
 }
 
 impl FundState {

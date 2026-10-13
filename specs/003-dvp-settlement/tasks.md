@@ -100,7 +100,7 @@ green.
 
 ### Shared code
 
-- [ ] T005 [P] Create `crates/mmf-common/src/settlement.rs` and export it from `lib.rs`. All
+- [X] T005 [P] Create `crates/mmf-common/src/settlement.rs` and export it from `lib.rs`. All
   functions are pure, use checked `u128` math and return `None` on overflow:
   - `subscription_cash(units: u64, nav: u64) -> Option<u64>` = `ceil(units × nav / 10^8)`
     ("rounds up: the Fund is never under-paid");
@@ -121,7 +121,7 @@ green.
     `units > 0` → false;
   - `price_fresh` for today, yesterday (true) and the day before yesterday (false);
   - overflow returns `None`
-- [ ] T006 [P] In `crates/mmf-common/src/seeds.rs`, add:
+- [X] T006 [P] In `crates/mmf-common/src/seeds.rs`, add:
   - `DVP = b"dvp"` (`["dvp", fund_state]` → DvpConfig);
   - `ESCROW = b"escrow"` (`["escrow", fund_state]` → escrow authority);
   - `SETTLEMENT = b"settlement"` (`["settlement", fund_state, created_by, external_ref]`);
@@ -136,7 +136,7 @@ green.
   - `ReasonCode::allowed_for_reject_settlement()`, the same list as `allowed_in_f001`.
 
   Extend the round-trip unit test (unknown values are errors)
-- [ ] T007 Extend `programs/fund/src/state.rs`, `errors.rs` and `events.rs`:
+- [X] T007 Extend `programs/fund/src/state.rs`, `errors.rs` and `events.rs`:
   - **FundState**: after `pending_override_nav`, add `units_at_day_start: u64` ("units_outstanding
     when the redemption day rolled over"), and change `_reserved` to `[u8; 44]`. The total size
     must be unchanged.
@@ -146,7 +146,7 @@ green.
     - `CashTreasurySet { cash_treasury, signer }`
     - `SubscriptionMinted { settlement, units, units_outstanding }`
     - `RedemptionBurned { settlement, units, units_outstanding, redeemed_today, units_at_day_start }`
-- [ ] T008 Create `programs/dvp_settlement/src/state.rs`, `errors.rs` and `events.rs` per
+- [X] T008 Create `programs/dvp_settlement/src/state.rs`, `errors.rs` and `events.rs` per
   [data-model.md](data-model.md):
   - **DvpConfig**: "version u8 · fund_state Pubkey · next_seq u64 · default_expiry_secs u32 ·
     bump u8 · escrow_bump u8 · _reserved [u8; 64]", 119 bytes with the discriminator,
@@ -164,11 +164,11 @@ green.
     `CancelRequestWithdrawn`, `SettlementCancelled`, `SettlementExpired`, `SettlementRejected`,
     `LegReturned`, with the payloads in the data-model Events table plus `fund`, `slot`,
     `unix_ts`.
-- [ ] T009 [P] In `programs/compliance_hook/src/errors.rs`, **append** `WrongHolder` and
+- [X] T009 [P] In `programs/compliance_hook/src/errors.rs`, **append** `WrongHolder` and
   `ClassNotAccrued`. In `events.rs`, define
   `Accrued { fund, owner, pre_balance: u64, post_balance: u64, accrual_index: u128, accrued_e18: u128, slot, unix_ts }`.
   Check it isn't already declared; F002 left the name reserved
-- [ ] T010 In `crates/mmf-common/src/views.rs` (depends on T007, T008):
+- [X] T010 In `crates/mmf-common/src/views.rs` (depends on T007, T008):
   - extend `FundStateView` with `mint`, `role_registry`, `status`, `nav`, `nav_seq`,
     `nav_period_end_day`, `cash_treasury`, `terms.cash_mint` and `units_outstanding` at their
     serialized offsets;
@@ -185,7 +185,7 @@ green.
 
   Each `load` failure is a distinct `ViewError`. Unit-test each decode against a
   program-serialized account
-- [ ] T011 Update `tests/tests/layouts.rs` (depends on T007, T008, T010):
+- [X] T011 Update `tests/tests/layouts.rs` (depends on T007, T008, T010):
   - FundState size unchanged;
   - `units_at_day_start` right after `pending_override_nav`, then `_reserved` 44 bytes;
   - DvpConfig = 119 bytes; SettlementInstruction = 333 bytes;
