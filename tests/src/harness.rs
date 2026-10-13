@@ -1,7 +1,8 @@
 //! LiteSVM test harness (T020, research R8).
 //!
 //! `Harness::new()` builds LiteSVM 0.12 with precompiles and loads:
-//! - the three F001 programs from `target/deploy/` (run `anchor build` first);
+//! - the four programs (F001 three, F003 `dvp_settlement`) from `target/deploy/` (run `anchor build`
+//!   first);
 //! - the mainnet Token-2022 v11 fixture over the bundled Token-2022 (permissioned burn);
 //! - the mainnet Squads v4 program and its ProgramConfig account.
 
@@ -60,6 +61,7 @@ impl Harness {
             (ids::FUND_PROGRAM_ID, "fund.so"),
             (ids::COMPLIANCE_HOOK_PROGRAM_ID, "compliance_hook.so"),
             (ids::GOVERNANCE_PROGRAM_ID, "governance.so"),
+            (ids::DVP_SETTLEMENT_PROGRAM_ID, "dvp_settlement.so"),
         ] {
             svm.add_program_from_file(id, deploy.join(name))
                 .unwrap_or_else(|e| panic!("load {name} (run `anchor build` first): {e:?}"));

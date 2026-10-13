@@ -1395,6 +1395,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "dvp_settlement"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "fund",
+ "mmf-common",
+]
+
+[[package]]
 name = "eager"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1672,6 +1682,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
+ "compliance_hook",
  "mmf-common",
  "spl-token-metadata-interface",
 ]
@@ -1832,6 +1843,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "compliance_hook",
+ "dvp_settlement",
  "fund",
  "mmf-common",
 ]
@@ -2519,6 +2531,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "compliance_hook",
+ "dvp_settlement",
  "fund",
  "futures",
  "governance",
@@ -5683,6 +5696,7 @@ dependencies = [
  "anchor-spl",
  "base64 0.22.1",
  "compliance_hook",
+ "dvp_settlement",
  "fund",
  "futures",
  "governance",

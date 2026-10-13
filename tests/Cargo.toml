@@ -15,6 +15,7 @@ mmf-sdk = { path = "../crates/mmf-sdk" }
 fund = { path = "../programs/fund", features = ["no-entrypoint"] }
 compliance_hook = { path = "../programs/compliance_hook", features = ["no-entrypoint"] }
 governance = { path = "../programs/governance", features = ["no-entrypoint"] }
+dvp_settlement = { path = "../programs/dvp_settlement", features = ["no-entrypoint"] }
 anchor-lang = "=1.1.2"
 anchor-spl = { version = "=1.1.2", features = ["token_2022", "token_2022_extensions", "associated_token"] }
 solana-transaction = "3"

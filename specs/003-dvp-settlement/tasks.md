@@ -48,10 +48,10 @@ phase ends with a checkpoint where that story's independent test passes.
 
 **Purpose**: confirm a green F001 + F002 baseline, add the fifth program and the new crate edges.
 
-- [ ] T001 Run `anchor build && cargo test -p mmf-common && cargo test -p tests` on the branch
+- [X] T001 Run `anchor build && cargo test -p mmf-common && cargo test -p tests` on the branch
   before any change. Confirm F001 and F002 are green (Constitution XII baseline), and record the
   test count in the PR description draft
-- [ ] T002 Create the `dvp_settlement` program (research R1):
+- [X] T002 Create the `dvp_settlement` program (research R1):
   - `programs/dvp_settlement/Cargo.toml` with `anchor-lang = { version = "=1.1.2", features = ["event-cpi"] }`,
     `anchor-spl` (same features as `fund` plus `token`), `mmf-common`, and
     `fund = { path = "../fund", features = ["cpi", "no-entrypoint"] }`, plus the usual
@@ -64,7 +64,7 @@ phase ends with a checkpoint where that story's independent test passes.
     the others.
 
   `anchor build` must produce four `.so` files
-- [ ] T003 Add the crate edges from plan.md "Primary Dependencies":
+- [X] T003 Add the crate edges from plan.md "Primary Dependencies":
   - `compliance_hook = { path = "../compliance_hook", features = ["cpi", "no-entrypoint"] }` in
     `programs/fund/Cargo.toml`;
   - `dvp_settlement = { path = "../dvp_settlement", features = ["cpi", "no-entrypoint"] }` in
@@ -76,10 +76,11 @@ phase ends with a checkpoint where that story's independent test passes.
   Confirm there is no cycle (`cargo tree -p compliance_hook | grep -E "fund|dvp"` and
   `cargo tree -p dvp_settlement | grep governance` are both empty), and that `anchor build`
   succeeds
-- [ ] T004 In `tests/src/harness.rs`, load `dvp_settlement.so` at `DVP_SETTLEMENT_PROGRAM_ID`
+- [X] T004 In `tests/src/harness.rs`, load `dvp_settlement.so` at `DVP_SETTLEMENT_PROGRAM_ID`
   alongside the three existing programs. In `tests/src/fixtures.rs`, add cash helpers:
-  - `cash_ata(owner, cash_mint) -> Pubkey`, using the classic SPL Token program that
-    `create_cash_mint` uses;
+  - `cash_ata(h, owner, cash_mint) -> Pubkey`, under the cash mint's own token program
+    (`create_cash_mint` makes a Token-2022 mint; the helpers also work for a classic SPL Token
+    mint);
   - `create_cash_ata(h, owner, cash_mint)`;
   - `mint_cash(h, cash_mint, owner, amount)`, minting with the cash mint's authority from
     `create_cash_mint`;

@@ -73,6 +73,49 @@ pub fn create_cash_mint(h: &mut Harness, decimals: u8) -> Pubkey {
     mint.pubkey()
 }
 
+/// Token program that owns `mint` (SPL Token or Token-2022).
+pub fn token_program_of(h: &Harness, mint: &Pubkey) -> Pubkey {
+    h.account(mint).expect("mint exists").owner
+}
+
+/// `owner`'s associated token account for the cash mint, under the cash mint's own token
+/// program (F003, research R14).
+pub fn cash_ata(h: &Harness, owner: &Pubkey, cash_mint: &Pubkey) -> Pubkey {
+    spl_associated_token_account_interface::address::get_associated_token_address_with_program_id(
+        owner,
+        cash_mint,
+        &token_program_of(h, cash_mint),
+    )
+}
+
+/// Creates `owner`'s cash ATA if it doesn't exist yet. Returns its address.
+pub fn create_cash_ata(h: &mut Harness, owner: &Pubkey, cash_mint: &Pubkey) -> Pubkey {
+    let program = token_program_of(h, cash_mint);
+    let ix = spl_associated_token_account_interface::instruction::create_associated_token_account_idempotent(
+        &h.payer.pubkey(),
+        owner,
+        cash_mint,
+        &program,
+    );
+    h.send(&[ix], &[]).expect("create cash ATA");
+    cash_ata(h, owner, cash_mint)
+}
+
+/// Mints `amount` cash base units to `owner`'s cash ATA (created if missing). The harness payer
+/// is the cash mint's authority (`create_cash_mint`).
+pub fn mint_cash(h: &mut Harness, cash_mint: &Pubkey, owner: &Pubkey, amount: u64) {
+    let program = token_program_of(h, cash_mint);
+    let ata = create_cash_ata(h, owner, cash_mint);
+    let ix = t22::instruction::mint_to(&program, cash_mint, &ata, &h.payer.pubkey(), &[], amount)
+        .expect("mint_to instruction");
+    h.send(&[ix], &[]).expect("mint cash");
+}
+
+/// Balance of a cash token account (0 if it doesn't exist).
+pub fn cash_balance(h: &Harness, token_account: &Pubkey) -> u64 {
+    crate::units::token_balance(h, token_account)
+}
+
 /// Deserializes an Anchor account (discriminator checked).
 pub fn read<T: AccountDeserialize>(h: &Harness, key: &Pubkey) -> T {
     let data = h.data(key);

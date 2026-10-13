@@ -23,6 +23,7 @@ custom-panic = []
 anchor-lang = { version = "=1.1.2", features = ["event-cpi"] }
 anchor-spl = { version = "=1.1.2", features = ["token_2022", "token_2022_extensions", "associated_token"] }
 mmf-common = { path = "../../crates/mmf-common" }
+compliance_hook = { path = "../compliance_hook", features = ["cpi", "no-entrypoint"] }
 spl-token-metadata-interface = "0.8"
 
 

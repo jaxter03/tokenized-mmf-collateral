@@ -4,3 +4,7 @@ target/
 test-ledger/
 **/*-keypair.json
 **/*.rs.bk
+*.log
+.env*
+.idea/
+.vscode/
