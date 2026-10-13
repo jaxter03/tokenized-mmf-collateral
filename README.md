@@ -211,8 +211,9 @@ holder's full status history can be rebuilt from those events alone.
 
 ## Tests
 
-**157 tests pass in the LiteSVM suite, plus 23 shared-crate unit tests.**
-- Every rule has a rejection test asserting the exact error; all 73 error variants are covered.
+**278 tests pass in the LiteSVM suite, plus 45 shared-crate and SDK unit tests** (5 more —
+scale tests, a long property run and one F004 placeholder — are `#[ignore]`d and run in release).
+- Every rule has a rejection test asserting the exact error; all 113 error variants are covered.
 - 128 randomized F001 operation sequences, now with publishes interleaved, are checked against a
   reference model.
 - F002 suites: `f002_publish`, `f002_override` and `f002_accrual`. The spec's own test is in
