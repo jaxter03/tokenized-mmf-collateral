@@ -226,3 +226,38 @@ pub fn settle_subscription(triggered_by: &Pubkey, d: &Deal, cash_treasury: &Pubk
     a.cash_treasury = Some(*cash_treasury);
     settle_ix(a)
 }
+
+/// `affirm_and_fund(Seller)` for a redemption or secondary transfer: the seller moves its units
+/// from its holding account into the unit escrow. The hook runs, so its extra accounts are passed
+/// (research R5).
+pub fn fund_units(seller: &Pubkey, d: &Deal) -> Instruction {
+    let mut a = affirm_base(seller, d);
+    a.party_holder = Some(pda::holder(&d.mint, seller).0);
+    a.source = Some(pda::holding_account(seller, &d.mint));
+    a.destination = Some(d.unit_escrow());
+    a.leg_mint = Some(d.mint);
+    a.token_program = Some(TOKEN_2022_PROGRAM_ID);
+    a.registry = Some(pda::registry(&d.mint).0);
+    a.escrow_holder = Some(pda::holder(&d.mint, &d.escrow()).0);
+    a.delegate = Some(pda::delegate(&d.mint).0);
+    a.hook_program = Some(COMPLIANCE_HOOK_PROGRAM_ID);
+    a.extra_account_meta_list = Some(pda::extra_metas(&d.mint).0);
+    affirm_and_fund_ix(a, 0)
+}
+
+/// `affirm_and_fund(Buyer)` for a redemption: the transfer agent moves the cash amount from the
+/// fund's treasury cash account into the cash escrow.
+pub fn fund_redemption_cash(
+    transfer_agent: &Pubkey,
+    d: &Deal,
+    cash_treasury: &Pubkey,
+) -> Instruction {
+    fund_cash(transfer_agent, d, cash_treasury)
+}
+
+/// `settle` for a redemption: units burned in escrow, cash paid to the seller's cash ATA.
+pub fn settle_redemption(triggered_by: &Pubkey, d: &Deal) -> Instruction {
+    let mut a = settle_base(triggered_by, d);
+    a.seller_cash = Some(pda::ata(&d.seller, &d.cash_mint, &d.cash_program));
+    settle_ix(a)
+}

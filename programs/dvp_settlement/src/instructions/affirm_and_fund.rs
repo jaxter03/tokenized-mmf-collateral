@@ -6,13 +6,14 @@ use anchor_lang::prelude::*;
 use anchor_spl::associated_token::get_associated_token_address_with_program_id;
 use mmf_common::cash;
 use mmf_common::enums::{SettlementKind, SettlementStatus, Side};
+use mmf_common::ids::{COMPLIANCE_HOOK_PROGRAM_ID, TOKEN_2022_PROGRAM_ID};
 use mmf_common::seeds;
 use mmf_common::views::{FundStateView, HolderStateView, RoleRegistryView};
 
 use crate::errors::DvpError;
 use crate::events::LegFunded;
 use crate::state::{DvpConfig, SettlementInstruction};
-use crate::token;
+use crate::token::{self, UnitTransfer};
 
 #[event_cpi]
 #[derive(Accounts)]
@@ -129,13 +130,18 @@ pub fn handle_affirm_and_fund(ctx: Context<AffirmAndFund>, side: u8) -> Result<(
     let amount = match (side, kind) {
         // The Fund's affirmation: its units are created at settlement.
         (Side::Seller, SettlementKind::Subscription) => 0,
-        // An investor's cash.
-        (Side::Buyer, SettlementKind::Subscription | SettlementKind::SecondaryTransfer) => {
-            // 9. The cash mint's own accounts, into the cash escrow.
+        // Cash: an investor's own, or (redemption) the fund's treasury cash paid in by the
+        // transfer agent.
+        (Side::Buyer, _) => {
             let mint = present(&a.leg_mint)?;
             let program = present(&a.token_program)?;
             let source = present(&a.source)?;
             let destination = present(&a.destination)?;
+            // 8. A redemption's cash comes only from the treasury cash account.
+            if kind == SettlementKind::Redemption {
+                require_keys_eq!(source.key(), fund.cash_treasury, DvpError::WrongCashSource);
+            }
+            // 9. The cash mint's own accounts, into the cash escrow.
             require!(
                 mint.key() == fund.cash_mint && program.key() == *mint.owner,
                 DvpError::WrongAccount
@@ -163,11 +169,55 @@ pub fn handle_affirm_and_fund(ctx: Context<AffirmAndFund>, side: u8) -> Result<(
             )?;
             si.cash_amount
         }
-        // The redemption's cash from the treasury: T048 (US2).
-        (Side::Buyer, SettlementKind::Redemption) => return err!(DvpError::InvalidSide),
-        // A unit leg: T047 (US2).
-        (Side::Seller, SettlementKind::Redemption | SettlementKind::SecondaryTransfer) => {
-            return err!(DvpError::InvalidSide)
+        // Units: the seller's holding account into the unit escrow, through the hook (research
+        // R5), so every transfer rule (and, from F004, collateral locks) applies.
+        (Side::Seller, _) => {
+            let mint = present(&a.leg_mint)?;
+            let program = present(&a.token_program)?;
+            let source = present(&a.source)?;
+            let destination = present(&a.destination)?;
+            let party_holder = present(&a.party_holder)?;
+            let registry = present(&a.registry)?;
+            let escrow_holder = present(&a.escrow_holder)?;
+            let hook_program = present(&a.hook_program)?;
+            // 9. The fund's own mint and accounts; the hook checks its extra accounts.
+            require!(
+                mint.key() == fund.mint
+                    && program.key() == TOKEN_2022_PROGRAM_ID
+                    && hook_program.key() == COMPLIANCE_HOOK_PROGRAM_ID
+                    && source.key()
+                        == get_associated_token_address_with_program_id(
+                            &party,
+                            &fund.mint,
+                            &TOKEN_2022_PROGRAM_ID
+                        )
+                    && destination.key()
+                        == get_associated_token_address_with_program_id(
+                            &escrow,
+                            &fund.mint,
+                            &TOKEN_2022_PROGRAM_ID
+                        ),
+                DvpError::WrongAccount
+            );
+            token::transfer_units(
+                UnitTransfer {
+                    token_2022_program: program,
+                    source,
+                    mint,
+                    destination,
+                    authority: a.party.as_ref(),
+                    registry,
+                    fund_state: a.fund_state.as_ref(),
+                    source_holder: party_holder,
+                    destination_holder: escrow_holder,
+                    delegate: present(&a.delegate)?,
+                    hook_program,
+                    extra_account_meta_list: present(&a.extra_account_meta_list)?,
+                },
+                si.units,
+                &[],
+            )?;
+            si.units
         }
     };
 

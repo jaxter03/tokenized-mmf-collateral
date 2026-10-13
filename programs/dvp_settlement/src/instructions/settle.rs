@@ -241,10 +241,53 @@ pub fn handle_settle(ctx: Context<Settle>) -> Result<()> {
                 signer,
             )?;
         }
-        // US2 (T050) and US3 (T054); neither can be Affirmed before their unit leg exists.
-        SettlementKind::Redemption | SettlementKind::SecondaryTransfer => {
-            return err!(DvpError::NotAffirmed)
+        SettlementKind::Redemption => {
+            // 8 (cont.). Cash to the seller's own cash ATA.
+            let seller_cash = present(&a.seller_cash)?;
+            require_keys_eq!(
+                seller_cash.key(),
+                get_associated_token_address_with_program_id(
+                    &si.seller,
+                    &fund.cash_mint,
+                    &cash_program
+                ),
+                DvpError::WrongAccount
+            );
+            // Destroy the units in escrow within the daily limit (fund checks the settlement
+            // itself and the limit, research R7, R9) …
+            fund::cpi::burn_for_redemption(
+                CpiContext::new_with_signer(
+                    FUND_PROGRAM_ID,
+                    fund::cpi::accounts::BurnForRedemption {
+                        escrow_authority: a.escrow_authority.to_account_info(),
+                        fund_state: a.fund_state.to_account_info(),
+                        mint: a.mint.to_account_info(),
+                        unit_escrow: a.unit_escrow.to_account_info(),
+                        settlement: a.settlement.to_account_info(),
+                        registry: a.registry.to_account_info(),
+                        escrow_holder: a.escrow_holder.to_account_info(),
+                        compliance_hook_program: a.hook_program.to_account_info(),
+                        token_2022_program: a.token_2022_program.to_account_info(),
+                        event_authority: a.fund_event_authority.to_account_info(),
+                        program: a.fund_program.to_account_info(),
+                    },
+                    signer,
+                ),
+                si.units,
+            )?;
+            // … and pay the seller, in this one instruction.
+            token::transfer_cash(
+                &a.cash_token_program,
+                &a.cash_escrow,
+                &a.cash_mint,
+                seller_cash,
+                &a.escrow_authority,
+                si.cash_amount,
+                signer,
+            )?;
         }
+        // US3 (T054); can't be Affirmed before its unit leg exists.
+        SettlementKind::SecondaryTransfer => return err!(DvpError::NotAffirmed),
     }
 
     let triggered_by = a.triggered_by.key();
