@@ -48,3 +48,7 @@
 - Rounding directions in FR-008 come from the shared model's rounding rules (§8); escrow
   segregation (FR-030) and both-or-neither (SC-001) restate invariants I5 and I6.
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`
+- Planning (2026-10-13): five spec adjustments recorded in plan.md ("Spec adjustments made during
+  planning"): returns as their own step (FR-026), escrow ≥ held (FR-030, SC-003), external
+  reference unique per creator (FR-004), eligibility at funding (FR-012), cash accounts and
+  unsupported cash tokens (Assumptions). All items still pass.

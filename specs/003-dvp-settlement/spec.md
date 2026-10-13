@@ -216,10 +216,15 @@ it is signed; when submitted, it is rejected and nothing moves.
   succeed), compliance rejects the instruction, or it expires; in the last two cases funded legs
   are returned.
 - **A refund cannot be delivered right now** (for example, units going back to a suspended
-  holder, which the transfer rules forbid, or units while transfers are paused): the instruction
-  still reaches its final status, and that leg stays in escrow, earmarked for that party only.
-  Anyone can retry the return later; it succeeds as soon as the party can receive. Nothing else
-  can move earmarked amounts.
+  holder, which the transfer rules forbid, units while transfers are paused, or cash to an
+  account the cash issuer has frozen): cancelling, expiring and rejecting never depend on a
+  return succeeding. The instruction reaches its final status, and each funded leg stays in
+  escrow earmarked for the party that funded it. Returning a leg is its own step that anyone can
+  trigger (normally together with the cancel, expiry or rejection). If it fails, it can be retried
+  and succeeds as soon as the party can receive. Nothing else can move earmarked amounts.
+- **Same external reference used twice by one creator**: the second creation is rejected. An
+  instruction is identified by its creator and external reference, so a creation step that is
+  submitted twice creates only one instruction.
 - **Transfers paused**: funding a unit leg and settling any instruction are refused while
   transfers are paused, including redemptions (which destroy units rather than transfer them).
   Creating, cancelling, expiring and rejecting instructions are still allowed, and cash legs are
@@ -275,7 +280,8 @@ it is signed; when submitted, it is rejected and nothing moves.
   FR-005, only while the Fund is Open, and MUST record on it: kind (subscription, redemption or
   secondary transfer), seller, buyer, number of units, cash amount, the price record it is priced
   from, valid-from, expiry, status, an external reference supplied by the creator, and who created
-  it.
+  it. The external reference MUST NOT be empty and MUST be unique among that creator's
+  instructions for the Fund.
 - **FR-005**: System MUST let a subscription or redemption instruction be created by the investor
   or by the transfer agent for the Fund, and a secondary transfer instruction by either of its two
   holders. Creating an instruction does not fund or affirm the creator's leg. An instruction
@@ -304,8 +310,9 @@ it is signed; when submitted, it is rejected and nothing moves.
   created at settlement); in a redemption the transfer agent funds the cash leg from the fund's
   treasury cash account.
 - **FR-012**: System MUST accept funding only of the exact amount of the leg, in full, in one
-  step, only before expiry, and only while the instruction is not final and that leg is not yet
-  funded.
+  step, only before expiry, only while the instruction is not final and that leg is not yet
+  funded, and only while the funding party (other than the Fund side) is Approved with valid
+  KYC.
 - **FR-013**: System MUST move funded units into escrow under the transfer rules of F001 (and, from
   F004, collateral locks), so units that the seller could not transfer cannot be funded.
 - **FR-014**: System MUST move the status to Seller funded or Buyer funded when the first leg is
@@ -348,10 +355,11 @@ it is signed; when submitted, it is rejected and nothing moves.
   expiry, and MUST reject an attempt before its expiry.
 - **FR-025**: System MUST let compliance reject an instruction that is not final, with a reason
   from the fixed list used for F001's compliance actions.
-- **FR-026**: On cancellation, expiry or rejection, System MUST return every funded leg in full to
-  the party that funded it, in the same step. A leg that cannot be returned at that moment MUST
-  stay in escrow earmarked for that party; anyone MUST be able to retry its return, and nothing
-  else MUST be able to move it.
+- **FR-026**: On cancellation, expiry or rejection, System MUST earmark every funded leg, in full,
+  for return to the party that funded it. Cancelling, expiring and rejecting MUST succeed whether
+  or not a return can be delivered at that moment. Anyone MUST be able to trigger the return of
+  an earmarked leg, as often as needed until it succeeds, and nothing else MUST be able to move
+  it.
 - **FR-027**: System MUST reject every step on an instruction in a final status, other than
   retrying an earmarked return.
 - **FR-028**: System MUST reject any step whose effect has already been applied, so a step signed
@@ -366,8 +374,10 @@ it is signed; when submitted, it is rejected and nothing moves.
 **Escrow and records**
 
 - **FR-030**: System MUST track, per instruction, the units and cash it holds in escrow, and MUST
-  NOT release more of either than that instruction holds. The escrow's total units and cash MUST
-  always equal the sum held for all instructions, including earmarked returns.
+  NOT release more of either than that instruction holds. The escrow's units and cash MUST always
+  be at least the sum held for all instructions, including earmarked returns. Units or cash sent
+  to the escrow outside any instruction belong to no instruction and MUST NOT be released by any
+  settlement step.
 - **FR-031**: System MUST leave a permanent record of every instruction creation, funding,
   settlement, cancellation request, cancellation, expiry, rejection and return. Each record MUST
   show the Fund, the instruction number, the amounts moved, the signer (or, for steps anyone may
@@ -406,7 +416,8 @@ it is signed; when submitted, it is rejected and nothing moves.
   placed during test setup), and every created unit has a matching cash amount received by the
   treasury cash account in the same step. Zero units exist without matching cash received.
 - **SC-003**: After every operation, the escrow's units and cash equal exactly the sum held for all
-  open instructions and earmarked returns.
+  open instructions and earmarked returns (or exceed it by exactly what was sent to the escrow
+  outside any instruction, which no step ever releases).
 - **SC-004**: A funding step signed and submitted 6 hours, and 23 hours, after it was prepared
   succeeds when the instruction has not expired.
 - **SC-005**: On no UTC day in the randomized sequences do settled redemptions exceed the daily
@@ -424,7 +435,10 @@ it is signed; when submitted, it is rejected and nothing moves.
 - **Cash asset**: the Fund's cash asset (F001 FR-001) is a stablecoin or tokenized deposit already
   on-chain. Its issuer is trusted: if it freezes a party's cash account or the escrow's, cash legs
   to or from that account cannot move. The system then refuses settlement or earmarks the return;
-  it cannot recover the cash itself.
+  it cannot recover the cash itself. A cash token that charges a fee or runs its own transfer
+  checks is not supported, because it would change the exact cash amounts.
+- **Cash accounts**: each party receives cash in its standard account for the Fund's cash asset.
+  A party without one can't be paid until it opens one, which anyone may do on its behalf.
 - **Fund side**: the transfer agent (F001 roles) acts for the Fund in subscriptions and
   redemptions: affirming the Fund side where required, funding redemption cash from the treasury
   cash account, and cancelling. The treasury cash account is controlled by the fund's operators;
