@@ -449,10 +449,10 @@ figures plus fair interest.
 
   Add `--continue <fund_state>`, which publishes the next record (3 days on a Friday, else 1) and
   prints the full history. Exit 0 only if every outcome matches
-- [ ] T037 [P] Update the root `README.md`: F002 status, how the daily publish and override work
+- [X] T037 [P] Update the root `README.md`: F002 status, how the daily publish and override work
   (one paragraph each), and the new test files. Link
   [specs/002-daily-price-accrual/quickstart.md](quickstart.md)
-- [ ] T038 [P] Write `specs/002-daily-price-accrual/review.md`, the human review checklist in the
+- [X] T038 [P] Write `specs/002-daily-price-accrual/review.md`, the human review checklist in the
   F001 `review.md` format. Items with code links:
   - money math against shared-model §8 (index increment, price check, settle; no division);
   - hook step 8 placement against §6 (after step 7, before step 9; single write);
