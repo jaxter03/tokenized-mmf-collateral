@@ -25,3 +25,4 @@ Collected while implementing, so the PR description can list them (Constitution 
 - `fund` checks the hook and Token-2022 program IDs before signing CPIs with its FundState PDA (the mint authority): handing that signature to any other program could create units (T037).
 - `accrue` takes the FundState as its signer and reads the counter from it (one account instead of the contract's two); `settle` takes no role registry. Contracts updated.
 - Measured: a subscription `settle` uses 120 927 CU (budget 200 000, research R15).
+- Measured (T051): funding units 69 436 CU (budget 90 000); a redemption `settle` 80 857 CU (budget 120 000).

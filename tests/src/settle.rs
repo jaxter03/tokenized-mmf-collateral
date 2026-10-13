@@ -124,3 +124,41 @@ pub fn affirmed_subscription(
 pub fn cash_of(h: &Harness, s: &SettleCtx, owner: &Pubkey) -> u64 {
     fixtures::cash_balance(h, &fixtures::cash_ata(h, owner, &s.cash_mint))
 }
+
+/// The seller funds the unit leg (redemption or secondary transfer).
+pub fn fund_units(h: &mut Harness, d: &Deal, seller: &Keypair) -> TxResult {
+    let ix = ix_dvp::fund_units(&seller.pubkey(), d);
+    h.send(&[ix], &[seller])
+}
+
+/// The transfer agent funds a redemption's cash from the treasury cash account.
+pub fn fund_redemption_cash(h: &mut Harness, s: &SettleCtx, d: &Deal) -> TxResult {
+    let ix = ix_dvp::fund_redemption_cash(&s.transfer_agent.pubkey(), d, &s.cash_treasury);
+    h.send(&[ix], &[&s.transfer_agent])
+}
+
+/// `by` settles a redemption.
+pub fn settle_red(h: &mut Harness, d: &Deal, by: &Keypair) -> TxResult {
+    let ix = ix_dvp::settle_redemption(&by.pubkey(), d);
+    h.send(&[ix], &[by])
+}
+
+/// Puts `amount` of cash in the fund's treasury cash account.
+pub fn fill_treasury(h: &mut Harness, s: &SettleCtx, amount: u64) {
+    fixtures::mint_cash(h, &s.cash_mint, &s.transfer_agent.pubkey(), amount);
+}
+
+/// An Affirmed redemption: the investor creates it and funds its units, the transfer agent funds
+/// the cash from the treasury (which must hold enough).
+pub fn affirmed_redemption(
+    h: &mut Harness,
+    s: &SettleCtx,
+    investor: &Keypair,
+    units: u64,
+    n: u8,
+) -> Deal {
+    let d = created(h, s, investor, red_args(s, &investor.pubkey(), units, n));
+    fund_units(h, &d, investor).expect("fund units");
+    fund_redemption_cash(h, s, &d).expect("fund cash");
+    d
+}

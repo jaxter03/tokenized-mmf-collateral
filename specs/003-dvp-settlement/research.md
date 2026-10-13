@@ -283,9 +283,9 @@ below cover what the shared model leaves open, or where it had to change.
 
   | Step | Est. CU | Max call depth |
   |---|---|---|
-  | `affirm_and_fund` (units) | ≤ 90 000 | Squads → dvp → Token-2022 → hook = 4 |
+  | `affirm_and_fund` (units) | ≤ 90 000 (measured: 69 436, T051) | Squads → dvp → Token-2022 → hook = 4 |
   | `settle` subscription | ≤ 200 000 (measured: 120 927, T039) | dvp → fund → hook `accrue` = 3; dvp → Token-2022 → hook = 3 |
-  | `settle` redemption | ≤ 120 000 | dvp → fund → Token-2022 (burn) = 3 |
+  | `settle` redemption | ≤ 120 000 (measured: 80 857, T051) | dvp → fund → Token-2022 (burn) = 3 |
   | `reject` | ≤ 30 000 | Squads → governance → dvp → `emit_cpi` = 4 |
 
   `accrue` and the hook use `emit!` (logs). dvp and fund use `emit_cpi!` where it fits within

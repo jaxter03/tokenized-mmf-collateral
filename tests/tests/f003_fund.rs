@@ -219,3 +219,141 @@ fn not_enough_cash_changes_nothing() {
     assert_eq!(settle::read_si(&h, &d).status, 0);
     assert_eq!(settle::cash_of(&h, &s, &a.pubkey()), ONE - 1);
 }
+
+// ---- T042 (US2): the unit leg and the redemption's cash ----------------------------------------
+
+use compliance_hook::{HolderState, HookError};
+use tests::fixtures::{read, NAV_ONE, SETTLE_DAY};
+use tests::settle::red_args;
+use tests::units;
+
+/// 4.5 % a year, per day, × 10^12.
+const RATE: u64 = 123_287_671;
+
+#[test]
+fn units_move_into_escrow_through_the_hook() {
+    let (mut h, s) = ready();
+    let a = fixtures::investor_with_units(&mut h, &s, 10 * ONE, 0);
+    // A day at RATE while the investor holds all 10 units.
+    clock::set_utc_day(&mut h.svm, SETTLE_DAY + 1, 60);
+    fixtures::publish(&mut h, &s, NAV_ONE, RATE as i64, 1).unwrap();
+
+    let d = settle::created(&mut h, &s, &a, red_args(&s, &a.pubkey(), 4 * ONE, 1));
+    let meta = settle::fund_units(&mut h, &d, &a).expect("fund units");
+    assert_eq!(units::balance(&h, &s.m(), &a.pubkey()), 6 * ONE);
+    assert_eq!(units::token_balance(&h, &s.unit_escrow), 4 * ONE);
+    let si = settle::read_si(&h, &d);
+    assert_eq!((si.status, si.seller_funded_at), (1, clock::now(&h.svm)));
+    let ev = one_cpi_event::<LegFunded>(&meta);
+    assert_eq!((ev.side, ev.amount, ev.status_after), (0, 4 * ONE, 1));
+
+    // The hook settled the seller's interest on its old balance (10 units × one day).
+    let rec: HolderState = read(&h, &mmf_sdk::pda::holder(&s.m(), &a.pubkey()).0);
+    assert_eq!(
+        rec.accrued_e18,
+        u128::from(10 * ONE) * u128::from(RATE) * 1_000_000
+    );
+    assert_eq!(rec.last_balance, 6 * ONE);
+    let esc: HolderState = read(&h, &mmf_sdk::pda::holder(&s.m(), &s.escrow).0);
+    assert_eq!((esc.last_balance, esc.accrued_e18), (4 * ONE, 0));
+
+    // The transfer agent funds the cash from the treasury: Affirmed.
+    settle::fill_treasury(&mut h, &s, 10 * ONE);
+    settle::fund_redemption_cash(&mut h, &s, &d).expect("treasury cash");
+    assert_eq!(settle::read_si(&h, &d).status, 3);
+    assert_eq!(fixtures::cash_balance(&h, &s.cash_treasury), 6 * ONE);
+    assert_eq!(fixtures::cash_balance(&h, &s.cash_escrow), 4 * ONE);
+}
+
+#[test]
+fn unit_leg_refused_while_paused_or_suspended_or_short() {
+    let (mut h, s) = ready();
+    let a = fixtures::investor_with_units(&mut h, &s, 2 * ONE, 0);
+    let c = s.compliance.pubkey();
+    let d = settle::created(&mut h, &s, &a, red_args(&s, &a.pubkey(), ONE, 1));
+
+    h.send(
+        &[mmf_sdk::ix_governance::pause_transfers(&c, &s.m(), 3, CASE)],
+        &[&s.compliance],
+    )
+    .unwrap();
+    assert_anchor_error(
+        &settle::fund_units(&mut h, &d, &a),
+        HookError::TransfersPaused,
+    );
+    h.send(
+        &[mmf_sdk::ix_governance::unpause_transfers(
+            &c,
+            &s.m(),
+            3,
+            CASE,
+        )],
+        &[&s.compliance],
+    )
+    .unwrap();
+
+    let short = settle::created(&mut h, &s, &a, red_args(&s, &a.pubkey(), 3 * ONE, 2));
+    assert_token_error(
+        &settle::fund_units(&mut h, &short, &a),
+        TokenError::InsufficientFunds,
+    );
+
+    let ix = mmf_sdk::ix_governance::suspend_holder(
+        &c,
+        &s.m(),
+        &a.pubkey(),
+        ReasonCode::SanctionsHit as u8,
+        CASE,
+    );
+    h.send(&[ix], &[&s.compliance]).unwrap();
+    assert_anchor_error(
+        &settle::fund_units(&mut h, &d, &a),
+        DvpError::PartyNotEligible,
+    );
+    assert_eq!(
+        units::balance(&h, &s.m(), &a.pubkey()),
+        2 * ONE,
+        "nothing moved"
+    );
+}
+
+#[test]
+fn redemption_cash_only_from_the_treasury_and_only_by_the_transfer_agent() {
+    let (mut h, s) = ready();
+    let a = fixtures::investor_with_units(&mut h, &s, 2 * ONE, 0);
+    settle::fill_treasury(&mut h, &s, 10 * ONE);
+    let d = settle::created(&mut h, &s, &a, red_args(&s, &a.pubkey(), ONE, 1));
+
+    // The transfer agent paying from any other cash account.
+    let other = fixtures::create_cash_ata(&mut h, &s.keeper.pubkey(), &s.cash_mint);
+    fixtures::mint_cash(&mut h, &s.cash_mint, &s.keeper.pubkey(), ONE);
+    let ix = ix_dvp::fund_cash(&s.transfer_agent.pubkey(), &d, &other);
+    let res = h.send(&[ix], &[&s.transfer_agent]);
+    assert_anchor_error(&res, DvpError::WrongCashSource);
+
+    // The investor can't fund the Fund's cash side; the transfer agent can't fund its units.
+    let ix = ix_dvp::fund_redemption_cash(&a.pubkey(), &d, &s.cash_treasury);
+    assert_anchor_error(&h.send(&[ix], &[&a]), DvpError::Unauthorized);
+    let ix = ix_dvp::fund_units(&s.transfer_agent.pubkey(), &d);
+    assert_anchor_error(&h.send(&[ix], &[&s.transfer_agent]), DvpError::Unauthorized);
+    assert_eq!(settle::read_si(&h, &d).status, 0);
+}
+
+#[test]
+fn units_may_be_funded_before_valid_from() {
+    let (mut h, s) = ready();
+    let a = fixtures::investor_with_units(&mut h, &s, ONE, 0);
+    let mut args = red_args(&s, &a.pubkey(), ONE, 1);
+    args.not_before_ts = clock::now(&h.svm) + 3_600;
+    let d = settle::created(&mut h, &s, &a, args);
+    settle::fund_units(&mut h, &d, &a).expect("early funding is allowed");
+}
+
+#[test]
+#[ignore = "F004: hook step 5 (collateral locks) not built"]
+fn locked_units_cannot_fund_a_redemption() {
+    // US2 scenario 3. Once F004 sets `pledged_amount`, funding a redemption with pledged units
+    // fails at hook step 5 with PledgedUnitsLocked and nothing moves. F004 replaces this body
+    // with: pledge 1 unit of 1, then `fund_units` → HookError::PledgedUnitsLocked.
+    unimplemented!("F004");
+}

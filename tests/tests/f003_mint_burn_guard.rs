@@ -182,3 +182,57 @@ fn check_settlement_accepts_only_this_funds_affirmed_settlement_of_that_kind_and
     f.data.truncate(20);
     assert_eq!(f.check(&fund, sub, ONE), mismatch, "too short");
 }
+
+// ---- T044 (US2): the burn -----------------------------------------------------------------
+
+#[test]
+fn only_the_settlement_escrow_may_destroy_units() {
+    let (mut h, s) = ready();
+    let a = fixtures::investor_with_units(&mut h, &s, 100 * ONE, 0);
+    settle::fill_treasury(&mut h, &s, ONE);
+    let d = settle::affirmed_redemption(&mut h, &s, &a, ONE, 1);
+    let stranger = h.funded_keypair();
+    for who in [&stranger, &s.issuer, &s.transfer_agent, &a] {
+        let ix = mmf_sdk::ix_fund::burn_for_redemption(&who.pubkey(), &s.m(), &d.settlement(), ONE);
+        let res = h.send(&[ix], &[who]);
+        assert_anchor_error(&res, FundError::UnauthorizedCaller);
+    }
+    assert_eq!(
+        units::token_balance(&h, &s.unit_escrow),
+        ONE,
+        "nothing burned"
+    );
+}
+
+#[test]
+fn a_holder_cannot_use_the_permissioned_burn_itself() {
+    // F001 already shows ordinary burns fail; the permissioned burn needs the FundState's
+    // signature as burn authority, which only `fund` gives.
+    let (mut h, s) = ready();
+    let a = fixtures::investor_with_units(&mut h, &s, 10 * ONE, 0);
+    let ata = mmf_sdk::pda::holding_account(&a.pubkey(), &s.m());
+    let ix =
+        mmf_common::permissioned_burn::burn_checked(&ata, &s.m(), &a.pubkey(), &a.pubkey(), ONE, 6);
+    assert!(h.send(&[ix], &[&a]).is_err());
+    assert_eq!(units::balance(&h, &s.m(), &a.pubkey()), 10 * ONE);
+    assert_eq!(units::supply(&h, &s.m()), 10 * ONE);
+}
+
+#[test]
+fn check_settlement_for_a_burn_wants_an_affirmed_redemption() {
+    let fund = Pubkey::new_unique();
+    let mismatch: u32 = FundError::SettlementMismatch.into();
+    let red = SettlementKind::Redemption;
+    let mut f = forged(fund, ONE, |si| si.kind = 1);
+    assert_eq!(f.check(&fund, red, ONE), 0, "genuine redemption");
+    // A subscription presented to the burn.
+    assert_eq!(forged(fund, ONE, |_| {}).check(&fund, red, ONE), mismatch);
+    // A redemption that isn't Affirmed, or of another size.
+    let mut f = forged(fund, ONE, |si| {
+        si.kind = 1;
+        si.status = 1;
+    });
+    assert_eq!(f.check(&fund, red, ONE), mismatch);
+    let mut f = forged(fund, ONE, |si| si.kind = 1);
+    assert_eq!(f.check(&fund, red, 2 * ONE), mismatch);
+}

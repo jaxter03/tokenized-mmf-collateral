@@ -227,3 +227,49 @@ fn accrue_accepts_only_the_escrows_own_record_and_holding_account() {
         wrong
     );
 }
+
+// ---- T045 (US2): the burn ------------------------------------------------------------------
+
+#[test]
+fn escrow_interest_is_settled_before_the_burn_and_the_redeemer_earns_only_on_what_it_kept() {
+    // Research R16: units in escrow earn for the escrow, not for the seller.
+    let mut h = Harness::new();
+    let s = fixtures::settlement_ready_fund(&mut h);
+    let a = fixtures::investor_with_units(&mut h, &s, 100 * ONE, 0);
+    settle::fill_treasury(&mut h, &s, 10 * ONE);
+    // Created and funded today (rate 0), with room to settle tomorrow.
+    let mut args = settle::red_args(&s, &a.pubkey(), 4 * ONE, 1);
+    args.expires_at_ts = clock::now(&h.svm) + 2 * 86_400;
+    let d = settle::created(&mut h, &s, &a, args);
+    settle::fund_units(&mut h, &d, &a).unwrap();
+    settle::fund_redemption_cash(&mut h, &s, &d).unwrap();
+
+    // Tomorrow: one day at RATE while the escrow holds 4 units and the investor 96.
+    clock::set_utc_day(&mut h.svm, SETTLE_DAY + 1, 60);
+    fixtures::publish(&mut h, &s, NAV_ONE, RATE as i64, 1).unwrap();
+    let meta = settle::settle_red(&mut h, &d, &s.keeper).expect("settle");
+
+    let fs: FundState = read(&h, &s.fund_state());
+    let day = u128::from(RATE) * 1_000_000;
+    let escrow: HolderState = read(&h, &mmf_sdk::pda::holder(&s.m(), &s.escrow).0);
+    assert_eq!(
+        escrow.accrued_e18,
+        u128::from(4 * ONE) * day,
+        "settled before the burn"
+    );
+    assert_eq!(escrow.index_at_last_touch, fs.accrual_index);
+    assert_eq!(escrow.last_balance, 0, "the burned units are gone");
+
+    let ev = log_events::<Accrued>(&meta);
+    assert_eq!(ev.len(), 1);
+    assert_eq!(
+        (ev[0].owner, ev[0].pre_balance, ev[0].post_balance),
+        (s.escrow, 4 * ONE, 0)
+    );
+
+    // The investor's interest so far, computed on read (F002 FR-017): 96 units for the day.
+    let inv: HolderState = read(&h, &mmf_sdk::pda::holder(&s.m(), &a.pubkey()).0);
+    let earned_now = inv.accrued_e18
+        + u128::from(inv.last_balance) * (fs.accrual_index - inv.index_at_last_touch);
+    assert_eq!(earned_now, u128::from(96 * ONE) * day);
+}

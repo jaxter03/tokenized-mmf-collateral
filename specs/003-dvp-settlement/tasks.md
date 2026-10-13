@@ -451,10 +451,10 @@ by 500 000; `redeemed_today` = 500 000.
 
 ### Interface stubs for User Story 2
 
-- [ ] T040 [US2] Add the `fund::burn_for_redemption(units)` stub (accounts per
+- [X] T040 [US2] Add the `fund::burn_for_redemption(units)` stub (accounts per
   [contracts/fund.md](contracts/fund.md#burn_for_redemptionunits-dvp-escrow-pda-only-cpi)) in
   `programs/fund/src/instructions/mint_burn.rs`
-- [ ] T041 [P] [US2] Add SDK builders in `crates/mmf-sdk/src/ix_dvp.rs`:
+- [X] T041 [P] [US2] Add SDK builders in `crates/mmf-sdk/src/ix_dvp.rs`:
   - `fund_units(seller, settlement)`, with the seller's holding account → unit escrow plus the
     hook extra accounts;
   - `fund_redemption_cash(transfer_agent, settlement)`, with source = `cash_treasury`;
@@ -463,7 +463,7 @@ by 500 000; `redeemed_today` = 500 000.
 
 ### Tests for User Story 2 (write first; they must fail) ⚠️
 
-- [ ] T042 [US2] Add the unit-leg and redemption-cash tests to `tests/tests/f003_fund.rs`
+- [X] T042 [US2] Add the unit-leg and redemption-cash tests to `tests/tests/f003_fund.rs`
   (FR-011–FR-013):
   - units moved to escrow and the investor's balance falls; accrual settled on both sides (F002
     I11 via the reference model);
@@ -477,7 +477,7 @@ by 500 000; `redeemed_today` = 500 000.
   The F004 collateral-lock case (US2 scenario 3) gets a placeholder test marked
   `#[ignore = "F004: hook step 5 not built"]` with the expected `PledgedUnitsLocked` assertion
   written out
-- [ ] T043 [US2] Write `tests/tests/f003_redeem.rs`:
+- [X] T043 [US2] Write `tests/tests/f003_redeem.rs`:
   - **spec independent test**;
   - **acceptance scenarios 1, 2, 4, 6**; cash = `floor(units × nav / 10^8)` at a non-$1 price;
   - **limit**: with `units_at_day_start = N` and the fixture's `redemption_gate_bps`, a
@@ -490,20 +490,20 @@ by 500 000; `redeemed_today` = 500 000.
   - redeemer suspended after funding → `PartyNotEligible`;
   - missing seller cash ATA → fails and nothing moves; it succeeds after anyone creates the ATA;
   - I4 after every settle; `RedemptionBurned` payload.
-- [ ] T044 [P] [US2] Write the burn half of `tests/tests/f003_mint_burn_guard.rs` (FR-020):
+- [X] T044 [P] [US2] Write the burn half of `tests/tests/f003_mint_burn_guard.rs` (FR-020):
   - direct `burn_for_redemption` by a random key or another fund's escrow PDA →
     `UnauthorizedCaller`;
   - forged settlement accounts (as T032) → `SettlementMismatch`;
   - a holder trying to burn its own units through Token-2022's permissioned burn fails (F001
     behaviour, re-asserted).
-- [ ] T045 [P] [US2] Add to `tests/tests/f003_accrual.rs`: units funded to escrow, then a
+- [X] T045 [P] [US2] Add to `tests/tests/f003_accrual.rs`: units funded to escrow, then a
   publish, then a redemption burn. The escrow's `accrued_e18`, `last_balance` (0 after the burn)
   and `earned_now` match the reference model, and the redeemer earns nothing for the publish
   while its units were in escrow (R16)
 
 ### Implementation for User Story 2
 
-- [ ] T046 [US2] Implement `fund::burn_for_redemption` per its contract (checks 1–5):
+- [X] T046 [US2] Implement `fund::burn_for_redemption` per its contract (checks 1–5):
   1. `roll_day`;
   2. `redemption_ok` (`RedemptionLimitExceeded`);
   3. CPI `accrue(post_balance = escrow balance − units)`;
@@ -511,25 +511,26 @@ by 500 000; `redeemed_today` = 500 000.
      PDA signs as burn authority; the escrow PDA's signature carries through as owner);
   5. `units_outstanding −= units`; `redeemed_today += units`;
   6. `emit_cpi!(RedemptionBurned)`.
-- [ ] T047 [US2] Complete `affirm_and_fund`'s **unit-leg** branch (replacing T035's placeholder):
+- [X] T047 [US2] Complete `affirm_and_fund`'s **unit-leg** branch (replacing T035's placeholder):
   check the seller is `eligible`, then `transfer_checked` from the seller's holding account to the
   unit escrow by CPI, with the seller as authority and the five hook extra accounts passed
   through (research R5)
-- [ ] T048 [US2] Complete `affirm_and_fund`'s **redemption buyer side**: signer = transfer agent;
+- [X] T048 [US2] Complete `affirm_and_fund`'s **redemption buyer side**: signer = transfer agent;
   check 8 `source == fund_state.cash_treasury` (`WrongCashSource`); move the cash into the cash
   escrow
-- [ ] T049 [P] [US2] Write `tests/tests/f003_escrow.rs` (FR-030, I13): send units (from an
+- [X] T049 [P] [US2] Write `tests/tests/f003_escrow.rs` (FR-030, I13): send units (from an
   approved investor) and cash directly to the escrows outside any instruction. Then run a full
-  subscription, a redemption, and an expired instruction's returns: none of them releases the
-  stray amounts, and the escrow balances equal Σ held + the stray amounts after every step
-- [ ] T050 [US2] Implement `settle` for **Redemption**:
+  subscription and a redemption: none of them releases the stray amounts, and the escrow
+  balances equal Σ held + the stray amounts after every step. (Returns don't exist until US4, so
+  the "expired instruction's returns" step is added to this file in T060.)
+- [X] T050 [US2] Implement `settle` for **Redemption**:
   1. the party checks, plus the explicit `Registry.transfers_paused` check (`TransfersPaused`,
      research R12);
   2. CPI `fund::burn_for_redemption` signed by the escrow PDA;
   3. cash escrow → seller's cash ATA (`WrongAccount` if the account passed isn't
      ATA(seller, cash_mint));
   4. Settled; emit `Settled`.
-- [ ] T051 [US2] Make T042–T045 and T049 pass (the F004 placeholder stays ignored)
+- [X] T051 [US2] Make T042–T045 and T049 pass (the F004 placeholder stays ignored)
 
 **Checkpoint**: US1 + US2 are the MVP. Units can be created against cash and destroyed against
 cash, within the daily limit, both-or-neither.
@@ -637,7 +638,9 @@ Unit returns need US2's unit funding (T047). Cash-only cases need only US1.
   - expire plus both returns in one transaction succeeds atomically; when the unit return can't
     be delivered, the keeper's fallback (expire alone, then the cash return) leaves the units
     earmarked;
-  - `LegReturned` events.
+  - `LegReturned` events;
+  - in `tests/tests/f003_escrow.rs`: an expired instruction's returns release only its own
+    earmarks, never the stray deposits (moved here from T049).
 
 ### Implementation for User Story 4
 
