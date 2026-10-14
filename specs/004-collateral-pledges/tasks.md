@@ -187,7 +187,7 @@ green.
   `pledge(agreement, pledge_ref)`, `call(agreement, external_ref)`, `hook_caller()` and
   `collateral_caller()`, with a unit test that each matches `find_program_address` over the
   seeds from T006
-- [ ] T012 [P] Add the independent reference model `tests/src/collateral_model.rs` (research R15).
+- [X] T012 [P] Add the independent reference model `tests/src/collateral_model.rs` (research R15).
   It must **not** import `mmf_common::collateral`: it has its own copies of the three formulas
   and of `observe`.
   - **State**: per-holder balance and lock; agreements (terms, status, required value, pending
@@ -199,7 +199,7 @@ green.
   - **Checks**: `check_invariants()` asserts I1, I2, I15 and I16.
 
   Unit-test the model on the US2–US4 worked figures
-- [ ] T013 Create `programs/collateral/src/valuation.rs` (depends on T005, T007, T008):
+- [X] T013 Create `programs/collateral/src/valuation.rs` (depends on T005, T007, T008):
   - `fresh(fund: &FundStateView, a: &PledgeAgreement, now) -> Result<()>` (`NoPrice` /
     `StalePrice`);
   - `shortfall` / `excess` from `mmf_common::collateral::coverage` (`Overflow` on `None`);

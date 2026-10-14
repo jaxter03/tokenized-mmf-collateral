@@ -6,6 +6,7 @@ use anchor_lang::prelude::*;
 pub mod errors;
 pub mod events;
 pub mod state;
+pub mod valuation;
 
 pub use errors::CollateralError;
 pub use state::{CollateralCall, Pledge, PledgeAgreement, ProposeArgs};
