@@ -213,22 +213,22 @@ green.
 
 ### Registry and base fixture
 
-- [ ] T014 Add the `compliance_hook::set_lien(change: LienChange)` **stub** (returns `Ok(())`),
+- [X] T014 Add the `compliance_hook::set_lien(change: LienChange)` **stub** (returns `Ok(())`),
   with the full account struct from contracts/compliance_hook.md, in
   `programs/compliance_hook/src/instructions/set_lien.rs`, and register it in `lib.rs`. Add the
   SDK builder `ix_hook::set_lien(hook_caller, registry, holder_state, holding_account, change)` in
   `crates/mmf-sdk/src/ix_hook.rs` (used by negative tests)
-- [ ] T015 Write `tests/tests/f004_lien.rs` part 1 (tests must fail):
+- [X] T015 Write `tests/tests/f004_lien.rs` part 1 (tests must fail):
   - a freshly created fund's Registry has `collateral_program == COLLATERAL_PROGRAM_ID`;
   - `set_lien` signed by a random key in the `hook_caller` position → `NotCollateralCaller`;
   - the real `["hook-caller"]` address passed without a signature → `NotCollateralCaller`;
-  - a Registry planted with an empty `collateral_program` (via `set_account`, commented: "models
-    a pre-F004 registry, R16; no instruction can produce it") → `NotCollateralCaller`
-- [ ] T016 In `programs/compliance_hook/src/instructions/init_registry.rs`, set
+  - *(moved to T043: a Registry planted with an empty `collateral_program` can only be shown
+    refusing the real `["hook-caller"]`, which only a `collateral` pledge can produce)*
+- [X] T016 In `programs/compliance_hook/src/instructions/init_registry.rs`, set
   `reg.collateral_program = COLLATERAL_PROGRAM_ID` next to `reg.governance`. In `set_lien`,
   implement **check 1 only** (signer) per contracts/compliance_hook.md. Checks 2–5 and the effect
   come in US3 (T044), after their tests. Make T015 pass
-- [ ] T017 Add `collateral_base_fund(h) -> CollatBase` to `tests/src/fixtures.rs`, following
+- [X] T017 Add `collateral_base_fund(h) -> CollatBase` to `tests/src/fixtures.rs`, following
   `settlement_ready_fund`:
   - launch a fund with no holder cap and `max_nav_move_bps = 500`, so the test publishes of
     $0.985–$1.01 pass F002's price-move guard (the standard terms allow only 50 bps); onboard
@@ -238,13 +238,13 @@ green.
     the `FundCtx`.
 
   Add an `unpriced` variant that skips the publish
-- [ ] T018 Add assertion helpers to `tests/src/collateral_model.rs` (or a new
+- [X] T018 Add assertion helpers to `tests/src/collateral_model.rs` (or a new
   `tests/src/collateral.rs`). Each reads on-chain accounts:
   - `assert_locks(h, mint, owners, agreements)`: I1, I2 and I15 against the actual Pledge
     accounts;
   - `assert_calls(h, agreement)`: I16 against the actual call accounts;
   - `call_status(h, call)`: the derived status, via `delivery_met`.
-- [ ] T019 Run the whole suite. F001–F003 and the Phase 2 tests are green (the stubs make no
+- [X] T019 Run the whole suite. F001–F003 and the Phase 2 tests are green (the stubs make no
   state)
 
 **Checkpoint**: foundation ready; user story work can begin.
@@ -463,6 +463,9 @@ below the lock, and locked units keep earning interest (FR-021–FR-026, hook st
   - pledge passing another owner's ATA as `giver_holding` → `HookError::WrongHolder`;
   - another owner's HolderState as `giver_holder` → `CollateralError::WrongHolder`;
   - an ATA of another fund's mint → `HookError::WrongHolder`;
+  - a Registry planted with an empty `collateral_program` (via `set_account`, commented: "models
+    a pre-F004 registry, R16; no instruction can produce it"), then a pledge →
+    `NotCollateralCaller` (moved from T015);
   - G's HolderState planted with `pledged_amount` 1 below an active pledge's remaining (via
     `set_account`, commented: "unreachable state; proves the underflow guard"), then the taker
     releases the whole pledge → `LienUnderflow`. This test runs once `release` exists (US4) and is

@@ -2,6 +2,7 @@
 
 pub mod assert;
 pub mod clock;
+pub mod collateral;
 pub mod collateral_model;
 pub mod dvp_model;
 pub mod events;

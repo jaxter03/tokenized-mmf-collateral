@@ -216,6 +216,12 @@ pub fn create_standard_fund(h: &mut Harness) -> (Keypair, Keypair, Pubkey) {
 
 /// As `create_standard_fund`, with a cash mint the caller made (F003: e.g. a fee-bearing mint).
 pub fn create_standard_fund_with(h: &mut Harness, cash_mint: Pubkey) -> (Keypair, Keypair, Pubkey) {
+    create_fund_with_terms(h, standard_terms(cash_mint))
+}
+
+/// As `create_standard_fund`, with the caller's terms (F004: a wider price-move guard).
+pub fn create_fund_with_terms(h: &mut Harness, terms: FundTerms) -> (Keypair, Keypair, Pubkey) {
+    let cash_mint = terms.cash_mint;
     let issuer = h.funded_keypair();
     let mint = Keypair::new();
     let m = mint.pubkey();
@@ -225,7 +231,7 @@ pub fn create_standard_fund_with(h: &mut Harness, cash_mint: Pubkey) -> (Keypair
             &issuer.pubkey(),
             &m,
             &cash_mint,
-            standard_terms(cash_mint),
+            terms,
             FUND_NAME,
             FUND_SYMBOL,
         ),
@@ -281,7 +287,12 @@ pub fn launched_fund(h: &mut Harness, cap: u32) -> FundCtx {
 
 /// As `launched_fund`, with a cash mint the caller made (F003).
 pub fn launched_fund_with(h: &mut Harness, cap: u32, cash_mint: Pubkey) -> FundCtx {
-    let (issuer, mint, cash_mint) = create_standard_fund_with(h, cash_mint);
+    launched_fund_terms(h, cap, standard_terms(cash_mint))
+}
+
+/// As `launched_fund`, with the caller's terms (F004).
+pub fn launched_fund_terms(h: &mut Harness, cap: u32, terms: FundTerms) -> FundCtx {
+    let (issuer, mint, cash_mint) = create_fund_with_terms(h, terms);
     let ctx = FundCtx {
         issuer,
         mint,
@@ -503,9 +514,20 @@ pub fn settlement_ready_fund_with_cap(h: &mut Harness, cap: u32) -> SettleCtx {
 
 /// As `settlement_ready_fund`; `priced = false` skips the $1.00 publish (no price yet).
 pub fn settlement_ready_fund_opts(h: &mut Harness, cap: u32, priced: bool) -> SettleCtx {
+    let cash_mint = create_cash_mint(h, CASH_DECIMALS);
+    settlement_ready_fund_terms(h, cap, priced, standard_terms(cash_mint))
+}
+
+/// As `settlement_ready_fund_opts`, with the caller's fund terms (F004).
+pub fn settlement_ready_fund_terms(
+    h: &mut Harness,
+    cap: u32,
+    priced: bool,
+    terms: FundTerms,
+) -> SettleCtx {
     // Time first: onboarding sets KYC expiry a year from "now".
     crate::clock::set_utc_day(&mut h.svm, SETTLE_DAY, 3_600);
-    let fund = launched_fund(h, cap);
+    let fund = launched_fund_terms(h, cap, terms);
     if priced {
         publish(h, &fund, NAV_ONE, 0, 1).expect("publish $1.00");
     }
@@ -582,9 +604,92 @@ pub fn investor_with_units(h: &mut Harness, s: &SettleCtx, units: u64, cash: u64
     k
 }
 
+// ---- F004: collateral ---------------------------------------------------------------------
+
+/// The collateral fixtures' price-move guard: 5 %, so test publishes of $0.985–$1.01 pass F002's
+/// check (the standard terms allow 0.5 %).
+pub const COLLATERAL_MAX_MOVE_BPS: u16 = 500;
+/// Units the giver holds in the collateral fixtures: 2 000 000.
+pub const GIVER_UNITS: u64 = 2_000_000_000_000;
+
+/// A settlement-ready fund with a giver G holding `GIVER_UNITS` and a taker T (T017).
+pub struct CollatBase {
+    pub settle: SettleCtx,
+    pub giver: Keypair,
+    pub taker: Keypair,
+}
+
+impl std::ops::Deref for CollatBase {
+    type Target = SettleCtx;
+    fn deref(&self) -> &SettleCtx {
+        &self.settle
+    }
+}
+
+/// The worked terms (tasks.md "Fixed values"): haircut 2 %, MTA $10 000, 4 h to meet a call,
+/// 2 h grace, pledge limit 5 000 000 units, 26 h price age, taker may raise alone.
+pub fn worked_terms(giver: &Pubkey, taker: &Pubkey, nonce: u64) -> collateral::ProposeArgs {
+    collateral::ProposeArgs {
+        giver: *giver,
+        taker: *taker,
+        nonce,
+        mode: 0,
+        income_to: 0,
+        haircut_bps: 200,
+        max_nav_age_secs: 93_600,
+        call_cure_secs: 14_400,
+        enforcement_grace_secs: 7_200,
+        min_transfer_value: 10_000_000_000,
+        concentration_cap_units: 5_000_000_000_000,
+        taker_may_call_unilaterally: true,
+        agreement_hash: [7; 32],
+    }
+}
+
+/// A settlement-ready fund (day 20 739, one hour in; no holder cap; 5 % price-move guard) with
+/// $1.00 published, giver G holding 2 000 000 units (seeded, so I4 holds) and taker T, both
+/// onboarded `US` investors.
+pub fn collateral_base_fund(h: &mut Harness) -> CollatBase {
+    collateral_base_fund_opts(h, true)
+}
+
+/// As `collateral_base_fund`; `priced = false` skips the $1.00 publish (no price yet).
+pub fn collateral_base_fund_opts(h: &mut Harness, priced: bool) -> CollatBase {
+    let cash_mint = create_cash_mint(h, CASH_DECIMALS);
+    let terms = FundTerms {
+        max_nav_move_bps: COLLATERAL_MAX_MOVE_BPS,
+        ..standard_terms(cash_mint)
+    };
+    let settle = settlement_ready_fund_terms(h, 0, priced, terms);
+    let giver = investor_with_units(h, &settle, GIVER_UNITS, 0);
+    let taker = new_investor(h, &settle);
+    CollatBase {
+        settle,
+        giver,
+        taker,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn collateral_base_fund_holds_the_worked_figures() {
+        let mut h = Harness::new();
+        let c = collateral_base_fund(&mut h);
+        assert_eq!(
+            crate::units::balance(&h, &c.m(), &c.giver.pubkey()),
+            GIVER_UNITS
+        );
+        assert_eq!(crate::units::balance(&h, &c.m(), &c.taker.pubkey()), 0);
+        let fs: fund::FundState = read(&h, &c.fund_state());
+        assert_eq!((fs.nav, fs.nav_seq), (NAV_ONE, 1));
+        assert_eq!(fs.terms.max_nav_move_bps, COLLATERAL_MAX_MOVE_BPS);
+        let unpriced = collateral_base_fund_opts(&mut h, false);
+        let fs: fund::FundState = read(&h, &unpriced.fund_state());
+        assert_eq!(fs.nav_seq, 0);
+    }
 
     #[test]
     fn launched_fund_is_open_with_rules_and_roles() {

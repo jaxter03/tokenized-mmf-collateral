@@ -3,7 +3,7 @@
 
 use anchor_lang::prelude::*;
 use mmf_common::enums::FundStatus;
-use mmf_common::ids::{FUND_PROGRAM_ID, GOVERNANCE_PROGRAM_ID};
+use mmf_common::ids::{COLLATERAL_PROGRAM_ID, FUND_PROGRAM_ID, GOVERNANCE_PROGRAM_ID};
 use mmf_common::seeds;
 use mmf_common::views::{FundStateView, RoleRegistryView};
 
@@ -78,6 +78,9 @@ pub fn handle_init_registry(ctx: Context<InitRegistry>) -> Result<()> {
     reg.version = Registry::VERSION;
     reg.mint = mint;
     reg.governance = GOVERNANCE_PROGRAM_ID;
+    // F004 (research R2): the only program whose `["hook-caller"]` may change locked units. Set
+    // here, never by a setter (a setter would be a rule-change power, Constitution VIII).
+    reg.collateral_program = COLLATERAL_PROGRAM_ID;
     reg.role_registry = fund.role_registry;
     reg.fund_state = fund_key;
     reg.bump = ctx.bumps.registry;
