@@ -194,3 +194,76 @@ fn price_moves_open_and_meet_calls() {
     assert_eq!(call_status(&h, &drop), CallStatus::Met);
     t.check(&h);
 }
+
+// ---- part 3 (T051): cancellation ------------------------------------------------------------
+
+use collateral::events::CallCancelled;
+use tests::collateral::cancel;
+
+#[test]
+fn taker_cancels_a_delivery_call() {
+    let (mut h, c, mut t) = ready(Ready::Standard);
+    exposure(&mut h, &c, &c.taker, MILLION, r(1)).expect("$1M");
+    let call = t.call(c.agr.call(&r(1)));
+    assert_anchor_error(&cancel(&mut h, &c, &c.giver, r(1)), CollateralError::Unauthorized);
+    let meta = cancel(&mut h, &c, &c.taker, r(1)).expect("cancel");
+    let ev: CallCancelled = one_cpi_event(&meta);
+    assert_eq!((ev.call, ev.seq, ev.signer), (call, 1, c.taker.pubkey()));
+    assert_eq!(call_status(&h, &call), CallStatus::Cancelled);
+    let a = agreement_of(&h, &c);
+    assert_eq!((a.open_delivery_calls, a.called_outstanding), (0, 0));
+    assert_anchor_error(&cancel(&mut h, &c, &c.taker, r(1)), CollateralError::CallNotOpen);
+    // The shortfall is uncalled again, so the taker can call it afresh.
+    issue(&mut h, &c, &c.taker, DELIVERY, r(2)).expect("new call");
+    t.call(c.agr.call(&r(2)));
+    t.check(&h);
+}
+
+#[test]
+fn cancelling_reduces_the_demanded_part() {
+    let (mut h, c, mut t) = ready(Ready::Standard);
+    exposure(&mut h, &c, &c.taker, MILLION, r(1)).expect("$1M");
+    exposure(&mut h, &c, &c.taker, MILLION * 3 / 2, r(2)).expect("$1.5M");
+    t.call(c.agr.call(&r(1)));
+    t.call(c.agr.call(&r(2)));
+    pledge(&mut h, &c, &c.giver, units_for(600_000_000_000, 100_000_000), r(10)).expect("partial");
+    t.pledge(c.agr.pledge(&r(10)));
+    assert_eq!(agreement_of(&h, &c).called_outstanding, 900_000_000_000);
+    // Cancelling the $1M call lowers the demanded part by min(D, value), here to zero.
+    cancel(&mut h, &c, &c.taker, r(1)).expect("cancel the first");
+    let a = agreement_of(&h, &c);
+    assert_eq!((a.open_delivery_calls, a.called_outstanding), (1, 0));
+    t.check(&h);
+    cancel(&mut h, &c, &c.taker, r(2)).expect("cancel the second");
+    let a = agreement_of(&h, &c);
+    assert_eq!((a.open_delivery_calls, a.called_outstanding), (0, 0));
+    t.check(&h);
+}
+
+#[test]
+fn giver_cancels_its_return_call() {
+    let (mut h, c, mut t) = ready(Ready::Standard);
+    pledge(&mut h, &c, &c.giver, UNITS_FOR_MILLION, r(10)).expect("pledge with no exposure");
+    t.pledge(c.agr.pledge(&r(10)));
+    issue(&mut h, &c, &c.giver, 1, r(1)).expect("return call");
+    let ret = t.call(c.agr.call(&r(1)));
+    assert_anchor_error(&cancel(&mut h, &c, &c.taker, r(1)), CollateralError::Unauthorized);
+    cancel(&mut h, &c, &c.giver, r(1)).expect("giver cancels");
+    assert_eq!(call_status(&h, &ret), CallStatus::Cancelled);
+    assert_eq!(agreement_of(&h, &c).open_return_call, anchor_lang::prelude::Pubkey::default());
+    assert_anchor_error(&cancel(&mut h, &c, &c.giver, r(1)), CollateralError::CallNotOpen);
+    t.check(&h);
+}
+
+#[test]
+fn a_met_call_cannot_be_cancelled_and_nothing_is_stored() {
+    let (mut h, c, mut t) = ready(Ready::Standard);
+    exposure(&mut h, &c, &c.taker, MILLION, r(1)).expect("$1M");
+    let call = t.call(c.agr.call(&r(1)));
+    pledge(&mut h, &c, &c.giver, UNITS_FOR_MILLION, r(10)).expect("cover");
+    t.pledge(c.agr.pledge(&r(10)));
+    assert_eq!(call_status(&h, &call), CallStatus::Met, "derived");
+    assert_anchor_error(&cancel(&mut h, &c, &c.taker, r(1)), CollateralError::CallNotOpen);
+    assert_eq!(call_of(&h, &c, r(1)).status, CallStatus::Open.as_u8(), "rolled back: stored status unchanged");
+    t.check(&h);
+}

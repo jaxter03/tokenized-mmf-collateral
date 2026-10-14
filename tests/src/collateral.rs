@@ -282,3 +282,41 @@ pub fn lock_of(h: &Harness, mint: &Pubkey, owner: &Pubkey) -> (u64, u16) {
 pub fn pledge_of(h: &Harness, c: &CollatCtx, pledge_ref: [u8; 32]) -> Pledge {
     read(h, &c.agr.pledge(&pledge_ref))
 }
+
+/// `release` of the pledge at `pledge_ref` on agreement `a`, optionally against the call at
+/// `return_ref`.
+pub fn release_on(
+    h: &mut Harness,
+    a: &Agr,
+    signer: &Keypair,
+    pledge_ref: [u8; 32],
+    return_ref: Option<[u8; 32]>,
+    units: u64,
+) -> TxResult {
+    let ix = mmf_sdk::ix_collateral::release(
+        &signer.pubkey(),
+        a,
+        &a.pledge(&pledge_ref),
+        return_ref.map(|r| a.call(&r)),
+        units,
+    );
+    h.send(&[ix], &[signer])
+}
+
+/// `release` on the fixture's agreement.
+pub fn release(
+    h: &mut Harness,
+    c: &CollatCtx,
+    signer: &Keypair,
+    pledge_ref: [u8; 32],
+    return_ref: Option<[u8; 32]>,
+    units: u64,
+) -> TxResult {
+    release_on(h, &c.agr, signer, pledge_ref, return_ref, units)
+}
+
+/// `cancel_call` of the call at `external_ref` on the fixture's agreement.
+pub fn cancel(h: &mut Harness, c: &CollatCtx, signer: &Keypair, external_ref: [u8; 32]) -> TxResult {
+    let ix = mmf_sdk::ix_collateral::cancel_call(&signer.pubkey(), &c.agr, &c.agr.call(&external_ref));
+    h.send(&[ix], &[signer])
+}

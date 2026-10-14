@@ -505,14 +505,14 @@ Met.
 
 ### Interface stubs for User Story 4
 
-- [ ] T048 [US4] Add stubs for `release(units)`, with an optional `return_call` (Anchor
+- [X] T048 [US4] Add stubs for `release(units)`, with an optional `return_call` (Anchor
   `Option<Account>`), and for `cancel_call()`, with account structs per contracts/collateral.md
-- [ ] T049 [P] [US4] Add the SDK builders `ix_collateral::release(signer, fund_state, agreement, pledge, return_call: Option<Pubkey>, units)`
+- [X] T049 [P] [US4] Add the SDK builders `ix_collateral::release(signer, fund_state, agreement, pledge, return_call: Option<Pubkey>, units)`
   and `cancel_call(signer, fund_state, agreement, call)`
 
 ### Tests for User Story 4 (write first; they must fail) ⚠️
 
-- [ ] T050 [US4] Write `tests/tests/f004_release.rs` (FR-016, FR-027–FR-029):
+- [X] T050 [US4] Write `tests/tests/f004_release.rs` (FR-016, FR-027–FR-029):
   - **US4 independent test**, plus `Released.return_call_met == true` and
     `open_return_call == default` afterwards;
   - **Opening a return call**: excess exactly at the MTA → `NoExcess`; a second return call →
@@ -533,7 +533,7 @@ Met.
     price → `StalePrice`;
   - **FR-007**: `proposed_only` → `AgreementNotActive`;
   - `assert_locks` after every step
-- [ ] T051 [P] [US4] Write `tests/tests/f004_calls.rs` part 3 (FR-015, FR-020):
+- [X] T051 [P] [US4] Write `tests/tests/f004_calls.rs` part 3 (FR-015, FR-020):
   - T cancels an Open delivery call: `open_delivery_calls` −1 and `called_outstanding` reduced by
     `min(D, value)`;
   - with two calls, cancelling the first after a partial pledge → D per that rule (not below 0),
@@ -545,11 +545,11 @@ Met.
 
 ### Implementation for User Story 4
 
-- [ ] T052 [US4] Implement `cancel_call` per its contract (checks 1–4, `settle_status` first, then
+- [X] T052 [US4] Implement `cancel_call` per its contract (checks 1–4, `settle_status` first, then
   the bookkeeping table in data-model "Call states"). Emit `CallCancelled`
-- [ ] T053 [US4] Implement the **Return** branch of `issue_call` (checks 8R–10R; `units_for_value_down`;
+- [X] T053 [US4] Implement the **Return** branch of `issue_call` (checks 8R–10R; `units_for_value_down`;
   `open_return_call = call`), replacing T033's placeholder
-- [ ] T054 [US4] Implement `release` per its contract (checks 1–12):
+- [X] T054 [US4] Implement `release` per its contract (checks 1–12):
   - CPI `set_lien { unlock, closed: 1 if the pledge empties }`;
   - pledge and agreement bookkeeping, then `observe` (when `required_value > 0` the price is
     fresh; at 0, run `observe` with S = 0);
@@ -557,7 +557,7 @@ Met.
   - emit `Released`.
 
   Un-ignore T043's `LienUnderflow` case
-- [ ] T055 [US4] Make T050, T051 and T043 pass
+- [X] T055 [US4] Make T050, T051 and T043 pass
 
 **Checkpoint**: US4 independent test passes.
 

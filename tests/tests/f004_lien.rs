@@ -112,3 +112,17 @@ fn registry_without_a_collateral_program_refuses_liens() {
     let ix = pledge_ix(&h, &c, 1, 1);
     assert_anchor_error(&h.send(&[ix], &[&c.giver]), HookError::NotCollateralCaller);
 }
+
+#[test]
+fn an_unlock_beyond_the_lock_is_refused() {
+    // Unreachable state (I1 keeps the lock equal to the pledges): G's lock is planted one base
+    // unit below its pledge, proving `set_lien` refuses to take a lock below zero.
+    use tests::collateral::{pledge, release};
+    let mut h = Harness::new();
+    let c = fixtures::collateral_ready_fund(&mut h);
+    pledge(&mut h, &c, &c.giver, 1_000, r(9)).expect("pledge");
+    let holder = mmf_sdk::pda::holder(&c.m(), &c.giver.pubkey()).0;
+    fixtures::patch::<compliance_hook::HolderState>(&mut h, &holder, |s| s.pledged_amount = 999);
+    let res = release(&mut h, &c, &c.taker, r(9), None, 1_000);
+    assert_anchor_error(&res, HookError::LienUnderflow);
+}
