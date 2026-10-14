@@ -188,10 +188,16 @@ mod tests {
         let f = fund(100_000_000, 1, 0);
         let mut a = agreement();
         observe(&mut a, &f).unwrap();
-        assert_eq!(a.called_outstanding, 1_000_000_000_000, "nothing pledged: unchanged");
+        assert_eq!(
+            a.called_outstanding, 1_000_000_000_000,
+            "nothing pledged: unchanged"
+        );
         a.pledged_units = 1_020_408_163_266;
         observe(&mut a, &f).unwrap();
-        assert_eq!((a.called_outstanding, a.open_delivery_calls, a.met_below_seq), (0, 0, 2));
+        assert_eq!(
+            (a.called_outstanding, a.open_delivery_calls, a.met_below_seq),
+            (0, 0, 2)
+        );
     }
 
     #[test]
@@ -227,6 +233,9 @@ mod tests {
         assert!(!settle_status(&mut call, &a, 10), "already Met");
         call.kind = 1;
         call.status = CallStatus::Open.as_u8();
-        assert!(!settle_status(&mut call, &a, 10), "return calls are never derived Met");
+        assert!(
+            !settle_status(&mut call, &a, 10),
+            "return calls are never derived Met"
+        );
     }
 }

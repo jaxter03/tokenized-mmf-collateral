@@ -39,7 +39,14 @@ fn set_lien_refuses_any_other_signer() {
 
     // A random key in the caller position, signing.
     let rogue = h.funded_keypair();
-    let ix = mmf_sdk::ix_hook::set_lien(&rogue.pubkey(), true, &ctx.registry(), &holder, &holding, lock(1));
+    let ix = mmf_sdk::ix_hook::set_lien(
+        &rogue.pubkey(),
+        true,
+        &ctx.registry(),
+        &holder,
+        &holding,
+        lock(1),
+    );
     assert_anchor_error(&h.send(&[ix], &[&rogue]), HookError::NotCollateralCaller);
 
     // The holder itself, signing for its own lock.
@@ -48,7 +55,8 @@ fn set_lien_refuses_any_other_signer() {
 
     // The real `["hook-caller"]` address, but without its signature (only the program can sign).
     let caller: Pubkey = mmf_sdk::pda::hook_caller().0;
-    let ix = mmf_sdk::ix_hook::set_lien(&caller, false, &ctx.registry(), &holder, &holding, lock(1));
+    let ix =
+        mmf_sdk::ix_hook::set_lien(&caller, false, &ctx.registry(), &holder, &holding, lock(1));
     assert_anchor_error(&h.send(&[ix], &[]), HookError::NotCollateralCaller);
 
     let state: compliance_hook::HolderState = read(&h, &holder);
@@ -84,7 +92,8 @@ fn holding_account_must_be_the_givers_for_this_mint() {
     let other = fixtures::launched_fund(&mut h, 0);
     let g = c.giver.pubkey();
     let create = mmf_sdk::ix_hook::create_holding_account(&h.payer.pubkey(), &other.m(), &g);
-    h.send(&[create], &[]).expect("create the other mint's account");
+    h.send(&[create], &[])
+        .expect("create the other mint's account");
     let mut ix = pledge_ix(&h, &c, 1, 2);
     ix.accounts[GIVER_HOLDING].pubkey = mmf_sdk::pda::holding_account(&g, &other.m());
     assert_anchor_error(&h.send(&[ix], &[&c.giver]), HookError::WrongHolder);
@@ -108,7 +117,9 @@ fn registry_without_a_collateral_program_refuses_liens() {
     // Models a Registry created before F004 (research R16); no instruction can produce one now.
     let mut h = Harness::new();
     let c = fixtures::collateral_ready_fund(&mut h);
-    fixtures::patch::<Registry>(&mut h, &c.registry(), |reg| reg.collateral_program = Pubkey::default());
+    fixtures::patch::<Registry>(&mut h, &c.registry(), |reg| {
+        reg.collateral_program = Pubkey::default()
+    });
     let ix = pledge_ix(&h, &c, 1, 1);
     assert_anchor_error(&h.send(&[ix], &[&c.giver]), HookError::NotCollateralCaller);
 }

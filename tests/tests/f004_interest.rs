@@ -23,7 +23,13 @@ fn locked_and_unlocked_units_earn_the_same() {
     t.pledge(c.agr.pledge(&r(1)));
     assert_eq!(lock_of(&h, &m, &c.giver.pubkey()).0, ONE_MILLION_UNITS);
 
-    for rate in [123_287_671i64, 100_000_000, 150_000_000, 90_000_000, 130_000_000] {
+    for rate in [
+        123_287_671i64,
+        100_000_000,
+        150_000_000,
+        90_000_000,
+        130_000_000,
+    ] {
         clock::advance(&mut h.svm, 86_400);
         fixtures::publish(&mut h, &c, NAV_ONE, rate, 1).expect("publish");
         // Each holder touches its record with a zero-unit transfer, settling its interest.
@@ -31,7 +37,10 @@ fn locked_and_unlocked_units_earn_the_same() {
         fixtures::transfer(&mut h, &c, &b, &c.taker.pubkey(), 0).expect("touch B");
         let g: HolderState = read(&h, &mmf_sdk::pda::holder(&m, &c.giver.pubkey()).0);
         let u: HolderState = read(&h, &mmf_sdk::pda::holder(&m, &b.pubkey()).0);
-        assert_eq!(g.accrued_e18, u.accrued_e18, "same interest after the publish at {rate}");
+        assert_eq!(
+            g.accrued_e18, u.accrued_e18,
+            "same interest after the publish at {rate}"
+        );
     }
     let g: HolderState = read(&h, &mmf_sdk::pda::holder(&m, &c.giver.pubkey()).0);
     assert!(g.accrued_e18 > 0, "interest was earned");

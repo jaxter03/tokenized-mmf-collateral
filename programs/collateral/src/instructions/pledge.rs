@@ -65,7 +65,11 @@ pub fn handle_pledge(ctx: Context<MakePledge>, units: u64, pledge_ref: [u8; 32])
     // 1–3. The agreement's FundState, Active, signed by its giver.
     let fund = load_fund(&ctx.accounts.fund_state, a)?;
     require!(a.is_active(), CollateralError::AgreementNotActive);
-    require_keys_eq!(ctx.accounts.giver.key(), a.giver, CollateralError::Unauthorized);
+    require_keys_eq!(
+        ctx.accounts.giver.key(),
+        a.giver,
+        CollateralError::Unauthorized
+    );
     // 4–6.
     require!(units > 0, CollateralError::ZeroUnits);
     require!(pledge_ref != [0; 32], CollateralError::ZeroPledgeRef);
@@ -109,7 +113,9 @@ pub fn handle_pledge(ctx: Context<MakePledge>, units: u64, pledge_ref: [u8; 32])
         _reserved: [0; 64],
     });
     let a = &mut ctx.accounts.agreement;
-    a.pledge_count = seq.checked_add(1).ok_or(error!(CollateralError::Overflow))?;
+    a.pledge_count = seq
+        .checked_add(1)
+        .ok_or(error!(CollateralError::Overflow))?;
     a.pledged_units = pledged;
     // No price is needed to pledge; with a fresh one, the call is met in this step.
     let valued = is_fresh(&fund, a, now);

@@ -120,7 +120,10 @@ impl Tracker {
                 a.called_outstanding
             );
             if open.is_empty() {
-                assert_eq!(a.called_outstanding, 0, "I16: agreement {key} with no open calls");
+                assert_eq!(
+                    a.called_outstanding, 0,
+                    "I16: agreement {key} with no open calls"
+                );
             }
         }
 
@@ -180,7 +183,12 @@ pub fn propose(
     proposer: &Keypair,
     args: collateral::ProposeArgs,
 ) -> TxResult {
-    let ix = mmf_sdk::ix_collateral::propose_agreement(&proposer.pubkey(), &h.payer.pubkey(), mint, args);
+    let ix = mmf_sdk::ix_collateral::propose_agreement(
+        &proposer.pubkey(),
+        &h.payer.pubkey(),
+        mint,
+        args,
+    );
     h.send(&[ix], &[proposer])
 }
 
@@ -192,19 +200,37 @@ pub fn sign(h: &mut Harness, signer: &Keypair, a: &Agr) -> TxResult {
 
 /// Compliance suspends `owner` (reason 3, operational error).
 pub fn suspend(h: &mut Harness, ctx: &FundCtx, owner: &Pubkey) {
-    let ix = mmf_sdk::ix_governance::suspend_holder(&ctx.compliance.pubkey(), &ctx.m(), owner, 3, [1; 32]);
+    let ix = mmf_sdk::ix_governance::suspend_holder(
+        &ctx.compliance.pubkey(),
+        &ctx.m(),
+        owner,
+        3,
+        [1; 32],
+    );
     h.send(&[ix], &[&ctx.compliance]).expect("suspend");
 }
 
 /// Compliance reinstates `owner`.
 pub fn reinstate(h: &mut Harness, ctx: &FundCtx, owner: &Pubkey) {
-    let ix = mmf_sdk::ix_governance::reinstate_holder(&ctx.compliance.pubkey(), &ctx.m(), owner, 3, [1; 32]);
+    let ix = mmf_sdk::ix_governance::reinstate_holder(
+        &ctx.compliance.pubkey(),
+        &ctx.m(),
+        owner,
+        3,
+        [1; 32],
+    );
     h.send(&[ix], &[&ctx.compliance]).expect("reinstate");
 }
 
 /// Compliance revokes `owner`.
 pub fn revoke(h: &mut Harness, ctx: &FundCtx, owner: &Pubkey) {
-    let ix = mmf_sdk::ix_governance::revoke_holder(&ctx.compliance.pubkey(), &ctx.m(), owner, 3, [1; 32]);
+    let ix = mmf_sdk::ix_governance::revoke_holder(
+        &ctx.compliance.pubkey(),
+        &ctx.m(),
+        owner,
+        3,
+        [1; 32],
+    );
     h.send(&[ix], &[&ctx.compliance]).expect("revoke");
 }
 
@@ -216,20 +242,56 @@ pub fn r(n: u8) -> [u8; 32] {
 }
 
 /// `update_exposure` signed by `signer`, paid by the harness payer.
-pub fn exposure(h: &mut Harness, c: &CollatCtx, signer: &Keypair, value: u64, external_ref: [u8; 32]) -> TxResult {
-    let ix = mmf_sdk::ix_collateral::update_exposure(&signer.pubkey(), &h.payer.pubkey(), &c.agr, value, external_ref);
+pub fn exposure(
+    h: &mut Harness,
+    c: &CollatCtx,
+    signer: &Keypair,
+    value: u64,
+    external_ref: [u8; 32],
+) -> TxResult {
+    let ix = mmf_sdk::ix_collateral::update_exposure(
+        &signer.pubkey(),
+        &h.payer.pubkey(),
+        &c.agr,
+        value,
+        external_ref,
+    );
     h.send(&[ix], &[signer])
 }
 
 /// `confirm_exposure` signed by `signer`.
-pub fn confirm(h: &mut Harness, c: &CollatCtx, signer: &Keypair, value: u64, external_ref: [u8; 32]) -> TxResult {
-    let ix = mmf_sdk::ix_collateral::confirm_exposure(&signer.pubkey(), &h.payer.pubkey(), &c.agr, value, external_ref);
+pub fn confirm(
+    h: &mut Harness,
+    c: &CollatCtx,
+    signer: &Keypair,
+    value: u64,
+    external_ref: [u8; 32],
+) -> TxResult {
+    let ix = mmf_sdk::ix_collateral::confirm_exposure(
+        &signer.pubkey(),
+        &h.payer.pubkey(),
+        &c.agr,
+        value,
+        external_ref,
+    );
     h.send(&[ix], &[signer])
 }
 
 /// `issue_call` signed by `signer` (kind 0 Delivery, 1 Return).
-pub fn issue(h: &mut Harness, c: &CollatCtx, signer: &Keypair, kind: u8, external_ref: [u8; 32]) -> TxResult {
-    let ix = mmf_sdk::ix_collateral::issue_call(&signer.pubkey(), &h.payer.pubkey(), &c.agr, kind, external_ref);
+pub fn issue(
+    h: &mut Harness,
+    c: &CollatCtx,
+    signer: &Keypair,
+    kind: u8,
+    external_ref: [u8; 32],
+) -> TxResult {
+    let ix = mmf_sdk::ix_collateral::issue_call(
+        &signer.pubkey(),
+        &h.payer.pubkey(),
+        &c.agr,
+        kind,
+        external_ref,
+    );
     h.send(&[ix], &[signer])
 }
 
@@ -262,13 +324,26 @@ pub fn call_of(h: &Harness, c: &CollatCtx, external_ref: [u8; 32]) -> Collateral
 }
 
 /// `pledge` signed by `signer`, for agreement `a`.
-pub fn pledge_on(h: &mut Harness, a: &Agr, signer: &Keypair, units: u64, pledge_ref: [u8; 32]) -> TxResult {
-    let ix = mmf_sdk::ix_collateral::pledge(&signer.pubkey(), &h.payer.pubkey(), a, units, pledge_ref);
+pub fn pledge_on(
+    h: &mut Harness,
+    a: &Agr,
+    signer: &Keypair,
+    units: u64,
+    pledge_ref: [u8; 32],
+) -> TxResult {
+    let ix =
+        mmf_sdk::ix_collateral::pledge(&signer.pubkey(), &h.payer.pubkey(), a, units, pledge_ref);
     h.send(&[ix], &[signer])
 }
 
 /// `pledge` on the fixture's agreement.
-pub fn pledge(h: &mut Harness, c: &CollatCtx, signer: &Keypair, units: u64, pledge_ref: [u8; 32]) -> TxResult {
+pub fn pledge(
+    h: &mut Harness,
+    c: &CollatCtx,
+    signer: &Keypair,
+    units: u64,
+    pledge_ref: [u8; 32],
+) -> TxResult {
     pledge_on(h, &c.agr, signer, units, pledge_ref)
 }
 
@@ -316,8 +391,14 @@ pub fn release(
 }
 
 /// `cancel_call` of the call at `external_ref` on the fixture's agreement.
-pub fn cancel(h: &mut Harness, c: &CollatCtx, signer: &Keypair, external_ref: [u8; 32]) -> TxResult {
-    let ix = mmf_sdk::ix_collateral::cancel_call(&signer.pubkey(), &c.agr, &c.agr.call(&external_ref));
+pub fn cancel(
+    h: &mut Harness,
+    c: &CollatCtx,
+    signer: &Keypair,
+    external_ref: [u8; 32],
+) -> TxResult {
+    let ix =
+        mmf_sdk::ix_collateral::cancel_call(&signer.pubkey(), &c.agr, &c.agr.call(&external_ref));
     h.send(&[ix], &[signer])
 }
 

@@ -27,7 +27,11 @@ pub fn handle_sign_agreement(ctx: Context<SignAgreement>) -> Result<()> {
     let a = &ctx.accounts;
     let ag = &a.agreement;
     // 1. The agreement's own FundState.
-    require_keys_eq!(a.fund_state.key(), ag.fund_state, CollateralError::FundMismatch);
+    require_keys_eq!(
+        a.fund_state.key(),
+        ag.fund_state,
+        CollateralError::FundMismatch
+    );
     let fund = load_fund(&a.fund_state, ag)?;
     // 2–4. Proposed, signed by the other party, once.
     require!(
@@ -36,8 +40,15 @@ pub fn handle_sign_agreement(ctx: Context<SignAgreement>) -> Result<()> {
     );
     let signer = a.signer.key();
     let is_giver = signer == ag.giver;
-    require!(is_giver || signer == ag.taker, CollateralError::Unauthorized);
-    let already = if is_giver { ag.giver_signed } else { ag.taker_signed };
+    require!(
+        is_giver || signer == ag.taker,
+        CollateralError::Unauthorized
+    );
+    let already = if is_giver {
+        ag.giver_signed
+    } else {
+        ag.taker_signed
+    };
     require!(!already, CollateralError::AlreadySigned);
     // 5. Both parties are still eligible (FR-004).
     let clock = Clock::get()?;

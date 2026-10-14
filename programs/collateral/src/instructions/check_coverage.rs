@@ -22,7 +22,10 @@ pub struct CheckCoverage<'info> {
 pub fn handle_check_coverage(ctx: Context<CheckCoverage>) -> Result<()> {
     // 1–3. The agreement's FundState, Active, a fresh price.
     let fund = load_fund(&ctx.accounts.fund_state, &ctx.accounts.agreement)?;
-    require!(ctx.accounts.agreement.is_active(), CollateralError::AgreementNotActive);
+    require!(
+        ctx.accounts.agreement.is_active(),
+        CollateralError::AgreementNotActive
+    );
     let clock = Clock::get()?;
     fresh(&fund, &ctx.accounts.agreement, clock.unix_timestamp)?;
     // Observe only: the outcome depends on state and time, never on who asked.

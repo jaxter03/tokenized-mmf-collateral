@@ -14,7 +14,11 @@ use crate::state::{CollateralCall, PledgeAgreement};
 use crate::valuation::{load_fund, settle_status};
 
 /// The call belongs to the agreement, whose FundState is the one passed (`FundMismatch`).
-fn bound(fund_state: &AccountInfo, a: &Account<PledgeAgreement>, call: &CollateralCall) -> Result<()> {
+fn bound(
+    fund_state: &AccountInfo,
+    a: &Account<PledgeAgreement>,
+    call: &CollateralCall,
+) -> Result<()> {
     load_fund(fund_state, a)?;
     require_keys_eq!(call.agreement, a.key(), CollateralError::FundMismatch);
     Ok(())
@@ -49,13 +53,23 @@ pub fn handle_dispute_call(ctx: Context<DisputeCall>, dispute_ref: [u8; 32]) -> 
     let a = &ctx.accounts.agreement;
     // 1–3. The agreement's delivery call, disputed by its giver.
     bound(&ctx.accounts.fund_state, a, &ctx.accounts.call)?;
-    require_keys_eq!(ctx.accounts.signer.key(), a.giver, CollateralError::Unauthorized);
-    require!(ctx.accounts.call.is_delivery(), CollateralError::WrongCallKind);
+    require_keys_eq!(
+        ctx.accounts.signer.key(),
+        a.giver,
+        CollateralError::Unauthorized
+    );
+    require!(
+        ctx.accounts.call.is_delivery(),
+        CollateralError::WrongCallKind
+    );
     // 4. Still Open, after storing a Met that coverage already reached (rolled back on failure).
     let clock = Clock::get()?;
     let now = clock.unix_timestamp;
     settle_status(&mut ctx.accounts.call, a, now);
-    require!(ctx.accounts.call.status_is(CallStatus::Open), CollateralError::CallNotOpen);
+    require!(
+        ctx.accounts.call.status_is(CallStatus::Open),
+        CollateralError::CallNotOpen
+    );
     // 5.
     require!(dispute_ref != [0; 32], CollateralError::ZeroExternalRef);
 
@@ -80,10 +94,17 @@ pub fn handle_withdraw_dispute(ctx: Context<DisputeCall>) -> Result<()> {
     let a = &ctx.accounts.agreement;
     // 1–3. The giver withdraws its own dispute.
     bound(&ctx.accounts.fund_state, a, &ctx.accounts.call)?;
-    require_keys_eq!(ctx.accounts.signer.key(), a.giver, CollateralError::Unauthorized);
+    require_keys_eq!(
+        ctx.accounts.signer.key(),
+        a.giver,
+        CollateralError::Unauthorized
+    );
     let clock = Clock::get()?;
     settle_status(&mut ctx.accounts.call, a, clock.unix_timestamp);
-    require!(ctx.accounts.call.status_is(CallStatus::Disputed), CollateralError::NotDisputed);
+    require!(
+        ctx.accounts.call.status_is(CallStatus::Disputed),
+        CollateralError::NotDisputed
+    );
 
     let call = &mut ctx.accounts.call;
     call.status = CallStatus::Open.as_u8();
@@ -106,14 +127,19 @@ pub fn handle_resolve_dispute(
     actor: Pubkey,
 ) -> Result<()> {
     // 1. Only governance (which has checked compliance, the fund and the reason).
-    let caller = Pubkey::find_program_address(&[seeds::COLLATERAL_CALLER], &GOVERNANCE_PROGRAM_ID).0;
+    let caller =
+        Pubkey::find_program_address(&[seeds::COLLATERAL_CALLER], &GOVERNANCE_PROGRAM_ID).0;
     require_keys_eq!(
         ctx.accounts.collateral_caller.key(),
         caller,
         CollateralError::UnauthorizedCaller
     );
     // 2–4.
-    bound(&ctx.accounts.fund_state, &ctx.accounts.agreement, &ctx.accounts.call)?;
+    bound(
+        &ctx.accounts.fund_state,
+        &ctx.accounts.agreement,
+        &ctx.accounts.call,
+    )?;
     require!(
         outcome == CallStatus::Open.as_u8() || outcome == CallStatus::Cancelled.as_u8(),
         CollateralError::InvalidOutcome
@@ -121,7 +147,10 @@ pub fn handle_resolve_dispute(
     let clock = Clock::get()?;
     let now = clock.unix_timestamp;
     settle_status(&mut ctx.accounts.call, &ctx.accounts.agreement, now);
-    require!(ctx.accounts.call.status_is(CallStatus::Disputed), CollateralError::NotDisputed);
+    require!(
+        ctx.accounts.call.status_is(CallStatus::Disputed),
+        CollateralError::NotDisputed
+    );
 
     let call = &mut ctx.accounts.call;
     call.status = outcome;

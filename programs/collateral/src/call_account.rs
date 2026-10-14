@@ -61,7 +61,10 @@ pub fn count_delivery(a: &mut PledgeAgreement, value: u64) -> Result<()> {
     let overflow = || error!(CollateralError::Overflow);
     a.call_count = a.call_count.checked_add(1).ok_or_else(overflow)?;
     a.open_delivery_calls = a.open_delivery_calls.checked_add(1).ok_or_else(overflow)?;
-    a.called_outstanding = a.called_outstanding.checked_add(value).ok_or_else(overflow)?;
+    a.called_outstanding = a
+        .called_outstanding
+        .checked_add(value)
+        .ok_or_else(overflow)?;
     Ok(())
 }
 
@@ -97,12 +100,7 @@ pub fn create<'info>(
     let space = 8 + CollateralCall::INIT_SPACE;
     let rent = Rent::get()?.minimum_balance(space);
     let bump = [call.bump];
-    let signer_seeds: &[&[u8]] = &[
-        seeds::CALL,
-        agreement.as_ref(),
-        &call.external_ref,
-        &bump,
-    ];
+    let signer_seeds: &[&[u8]] = &[seeds::CALL, agreement.as_ref(), &call.external_ref, &bump];
     let have = call_info.lamports();
     if have == 0 {
         system_program::create_account(

@@ -67,7 +67,10 @@ pub fn handle_release(ctx: Context<Release>, units: u64) -> Result<()> {
     require!(a.is_active(), CollateralError::AgreementNotActive);
     let signer = ctx.accounts.signer.key();
     let by_taker = signer == a.taker;
-    require!(by_taker || signer == roles.keeper, CollateralError::Unauthorized);
+    require!(
+        by_taker || signer == roles.keeper,
+        CollateralError::Unauthorized
+    );
     // 4–6. An Active pledge of this agreement, holding the units.
     let p = &ctx.accounts.pledge;
     require!(
@@ -75,10 +78,16 @@ pub fn handle_release(ctx: Context<Release>, units: u64) -> Result<()> {
         CollateralError::PledgeNotActive
     );
     require!(units > 0, CollateralError::ZeroUnits);
-    require!(units <= p.remaining(), CollateralError::ExceedsPledgeRemaining);
+    require!(
+        units <= p.remaining(),
+        CollateralError::ExceedsPledgeRemaining
+    );
     // 7–9. The keeper only against the open return call, within what it still asks for.
     let ret = ctx.accounts.return_call.as_ref();
-    require!(by_taker || ret.is_some(), CollateralError::KeeperNeedsReturnCall);
+    require!(
+        by_taker || ret.is_some(),
+        CollateralError::KeeperNeedsReturnCall
+    );
     if let Some(call) = ret {
         require!(
             call.key() == a.open_return_call

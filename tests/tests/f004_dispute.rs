@@ -53,7 +53,15 @@ fn resolve_as(
     outcome: u8,
     reason: u8,
 ) -> TxResult {
-    let ix = ix_governance::resolve_call_dispute(&who.pubkey(), &c.m(), &c.agreement(), call, outcome, reason, CASE);
+    let ix = ix_governance::resolve_call_dispute(
+        &who.pubkey(),
+        &c.m(),
+        &c.agreement(),
+        call,
+        outcome,
+        reason,
+        CASE,
+    );
     h.send(&[ix], &[who])
 }
 
@@ -86,7 +94,10 @@ fn us6_dispute_withdraw_dispute_and_compliance_cancels() {
 
     let meta = resolve(&mut h, &c, &call, CANCELLED, OPERATIONAL).expect("compliance cancels");
     let ev: DisputeResolved = one_cpi_event(&meta);
-    assert_eq!((ev.call, ev.outcome, ev.reason, ev.case_ref_hash), (call, CANCELLED, OPERATIONAL, CASE));
+    assert_eq!(
+        (ev.call, ev.outcome, ev.reason, ev.case_ref_hash),
+        (call, CANCELLED, OPERATIONAL, CASE)
+    );
     assert_eq!(ev.actor, c.compliance.pubkey());
     assert_eq!(call_status(&h, &call), CallStatus::Cancelled);
     let a = agreement_of(&h, &c);
@@ -103,18 +114,36 @@ fn us6_dispute_withdraw_dispute_and_compliance_cancels() {
 #[test]
 fn dispute_rejections() {
     let (mut h, c, mut t, call) = with_call();
-    assert_anchor_error(&dispute(&mut h, &c, &c.taker, &call, 7), CollateralError::Unauthorized);
-    assert_anchor_error(&dispute(&mut h, &c, &c.giver, &call, 0), CollateralError::ZeroExternalRef);
-    assert_anchor_error(&withdraw(&mut h, &c, &c.giver, &call), CollateralError::NotDisputed);
+    assert_anchor_error(
+        &dispute(&mut h, &c, &c.taker, &call, 7),
+        CollateralError::Unauthorized,
+    );
+    assert_anchor_error(
+        &dispute(&mut h, &c, &c.giver, &call, 0),
+        CollateralError::ZeroExternalRef,
+    );
+    assert_anchor_error(
+        &withdraw(&mut h, &c, &c.giver, &call),
+        CollateralError::NotDisputed,
+    );
     dispute(&mut h, &c, &c.giver, &call, 7).expect("dispute");
-    assert_anchor_error(&dispute(&mut h, &c, &c.giver, &call, 8), CollateralError::CallNotOpen);
-    assert_anchor_error(&withdraw(&mut h, &c, &c.taker, &call), CollateralError::Unauthorized);
+    assert_anchor_error(
+        &dispute(&mut h, &c, &c.giver, &call, 8),
+        CollateralError::CallNotOpen,
+    );
+    assert_anchor_error(
+        &withdraw(&mut h, &c, &c.taker, &call),
+        CollateralError::Unauthorized,
+    );
 
     // The taker can cancel a Disputed call.
     cancel(&mut h, &c, &c.taker, r(1)).expect("taker cancels the disputed call");
     assert_eq!(call_status(&h, &call), CallStatus::Cancelled);
     assert_eq!(agreement_of(&h, &c).open_delivery_calls, 0);
-    assert_anchor_error(&dispute(&mut h, &c, &c.giver, &call, 9), CollateralError::CallNotOpen);
+    assert_anchor_error(
+        &dispute(&mut h, &c, &c.giver, &call, 9),
+        CollateralError::CallNotOpen,
+    );
     t.check(&h);
 
     // Return calls can't be disputed.
@@ -123,7 +152,10 @@ fn dispute_rejections() {
     exposure(&mut h, &c, &c.taker, 0, r(3)).expect("no exposure");
     issue(&mut h, &c, &c.giver, 1, r(4)).expect("return call");
     let ret = t.call(c.agr.call(&r(4)));
-    assert_anchor_error(&dispute(&mut h, &c, &c.giver, &ret, 9), CollateralError::WrongCallKind);
+    assert_anchor_error(
+        &dispute(&mut h, &c, &c.giver, &ret, 9),
+        CollateralError::WrongCallKind,
+    );
     t.check(&h);
 }
 
@@ -132,8 +164,14 @@ fn a_met_call_cannot_be_disputed() {
     let (mut h, c, mut t, call) = with_call();
     pledge(&mut h, &c, &c.giver, 1_020_408_163_266, r(10)).expect("cover");
     t.pledge(c.agr.pledge(&r(10)));
-    assert_anchor_error(&dispute(&mut h, &c, &c.giver, &call, 7), CollateralError::CallNotOpen);
-    assert_anchor_error(&resolve(&mut h, &c, &call, OPEN, OPERATIONAL), CollateralError::NotDisputed);
+    assert_anchor_error(
+        &dispute(&mut h, &c, &c.giver, &call, 7),
+        CollateralError::CallNotOpen,
+    );
+    assert_anchor_error(
+        &resolve(&mut h, &c, &call, OPEN, OPERATIONAL),
+        CollateralError::NotDisputed,
+    );
 }
 
 #[test]
@@ -154,13 +192,22 @@ fn compliance_reopens_with_the_original_deadlines() {
 fn rejected_resolutions() {
     let (mut h, c, _, call) = with_call();
     // Not disputed yet.
-    assert_anchor_error(&resolve(&mut h, &c, &call, OPEN, OPERATIONAL), CollateralError::NotDisputed);
+    assert_anchor_error(
+        &resolve(&mut h, &c, &call, OPEN, OPERATIONAL),
+        CollateralError::NotDisputed,
+    );
     dispute(&mut h, &c, &c.giver, &call, 7).expect("dispute");
     for outcome in [1, 3] {
-        assert_anchor_error(&resolve(&mut h, &c, &call, outcome, OPERATIONAL), CollateralError::InvalidOutcome);
+        assert_anchor_error(
+            &resolve(&mut h, &c, &call, outcome, OPERATIONAL),
+            CollateralError::InvalidOutcome,
+        );
     }
     for reason in [4, 5, 7] {
-        assert_anchor_error(&resolve(&mut h, &c, &call, CANCELLED, reason), GovernanceError::InvalidReason);
+        assert_anchor_error(
+            &resolve(&mut h, &c, &call, CANCELLED, reason),
+            GovernanceError::InvalidReason,
+        );
     }
     let others = [
         c.issuer.insecure_clone(),
@@ -172,13 +219,30 @@ fn rejected_resolutions() {
         c.taker.insecure_clone(),
     ];
     for who in &others {
-        assert_anchor_error(&resolve_as(&mut h, &c, who, &call, CANCELLED, OPERATIONAL), GovernanceError::Unauthorized);
+        assert_anchor_error(
+            &resolve_as(&mut h, &c, who, &call, CANCELLED, OPERATIONAL),
+            GovernanceError::Unauthorized,
+        );
     }
     // Compliance calling collateral directly, not through governance.
     let compliance = c.compliance.insecure_clone();
-    let ix = ix_collateral::resolve_dispute_direct(&compliance.pubkey(), &c.agr, &call, CANCELLED, OPERATIONAL, CASE);
-    assert_anchor_error(&h.send(&[ix], &[&compliance]), CollateralError::UnauthorizedCaller);
-    assert_eq!(call_status(&h, &call), CallStatus::Disputed, "still disputed");
+    let ix = ix_collateral::resolve_dispute_direct(
+        &compliance.pubkey(),
+        &c.agr,
+        &call,
+        CANCELLED,
+        OPERATIONAL,
+        CASE,
+    );
+    assert_anchor_error(
+        &h.send(&[ix], &[&compliance]),
+        CollateralError::UnauthorizedCaller,
+    );
+    assert_eq!(
+        call_status(&h, &call),
+        CallStatus::Disputed,
+        "still disputed"
+    );
 }
 
 #[test]
@@ -198,7 +262,10 @@ fn a_call_of_another_funds_agreement_is_refused() {
         OPERATIONAL,
         CASE,
     );
-    assert_anchor_error(&h.send(&[ix], &[&c.compliance]), CollateralError::FundMismatch);
+    assert_anchor_error(
+        &h.send(&[ix], &[&c.compliance]),
+        CollateralError::FundMismatch,
+    );
 }
 
 #[test]
@@ -206,7 +273,10 @@ fn a_disputed_call_still_counts_and_is_met_when_covered() {
     let (mut h, c, mut t, call) = with_call();
     dispute(&mut h, &c, &c.giver, &call, 7).expect("dispute");
     assert_eq!(call_status(&h, &call), CallStatus::Disputed);
-    assert_anchor_error(&issue(&mut h, &c, &c.taker, 0, r(2)), CollateralError::NothingToCall);
+    assert_anchor_error(
+        &issue(&mut h, &c, &c.taker, 0, r(2)),
+        CollateralError::NothingToCall,
+    );
     assert_eq!(agreement_of(&h, &c).called_outstanding, MILLION);
     pledge(&mut h, &c, &c.giver, 1_020_408_163_266, r(10)).expect("cover");
     t.pledge(c.agr.pledge(&r(10)));
@@ -238,7 +308,12 @@ fn a_multisig_compliance_resolves_only_at_its_threshold() {
         keeper: Pubkey::new_unique(),
         auditor: Pubkey::new_unique(),
     };
-    let providers = [provider.pubkey(), Pubkey::default(), Pubkey::default(), Pubkey::default()];
+    let providers = [
+        provider.pubkey(),
+        Pubkey::default(),
+        Pubkey::default(),
+        Pubkey::default(),
+    ];
     h.send(
         &[
             ix_hook::init_registry(&i, &m),
@@ -249,15 +324,27 @@ fn a_multisig_compliance_resolves_only_at_its_threshold() {
         &[&issuer],
     )
     .unwrap();
-    h.send(&[ix_fund::publish_daily(&admin.pubkey(), &h.payer.pubkey(), &m, 1, NAV_ONE, 0, 1)], &[&admin])
-        .unwrap();
+    h.send(
+        &[ix_fund::publish_daily(
+            &admin.pubkey(),
+            &h.payer.pubkey(),
+            &m,
+            1,
+            NAV_ONE,
+            0,
+            1,
+        )],
+        &[&admin],
+    )
+    .unwrap();
 
     // The vault approves the giver and the taker.
     let p = h.payer.pubkey();
     let parties = [h.funded_keypair(), h.funded_keypair()];
     for party in &parties {
         let o = party.pubkey();
-        h.send(&[ix_hook::register_holder(&o, &o, &m, &o, 0)], &[party]).unwrap();
+        h.send(&[ix_hook::register_holder(&o, &o, &m, &o, 0)], &[party])
+            .unwrap();
         let stmt = mmf_sdk::kyc::sign(
             &provider,
             &mmf_sdk::kyc::statement(m, o, *b"US", 1, clock::now(&h.svm) + fixtures::YEAR),
@@ -283,23 +370,56 @@ fn a_multisig_compliance_resolves_only_at_its_threshold() {
     units::seed_units(&mut h, &m, &giver.pubkey(), fixtures::GIVER_UNITS);
 
     // The worked agreement, a $1M call, and the giver's dispute.
-    let a = ix_collateral::Agr { mint: m, giver: giver.pubkey(), taker: taker.pubkey(), nonce: 1 };
-    tests::collateral::propose(&mut h, &m, &taker, fixtures::worked_terms(&a.giver, &a.taker, 1)).unwrap();
+    let a = ix_collateral::Agr {
+        mint: m,
+        giver: giver.pubkey(),
+        taker: taker.pubkey(),
+        nonce: 1,
+    };
+    tests::collateral::propose(
+        &mut h,
+        &m,
+        &taker,
+        fixtures::worked_terms(&a.giver, &a.taker, 1),
+    )
+    .unwrap();
     tests::collateral::sign(&mut h, &giver, &a).unwrap();
     let ix = ix_collateral::update_exposure(&taker.pubkey(), &p, &a, MILLION, r(1));
     h.send(&[ix], &[&taker]).unwrap();
     let call = a.call(&r(1));
-    h.send(&[ix_collateral::dispute_call(&giver.pubkey(), &a, &call, r(7))], &[&giver]).unwrap();
+    h.send(
+        &[ix_collateral::dispute_call(
+            &giver.pubkey(),
+            &a,
+            &call,
+            r(7),
+        )],
+        &[&giver],
+    )
+    .unwrap();
 
     // One approval: nothing happens. Two: cancelled, recorded with the vault as actor.
-    let resolve = ix_governance::resolve_call_dispute(&v, &m, &a.agreement(), &call, CANCELLED, OPERATIONAL, CASE);
+    let resolve = ix_governance::resolve_call_dispute(
+        &v,
+        &m,
+        &a.agreement(),
+        &call,
+        CANCELLED,
+        OPERATIONAL,
+        CASE,
+    );
     let (index, remaining) = ms.propose(&mut h, &[resolve]);
     ms.approve(&mut h, index, 0).unwrap();
-    assert_squads_error(&ms.execute(&mut h, index, &remaining, &[]), INVALID_PROPOSAL_STATUS);
+    assert_squads_error(
+        &ms.execute(&mut h, index, &remaining, &[]),
+        INVALID_PROPOSAL_STATUS,
+    );
     let stored: collateral::CollateralCall = fixtures::read(&h, &call);
     assert_eq!(stored.status, CallStatus::Disputed.as_u8());
     ms.approve(&mut h, index, 1).unwrap();
-    let meta = ms.execute(&mut h, index, &remaining, &[]).expect("executes at threshold");
+    let meta = ms
+        .execute(&mut h, index, &remaining, &[])
+        .expect("executes at threshold");
     let stored: collateral::CollateralCall = fixtures::read(&h, &call);
     assert_eq!(stored.status, CallStatus::Cancelled.as_u8());
     assert_eq!(cpi_events::<DisputeResolved>(&meta)[0].actor, v);

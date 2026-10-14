@@ -42,25 +42,70 @@ use tests::fixtures::{self, read, CollatBase, GIVER_UNITS};
 use tests::{clock, units, Harness, TxResult};
 
 const B_UNITS: u64 = 1_000_000_000_000;
-const NAVS: [u64; 5] = [99_000_000, 99_500_000, 100_000_000, 100_500_000, 101_000_000];
+const NAVS: [u64; 5] = [
+    99_000_000,
+    99_500_000,
+    100_000_000,
+    100_500_000,
+    101_000_000,
+];
 const STEPS: [i64; 4] = [600, 3_600, 6 * 3_600, 20 * 3_600];
 
 #[derive(Clone, Debug)]
 enum Op {
-    Exposure { a: u8, k: u16 },
-    Call { a: u8, ret: bool },
-    Check { a: u8 },
-    Pledge { a: u8, k: u16, wrong: bool },
-    Release { p: u8, k: u16, keeper: bool, with_return: bool },
-    Substitute { p: u8, extra: u16 },
-    Cancel { c: u8, wrong: bool },
-    Dispute { c: u8 },
-    Withdraw { c: u8 },
-    Transfer { from: u8, to: u8, k: u16 },
-    Publish { nav: u8 },
-    Advance { step: u8 },
-    Suspend { i: u8 },
-    Reinstate { i: u8 },
+    Exposure {
+        a: u8,
+        k: u16,
+    },
+    Call {
+        a: u8,
+        ret: bool,
+    },
+    Check {
+        a: u8,
+    },
+    Pledge {
+        a: u8,
+        k: u16,
+        wrong: bool,
+    },
+    Release {
+        p: u8,
+        k: u16,
+        keeper: bool,
+        with_return: bool,
+    },
+    Substitute {
+        p: u8,
+        extra: u16,
+    },
+    Cancel {
+        c: u8,
+        wrong: bool,
+    },
+    Dispute {
+        c: u8,
+    },
+    Withdraw {
+        c: u8,
+    },
+    Transfer {
+        from: u8,
+        to: u8,
+        k: u16,
+    },
+    Publish {
+        nav: u8,
+    },
+    Advance {
+        step: u8,
+    },
+    Suspend {
+        i: u8,
+    },
+    Reinstate {
+        i: u8,
+    },
 }
 
 fn op() -> impl Strategy<Value = Op> {
@@ -161,8 +206,18 @@ impl World {
         let (g, t) = (c.giver.pubkey(), c.taker.pubkey());
 
         // G→T: the worked terms. B→T: 5 % haircut, $5 000 MTA, 1 500 000-unit limit.
-        let a0 = Agr { mint: c.m(), giver: g, taker: t, nonce: 1 };
-        let a1 = Agr { mint: c.m(), giver: b.pubkey(), taker: t, nonce: 2 };
+        let a0 = Agr {
+            mint: c.m(),
+            giver: g,
+            taker: t,
+            nonce: 1,
+        };
+        let a1 = Agr {
+            mint: c.m(),
+            giver: b.pubkey(),
+            taker: t,
+            nonce: 2,
+        };
         propose(&mut h, &c.m(), &c.taker, fixtures::worked_terms(&g, &t, 1)).unwrap();
         sign(&mut h, &c.giver, &a0).unwrap();
         let args1 = collateral::ProposeArgs {
@@ -178,8 +233,16 @@ impl World {
         let mut m = Model::new(&[GIVER_UNITS, 0, B_UNITS], fs.nav, clock::now(&h.svm));
         m.nav_ts = fs.nav_ts;
         m.nav_seq = fs.nav_seq;
-        m.add_agreement(0, 1, worked_model_terms(200, 10_000_000_000, 5_000_000_000_000));
-        m.add_agreement(2, 1, worked_model_terms(500, 5_000_000_000, 1_500_000_000_000));
+        m.add_agreement(
+            0,
+            1,
+            worked_model_terms(200, 10_000_000_000, 5_000_000_000_000),
+        );
+        m.add_agreement(
+            2,
+            1,
+            worked_model_terms(500, 5_000_000_000, 1_500_000_000_000),
+        );
 
         let mut tracker = Tracker::new(c.m());
         tracker.agreement(a0.agreement());
@@ -222,7 +285,11 @@ impl World {
         }
     }
 
-    fn send(&mut self, ixs: &[anchor_lang::solana_program::instruction::Instruction], signer: &Keypair) -> TxResult {
+    fn send(
+        &mut self,
+        ixs: &[anchor_lang::solana_program::instruction::Instruction],
+        signer: &Keypair,
+    ) -> TxResult {
         self.h.send(ixs, &[signer])
     }
 
@@ -242,12 +309,19 @@ impl World {
                 let taker = self.signer(a, Actor::Taker);
                 let agr = self.agr_of(a);
                 let p = self.h.payer.pubkey();
-                let res = self.send(&[ix::update_exposure(&taker.pubkey(), &p, &agr, value, r)], &taker);
+                let res = self.send(
+                    &[ix::update_exposure(&taker.pubkey(), &p, &agr, value, r)],
+                    &taker,
+                );
                 let want = self.m.update_exposure(a, value, r);
                 self.agree(outcome(&res), model_out(&want), op);
                 if let (Ok(meta), Ok(opened)) = (&res, &want) {
                     let ev: ExposureUpdated = one_cpi_event(meta);
-                    assert_eq!(ev.opened_call.is_some(), opened.is_some(), "{op:?}: call opened");
+                    assert_eq!(
+                        ev.opened_call.is_some(),
+                        opened.is_some(),
+                        "{op:?}: call opened"
+                    );
                     if opened.is_some() {
                         self.call_refs.push(r);
                         self.tracker.call(agr.call(&r));
@@ -257,11 +331,18 @@ impl World {
             Op::Call { a, ret } => {
                 let a = a as usize;
                 let r = self.fresh_ref();
-                let (kind, actor) = if ret { (CallKind::Return, Actor::Giver) } else { (CallKind::Delivery, Actor::Taker) };
+                let (kind, actor) = if ret {
+                    (CallKind::Return, Actor::Giver)
+                } else {
+                    (CallKind::Delivery, Actor::Taker)
+                };
                 let signer = self.signer(a, actor);
                 let agr = self.agr_of(a);
                 let p = self.h.payer.pubkey();
-                let res = self.send(&[ix::issue_call(&signer.pubkey(), &p, &agr, u8::from(ret), r)], &signer);
+                let res = self.send(
+                    &[ix::issue_call(&signer.pubkey(), &p, &agr, u8::from(ret), r)],
+                    &signer,
+                );
                 let want = self.m.issue_call(a, kind, r);
                 self.agree(outcome(&res), model_out(&want), op);
                 if want.is_ok() {
@@ -293,7 +374,12 @@ impl World {
                     self.tracker.pledge(agr.pledge(&r));
                 }
             }
-            Op::Release { p, k, keeper, with_return } => {
+            Op::Release {
+                p,
+                k,
+                keeper,
+                with_return,
+            } => {
                 if self.m.pledges.is_empty() {
                     return;
                 }
@@ -302,7 +388,10 @@ impl World {
                 let units = u64::from(k) * 10_000_000_000 + u64::from(k % 3);
                 let ret = if with_return {
                     self.m.agreements[a].open_return.or_else(|| {
-                        self.m.calls.iter().rposition(|c| c.agreement == a && c.kind == CallKind::Return)
+                        self.m
+                            .calls
+                            .iter()
+                            .rposition(|c| c.agreement == a && c.kind == CallKind::Return)
                     })
                 } else {
                     None
@@ -312,7 +401,10 @@ impl World {
                 let agr = self.agr_of(a);
                 let pledge = agr.pledge(&self.pledge_refs[pi]);
                 let ret_key = ret.map(|c| agr.call(&self.call_refs[c]));
-                let res = self.send(&[ix::release(&signer.pubkey(), &agr, &pledge, ret_key, units)], &signer);
+                let res = self.send(
+                    &[ix::release(&signer.pubkey(), &agr, &pledge, ret_key, units)],
+                    &signer,
+                );
                 let want = self.m.release(pi, actor, units, ret);
                 self.agree(outcome(&res), model_out(&want), op);
             }
@@ -328,7 +420,17 @@ impl World {
                 let agr = self.agr_of(a);
                 let old = agr.pledge(&self.pledge_refs[pi]);
                 let payer = self.h.payer.pubkey();
-                let res = self.send(&[ix::substitute(&giver.pubkey(), &payer, &agr, &old, r, new_units)], &giver);
+                let res = self.send(
+                    &[ix::substitute(
+                        &giver.pubkey(),
+                        &payer,
+                        &agr,
+                        &old,
+                        r,
+                        new_units,
+                    )],
+                    &giver,
+                );
                 let want = self.m.substitute(pi, Actor::Giver, new_units, r);
                 self.agree(outcome(&res), model_out(&want), op);
                 if want.is_ok() {
@@ -369,10 +471,12 @@ impl World {
                 let key = agr.call(&self.call_refs[ci]);
                 let (res, want) = if matches!(op, Op::Dispute { .. }) {
                     let r = self.fresh_ref();
-                    let res = self.send(&[ix::dispute_call(&giver.pubkey(), &agr, &key, r)], &giver);
+                    let res =
+                        self.send(&[ix::dispute_call(&giver.pubkey(), &agr, &key, r)], &giver);
                     (res, self.m.dispute(ci, Actor::Giver, r))
                 } else {
-                    let res = self.send(&[ix::withdraw_dispute(&giver.pubkey(), &agr, &key)], &giver);
+                    let res =
+                        self.send(&[ix::withdraw_dispute(&giver.pubkey(), &agr, &key)], &giver);
                     (res, self.m.withdraw_dispute(ci, Actor::Giver))
                 };
                 self.agree(outcome(&res), model_out(&want), op);
@@ -426,9 +530,16 @@ impl World {
         let mint = self.c.m();
         for (i, k) in self.keys.iter().enumerate() {
             let o = k.pubkey();
-            assert_eq!(units::balance(&self.h, &mint, &o), self.m.holders[i].balance, "{op:?}: holder {i} balance");
+            assert_eq!(
+                units::balance(&self.h, &mint, &o),
+                self.m.holders[i].balance,
+                "{op:?}: holder {i} balance"
+            );
             let s: HolderState = read(&self.h, &mmf_sdk::pda::holder(&mint, &o).0);
-            assert_eq!(s.pledged_amount, self.m.holders[i].locked, "{op:?}: holder {i} lock");
+            assert_eq!(
+                s.pledged_amount, self.m.holders[i].locked,
+                "{op:?}: holder {i} lock"
+            );
         }
         for (a, agr) in self.agrs.iter().enumerate() {
             let on: PledgeAgreement = read(&self.h, &agr.agreement());
@@ -439,17 +550,37 @@ impl World {
                 "{op:?}: agreement {a}"
             );
             assert_eq!(
-                (on.open_delivery_calls, on.met_below_seq, on.call_count, on.pledge_count),
-                (mo.open_delivery, mo.met_below, mo.call_count, mo.pledge_count),
+                (
+                    on.open_delivery_calls,
+                    on.met_below_seq,
+                    on.call_count,
+                    on.pledge_count
+                ),
+                (
+                    mo.open_delivery,
+                    mo.met_below,
+                    mo.call_count,
+                    mo.pledge_count
+                ),
                 "{op:?}: agreement {a} counters"
             );
-            let open_return = mo.open_return.map(|c| agr.call(&self.call_refs[c])).unwrap_or_default();
-            assert_eq!(on.open_return_call, open_return, "{op:?}: agreement {a} return call");
+            let open_return = mo
+                .open_return
+                .map(|c| agr.call(&self.call_refs[c]))
+                .unwrap_or_default();
+            assert_eq!(
+                on.open_return_call, open_return,
+                "{op:?}: agreement {a} return call"
+            );
         }
         for (ci, r) in self.call_refs.iter().enumerate() {
             let agr = self.agrs[self.m.calls[ci].agreement];
             let key: Pubkey = agr.call(r);
-            assert_eq!(call_status(&self.h, &key), chain_status(self.m.call_status(ci)), "{op:?}: call {ci}");
+            assert_eq!(
+                call_status(&self.h, &key),
+                chain_status(self.m.call_status(ci)),
+                "{op:?}: call {ci}"
+            );
         }
         self.tracker.check(&self.h);
         self.m.check_invariants();
@@ -524,7 +655,10 @@ fn the_generator_reaches_the_happy_paths() {
         oks += run(&ops);
         total += ops.len();
     }
-    assert!(oks * 4 >= total, "only {oks} of {total} operations succeeded");
+    assert!(
+        oks * 4 >= total,
+        "only {oks} of {total} operations succeeded"
+    );
 }
 
 #[test]

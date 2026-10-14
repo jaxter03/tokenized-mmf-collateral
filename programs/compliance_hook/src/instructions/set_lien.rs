@@ -62,7 +62,8 @@ pub fn handle_set_lien(ctx: Context<SetLien>, change: LienChange) -> Result<()> 
     // 1. Only collateral's `["hook-caller"]`.
     check_caller(&a.registry, &a.hook_caller)?;
     // 2. The owner's record and holding account, for this fund's mint.
-    let (mut holder, balance) = owner_accounts(&a.registry.mint, &a.holder_state, &a.holding_account)?;
+    let (mut holder, balance) =
+        owner_accounts(&a.registry.mint, &a.holder_state, &a.holding_account)?;
     // 3, 5. The new totals.
     let (locked, liens) = apply(&holder, &change)?;
     // 4. A growing lock stays covered by the balance (I2).
@@ -122,7 +123,12 @@ mod tests {
     }
 
     fn change(lock: u64, unlock: u64, opened: u16, closed: u16) -> LienChange {
-        LienChange { lock, unlock, opened, closed }
+        LienChange {
+            lock,
+            unlock,
+            opened,
+            closed,
+        }
     }
 
     #[test]
@@ -135,9 +141,21 @@ mod tests {
 
     #[test]
     fn underflow_and_overflow() {
-        assert_eq!(apply(&holder(3, 1), &change(0, 4, 0, 0)).unwrap_err(), error!(HookError::LienUnderflow));
-        assert_eq!(apply(&holder(3, 0), &change(0, 0, 0, 1)).unwrap_err(), error!(HookError::LienUnderflow));
-        assert_eq!(apply(&holder(u64::MAX, 0), &change(1, 0, 0, 0)).unwrap_err(), error!(HookError::Overflow));
-        assert_eq!(apply(&holder(0, u16::MAX), &change(0, 0, 1, 0)).unwrap_err(), error!(HookError::Overflow));
+        assert_eq!(
+            apply(&holder(3, 1), &change(0, 4, 0, 0)).unwrap_err(),
+            error!(HookError::LienUnderflow)
+        );
+        assert_eq!(
+            apply(&holder(3, 0), &change(0, 0, 0, 1)).unwrap_err(),
+            error!(HookError::LienUnderflow)
+        );
+        assert_eq!(
+            apply(&holder(u64::MAX, 0), &change(1, 0, 0, 0)).unwrap_err(),
+            error!(HookError::Overflow)
+        );
+        assert_eq!(
+            apply(&holder(0, u16::MAX), &change(0, 0, 1, 0)).unwrap_err(),
+            error!(HookError::Overflow)
+        );
     }
 }

@@ -48,7 +48,12 @@ pub fn units_for_value_down(value: u64, nav: u64, haircut_bps: u16) -> Option<u6
 
 /// `collateral_value(pledged_units) − required_value`: negative is a shortfall, positive an
 /// excess.
-pub fn coverage(pledged_units: u64, nav: u64, haircut_bps: u16, required_value: u64) -> Option<i128> {
+pub fn coverage(
+    pledged_units: u64,
+    nav: u64,
+    haircut_bps: u16,
+    required_value: u64,
+) -> Option<i128> {
     let value = collateral_value(pledged_units, nav, haircut_bps)?;
     i128::from(value).checked_sub(i128::from(required_value))
 }
@@ -205,8 +210,16 @@ mod tests {
         assert_eq!(price_age(0, 0, 100, max), PriceAge::NoPrice);
         assert_eq!(price_age(1, 1_000, 1_000 + 93_600, max), PriceAge::Fresh);
         assert_eq!(price_age(1, 1_000, 1_000 + 93_601, max), PriceAge::Stale);
-        assert_eq!(price_age(1, 1_000, 500, max), PriceAge::Fresh, "clock behind the publish");
-        assert_eq!(price_age(1, i64::MIN, i64::MAX, max), PriceAge::Stale, "no overflow");
+        assert_eq!(
+            price_age(1, 1_000, 500, max),
+            PriceAge::Fresh,
+            "clock behind the publish"
+        );
+        assert_eq!(
+            price_age(1, i64::MIN, i64::MAX, max),
+            PriceAge::Stale,
+            "no overflow"
+        );
     }
 
     #[test]
@@ -241,7 +254,14 @@ mod tests {
 
     #[test]
     fn derived_met() {
-        for (status, met) in [(0, true), (1, false), (2, true), (3, false), (4, false), (5, false)] {
+        for (status, met) in [
+            (0, true),
+            (1, false),
+            (2, true),
+            (3, false),
+            (4, false),
+            (5, false),
+        ] {
             assert_eq!(delivery_met(status, 1, 2), met, "status {status} below");
         }
         assert!(!delivery_met(0, 2, 2), "seq at the boundary is not covered");

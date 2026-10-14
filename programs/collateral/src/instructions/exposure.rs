@@ -13,8 +13,8 @@ use crate::errors::CollateralError;
 use crate::events::{CallOpened, ExposureUpdated};
 use crate::state::PledgeAgreement;
 use crate::valuation::{
-    coverage, fresh, is_fresh, load_fund, load_holder, observe, observe_covered,
-    require_eligible, snapshot,
+    coverage, fresh, is_fresh, load_fund, load_holder, observe, observe_covered, require_eligible,
+    snapshot,
 };
 
 #[event_cpi]
@@ -104,7 +104,8 @@ fn apply_raise<'info>(
     if uncalled <= a.min_transfer_value {
         return Ok(None);
     }
-    let call = call_account::delivery_call(a, agreement, fund, now, uncalled, external_ref, call_bump)?;
+    let call =
+        call_account::delivery_call(a, agreement, fund, now, uncalled, external_ref, call_bump)?;
     call_account::create(call_info, payer, system, &agreement, &call)?;
     call_account::count_delivery(a, uncalled)?;
     Ok(Some(call_account::opened(&call, call_info.key())))
@@ -128,7 +129,8 @@ pub fn handle_update_exposure(
     let clock = Clock::get()?;
     let now = clock.unix_timestamp;
 
-    let (outcome, opened_call, valued) = if required_value <= ctx.accounts.agreement.required_value {
+    let (outcome, opened_call, valued) = if required_value <= ctx.accounts.agreement.required_value
+    {
         // 5. Lower or equal: at once, at any price age; never opens a call.
         let valued = is_fresh(&fund, &ctx.accounts.agreement, now);
         let a = &mut ctx.accounts.agreement;

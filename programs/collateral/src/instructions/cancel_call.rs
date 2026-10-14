@@ -56,7 +56,8 @@ pub fn handle_cancel_call(ctx: Context<CancelCall>) -> Result<()> {
     let party = if delivery { a.taker } else { a.giver };
     let signer = ctx.accounts.signer.key();
     require_keys_eq!(signer, party, CollateralError::Unauthorized);
-    let open = call.status_is(CallStatus::Open) || (delivery && call.status_is(CallStatus::Disputed));
+    let open =
+        call.status_is(CallStatus::Open) || (delivery && call.status_is(CallStatus::Disputed));
     require!(open, CollateralError::CallNotOpen);
 
     let (value, seq, kind) = (call.value_delta, call.seq, call.kind);

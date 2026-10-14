@@ -45,7 +45,11 @@ fn taker_proposes_giver_signs() {
     );
     assert_eq!((ag.mode, ag.income_to, ag.haircut_bps), (0, 0, 200));
     assert_eq!(
-        (ag.max_nav_age_secs, ag.call_cure_secs, ag.enforcement_grace_secs),
+        (
+            ag.max_nav_age_secs,
+            ag.call_cure_secs,
+            ag.enforcement_grace_secs
+        ),
         (93_600, 14_400, 7_200)
     );
     assert_eq!(
@@ -115,15 +119,78 @@ fn proposer_must_be_a_party_and_parties_must_differ() {
 fn every_term_is_checked() {
     let (mut h, c) = base();
     let cases: Vec<(&str, ProposeArgs, CollateralError)> = vec![
-        ("mode 1", ProposeArgs { mode: 1, ..terms(&c, 10) }, CollateralError::UnsupportedPledgeMode),
-        ("income 1", ProposeArgs { income_to: 1, ..terms(&c, 11) }, CollateralError::UnsupportedIncomeRouting),
-        ("income 2", ProposeArgs { income_to: 2, ..terms(&c, 12) }, CollateralError::UnsupportedIncomeRouting),
-        ("haircut 10000", ProposeArgs { haircut_bps: 10_000, ..terms(&c, 13) }, CollateralError::InvalidHaircut),
-        ("haircut 10001", ProposeArgs { haircut_bps: 10_001, ..terms(&c, 14) }, CollateralError::InvalidHaircut),
-        ("cure 0", ProposeArgs { call_cure_secs: 0, ..terms(&c, 15) }, CollateralError::InvalidCureTime),
-        ("cap 0", ProposeArgs { concentration_cap_units: 0, ..terms(&c, 16) }, CollateralError::InvalidPledgeLimit),
-        ("age 0", ProposeArgs { max_nav_age_secs: 0, ..terms(&c, 17) }, CollateralError::InvalidPriceAge),
-        ("hash 0", ProposeArgs { agreement_hash: [0; 32], ..terms(&c, 18) }, CollateralError::EmptyAgreementHash),
+        (
+            "mode 1",
+            ProposeArgs {
+                mode: 1,
+                ..terms(&c, 10)
+            },
+            CollateralError::UnsupportedPledgeMode,
+        ),
+        (
+            "income 1",
+            ProposeArgs {
+                income_to: 1,
+                ..terms(&c, 11)
+            },
+            CollateralError::UnsupportedIncomeRouting,
+        ),
+        (
+            "income 2",
+            ProposeArgs {
+                income_to: 2,
+                ..terms(&c, 12)
+            },
+            CollateralError::UnsupportedIncomeRouting,
+        ),
+        (
+            "haircut 10000",
+            ProposeArgs {
+                haircut_bps: 10_000,
+                ..terms(&c, 13)
+            },
+            CollateralError::InvalidHaircut,
+        ),
+        (
+            "haircut 10001",
+            ProposeArgs {
+                haircut_bps: 10_001,
+                ..terms(&c, 14)
+            },
+            CollateralError::InvalidHaircut,
+        ),
+        (
+            "cure 0",
+            ProposeArgs {
+                call_cure_secs: 0,
+                ..terms(&c, 15)
+            },
+            CollateralError::InvalidCureTime,
+        ),
+        (
+            "cap 0",
+            ProposeArgs {
+                concentration_cap_units: 0,
+                ..terms(&c, 16)
+            },
+            CollateralError::InvalidPledgeLimit,
+        ),
+        (
+            "age 0",
+            ProposeArgs {
+                max_nav_age_secs: 0,
+                ..terms(&c, 17)
+            },
+            CollateralError::InvalidPriceAge,
+        ),
+        (
+            "hash 0",
+            ProposeArgs {
+                agreement_hash: [0; 32],
+                ..terms(&c, 18)
+            },
+            CollateralError::EmptyAgreementHash,
+        ),
     ];
     for (name, args, err) in cases {
         let res = propose(&mut h, &c.m(), &c.taker, args);
@@ -144,7 +211,11 @@ fn every_term_is_checked() {
 fn suspended_party_cannot_propose_or_be_named() {
     for suspended_giver in [true, false] {
         let (mut h, c) = base();
-        let who = if suspended_giver { c.giver.pubkey() } else { c.taker.pubkey() };
+        let who = if suspended_giver {
+            c.giver.pubkey()
+        } else {
+            c.taker.pubkey()
+        };
         suspend(&mut h, &c, &who);
         let res = propose(&mut h, &c.m(), &c.taker, terms(&c, 1));
         assert_anchor_error(&res, CollateralError::PartyNotEligible);
@@ -159,7 +230,12 @@ fn pending_revoked_unregistered_and_fund_operated_parties() {
     let p = pending.pubkey();
     let ix = mmf_sdk::ix_hook::register_holder(&p, &p, &c.m(), &p, 0);
     h.send(&[ix], &[&pending]).expect("register");
-    let res = propose(&mut h, &c.m(), &c.giver, worked_terms(&c.giver.pubkey(), &p, 1));
+    let res = propose(
+        &mut h,
+        &c.m(),
+        &c.giver,
+        worked_terms(&c.giver.pubkey(), &p, 1),
+    );
     assert_anchor_error(&res, CollateralError::PartyNotEligible);
 
     // Revoked.
@@ -169,11 +245,21 @@ fn pending_revoked_unregistered_and_fund_operated_parties() {
 
     // Unregistered: no holder record at all.
     let stranger = Keypair::new().pubkey();
-    let res = propose(&mut h, &c.m(), &c.giver, worked_terms(&c.giver.pubkey(), &stranger, 3));
+    let res = propose(
+        &mut h,
+        &c.m(),
+        &c.giver,
+        worked_terms(&c.giver.pubkey(), &stranger, 3),
+    );
     assert_anchor_error(&res, CollateralError::WrongHolder);
 
     // Fund-operated: the settlement escrow is an Approved holder of class Escrow.
-    let res = propose(&mut h, &c.m(), &c.giver, worked_terms(&c.giver.pubkey(), &c.escrow, 4));
+    let res = propose(
+        &mut h,
+        &c.m(),
+        &c.giver,
+        worked_terms(&c.giver.pubkey(), &c.escrow, 4),
+    );
     assert_anchor_error(&res, CollateralError::PartyNotEligible);
 }
 
@@ -201,12 +287,18 @@ fn signing_rules() {
 
     // Suspended between the proposal and the signature.
     suspend(&mut h, &c, &c.giver.pubkey());
-    assert_anchor_error(&sign(&mut h, &c.giver, &a), CollateralError::PartyNotEligible);
+    assert_anchor_error(
+        &sign(&mut h, &c.giver, &a),
+        CollateralError::PartyNotEligible,
+    );
     tests::collateral::reinstate(&mut h, &c, &c.giver.pubkey());
     sign(&mut h, &c.giver, &a).expect("sign after reinstatement");
 
     // An Active agreement can't be signed again.
-    assert_anchor_error(&sign(&mut h, &c.giver, &a), CollateralError::AgreementNotProposed);
+    assert_anchor_error(
+        &sign(&mut h, &c.giver, &a),
+        CollateralError::AgreementNotProposed,
+    );
 }
 
 #[test]
@@ -226,9 +318,11 @@ fn identity_is_fund_giver_taker_and_nonce() {
 /// can't change after the proposal.
 #[test]
 fn only_the_proposal_takes_terms() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../target/idl/collateral.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../target/idl/collateral.json");
     let idl: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(path).expect("run `anchor build` first")).unwrap();
+        serde_json::from_str(&std::fs::read_to_string(path).expect("run `anchor build` first"))
+            .unwrap();
     let term_names = [
         "haircut_bps",
         "max_nav_age_secs",
@@ -259,7 +353,15 @@ fn only_the_proposal_takes_terms() {
 fn proposal_and_signature_fit_the_compute_budget() {
     let (mut h, c) = base();
     let meta = propose(&mut h, &c.m(), &c.taker, terms(&c, 1)).expect("propose");
-    assert!(meta.compute_units_consumed <= 80_000, "propose used {}", meta.compute_units_consumed);
+    assert!(
+        meta.compute_units_consumed <= 80_000,
+        "propose used {}",
+        meta.compute_units_consumed
+    );
     let meta = sign(&mut h, &c.giver, &agr(&c, 1)).expect("sign");
-    assert!(meta.compute_units_consumed <= 80_000, "sign used {}", meta.compute_units_consumed);
+    assert!(
+        meta.compute_units_consumed <= 80_000,
+        "sign used {}",
+        meta.compute_units_consumed
+    );
 }

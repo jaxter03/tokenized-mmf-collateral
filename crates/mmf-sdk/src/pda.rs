@@ -3,8 +3,8 @@
 
 use anchor_lang::prelude::Pubkey;
 use mmf_common::ids::{
-    ASSOCIATED_TOKEN_PROGRAM_ID, COLLATERAL_PROGRAM_ID, COMPLIANCE_HOOK_PROGRAM_ID, DVP_SETTLEMENT_PROGRAM_ID,
-    FUND_PROGRAM_ID, GOVERNANCE_PROGRAM_ID, TOKEN_2022_PROGRAM_ID,
+    ASSOCIATED_TOKEN_PROGRAM_ID, COLLATERAL_PROGRAM_ID, COMPLIANCE_HOOK_PROGRAM_ID,
+    DVP_SETTLEMENT_PROGRAM_ID, FUND_PROGRAM_ID, GOVERNANCE_PROGRAM_ID, TOKEN_2022_PROGRAM_ID,
 };
 use mmf_common::seeds;
 
@@ -286,24 +286,44 @@ mod tests {
 
     #[test]
     fn collateral_pdas_match_their_seeds() {
-        let (fs, g, t) = (Pubkey::new_unique(), Pubkey::new_unique(), Pubkey::new_unique());
+        let (fs, g, t) = (
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+            Pubkey::new_unique(),
+        );
         let a = agreement(&fs, &g, &t, 7);
         assert_eq!(
             a,
             Pubkey::find_program_address(
-                &[b"agreement", fs.as_ref(), g.as_ref(), t.as_ref(), &7u64.to_le_bytes()],
+                &[
+                    b"agreement",
+                    fs.as_ref(),
+                    g.as_ref(),
+                    t.as_ref(),
+                    &7u64.to_le_bytes()
+                ],
                 &COLLATERAL_PROGRAM_ID
             )
         );
-        assert_ne!(a.0, agreement(&fs, &t, &g, 7).0, "giver and taker are ordered");
+        assert_ne!(
+            a.0,
+            agreement(&fs, &t, &g, 7).0,
+            "giver and taker are ordered"
+        );
         assert_ne!(a.0, agreement(&fs, &g, &t, 8).0, "nonce is in the seeds");
         assert_eq!(
             pledge(&a.0, &[3; 32]),
-            Pubkey::find_program_address(&[b"pledge", a.0.as_ref(), &[3; 32]], &COLLATERAL_PROGRAM_ID)
+            Pubkey::find_program_address(
+                &[b"pledge", a.0.as_ref(), &[3; 32]],
+                &COLLATERAL_PROGRAM_ID
+            )
         );
         assert_eq!(
             call(&a.0, &[4; 32]),
-            Pubkey::find_program_address(&[b"call", a.0.as_ref(), &[4; 32]], &COLLATERAL_PROGRAM_ID)
+            Pubkey::find_program_address(
+                &[b"call", a.0.as_ref(), &[4; 32]],
+                &COLLATERAL_PROGRAM_ID
+            )
         );
         assert_eq!(
             hook_caller(),

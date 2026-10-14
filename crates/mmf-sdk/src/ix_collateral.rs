@@ -200,7 +200,13 @@ pub fn check_coverage(triggered_by: &Pubkey, a: &Agr) -> Instruction {
 
 /// `pledge(units, pledge_ref)`: signed by the giver (and the payer). Passes the giver's
 /// HolderState and holding account, the Registry and `["hook-caller"]` for the lien CPI.
-pub fn pledge(giver: &Pubkey, payer: &Pubkey, a: &Agr, units: u64, pledge_ref: [u8; 32]) -> Instruction {
+pub fn pledge(
+    giver: &Pubkey,
+    payer: &Pubkey,
+    a: &Agr,
+    units: u64,
+    pledge_ref: [u8; 32],
+) -> Instruction {
     ix(
         collateral::accounts::MakePledge {
             giver: *giver,

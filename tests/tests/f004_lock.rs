@@ -68,18 +68,29 @@ fn unchanged(h: &Harness, c: &CollatCtx, t: &Tracker, giver_balance: u64) {
 fn a_hand_built_transfer_over_the_lock_is_refused() {
     let (mut h, c, t) = locked();
     let to = c.taker.pubkey();
-    let res = h.send(&[raw_transfer(&c, &c.giver.pubkey(), &to, UNLOCKED + 1)], &[&c.giver]);
+    let res = h.send(
+        &[raw_transfer(&c, &c.giver.pubkey(), &to, UNLOCKED + 1)],
+        &[&c.giver],
+    );
     assert_anchor_error(&res, HookError::PledgedUnitsLocked);
     unchanged(&h, &c, &t, GIVER_UNITS);
 
-    h.send(&[raw_transfer(&c, &c.giver.pubkey(), &to, UNLOCKED)], &[&c.giver])
-        .expect("exactly the unlocked units");
-    assert_eq!(units::balance(&h, &c.m(), &c.giver.pubkey()), LOCKED, "balance = lock");
+    h.send(
+        &[raw_transfer(&c, &c.giver.pubkey(), &to, UNLOCKED)],
+        &[&c.giver],
+    )
+    .expect("exactly the unlocked units");
+    assert_eq!(
+        units::balance(&h, &c.m(), &c.giver.pubkey()),
+        LOCKED,
+        "balance = lock"
+    );
     unchanged(&h, &c, &t, LOCKED);
 
     // Fully locked: a zero-unit transfer passes (the post-balance still covers the lock), one
     // base unit doesn't.
-    h.send(&[raw_transfer(&c, &c.giver.pubkey(), &to, 0)], &[&c.giver]).expect("zero units");
+    h.send(&[raw_transfer(&c, &c.giver.pubkey(), &to, 0)], &[&c.giver])
+        .expect("zero units");
     let res = h.send(&[raw_transfer(&c, &c.giver.pubkey(), &to, 1)], &[&c.giver]);
     assert_anchor_error(&res, HookError::PledgedUnitsLocked);
 }
@@ -100,9 +111,15 @@ fn a_delegate_cannot_move_locked_units() {
         6,
     )
     .unwrap();
-    h.send(&[approve], &[&c.giver]).expect("approve the whole balance");
+    h.send(&[approve], &[&c.giver])
+        .expect("approve the whole balance");
     let res = h.send(
-        &[raw_transfer(&c, &delegate.pubkey(), &c.taker.pubkey(), UNLOCKED + 1)],
+        &[raw_transfer(
+            &c,
+            &delegate.pubkey(),
+            &c.taker.pubkey(),
+            UNLOCKED + 1,
+        )],
         &[&delegate],
     );
     assert_anchor_error(&res, HookError::PledgedUnitsLocked);
@@ -121,7 +138,13 @@ fn settlement_funding_cannot_use_locked_units() {
     unchanged(&h, &c, &t, GIVER_UNITS);
 
     // A secondary sale of the same units.
-    let args = sec_args(&g.pubkey(), &c.taker.pubkey(), 1_000_000_000_000, 1_000_000_000_000, 2);
+    let args = sec_args(
+        &g.pubkey(),
+        &c.taker.pubkey(),
+        1_000_000_000_000,
+        1_000_000_000_000,
+        2,
+    );
     create(&mut h, &c, &g, args).expect("create secondary");
     let d = deal(&c, &g.pubkey(), &args);
     assert_anchor_error(&fund_units(&mut h, &d, &g), HookError::PledgedUnitsLocked);
@@ -134,7 +157,10 @@ fn locked_units_cannot_be_pledged_elsewhere() {
     let other: Keypair = fixtures::new_investor(&mut h, &c);
     let args = worked_terms(&c.giver.pubkey(), &other.pubkey(), 7);
     tests::collateral::propose(&mut h, &c.m(), &other, args).expect("propose");
-    let second = mmf_sdk::ix_collateral::Agr { taker: other.pubkey(), ..agr(&c, 7) };
+    let second = mmf_sdk::ix_collateral::Agr {
+        taker: other.pubkey(),
+        ..agr(&c, 7)
+    };
     tests::collateral::sign(&mut h, &c.giver, &second).expect("sign");
     t.agreement(second.agreement());
 
@@ -154,7 +180,12 @@ fn a_locked_holder_can_still_receive() {
     unchanged(&h, &c, &t, GIVER_UNITS + 5_000_000);
     // The units received are unlocked.
     let res = h.send(
-        &[raw_transfer(&c, &c.giver.pubkey(), &c.taker.pubkey(), UNLOCKED + 5_000_000)],
+        &[raw_transfer(
+            &c,
+            &c.giver.pubkey(),
+            &c.taker.pubkey(),
+            UNLOCKED + 5_000_000,
+        )],
         &[&c.giver],
     );
     res.expect("send everything unlocked");

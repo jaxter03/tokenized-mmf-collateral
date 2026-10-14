@@ -223,7 +223,11 @@ mod tests {
     #[test]
     fn resolve_dispute_reasons() {
         let allowed: Vec<u8> = (0..=6)
-            .filter(|v| ReasonCode::try_from(*v).unwrap().allowed_for_resolve_dispute())
+            .filter(|v| {
+                ReasonCode::try_from(*v)
+                    .unwrap()
+                    .allowed_for_resolve_dispute()
+            })
             .collect();
         assert_eq!(allowed, vec![0, 1, 2, 3, 6]);
     }

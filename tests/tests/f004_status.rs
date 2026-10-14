@@ -8,8 +8,8 @@ use mmf_common::enums::{CallStatus, ReasonCode};
 use solana_signer::Signer;
 use tests::assert::assert_anchor_error;
 use tests::collateral::{
-    call_of, call_status, cancel, confirm, exposure, issue, lock_of, pledge, r, reinstate,
-    release, substitute_on, suspend, Tracker,
+    call_of, call_status, cancel, confirm, exposure, issue, lock_of, pledge, r, reinstate, release,
+    substitute_on, suspend, Tracker,
 };
 use tests::fixtures::{self, CollatCtx, Ready};
 use tests::{clock, Harness};
@@ -45,12 +45,18 @@ fn a_suspended_giver_adds_nothing_but_can_still_reduce() {
     let before = deadlines(&h);
 
     suspend(&mut h, &c, &c.giver.pubkey());
-    assert_anchor_error(&pledge(&mut h, &c, &c.giver, 1, r(10)), CollateralError::PartyNotEligible);
+    assert_anchor_error(
+        &pledge(&mut h, &c, &c.giver, 1, r(10)),
+        CollateralError::PartyNotEligible,
+    );
     assert_anchor_error(
         &substitute_on(&mut h, &c.agr, &c.giver, r(9), r(11), UNITS_FOR_MILLION),
         CollateralError::PartyNotEligible,
     );
-    assert_anchor_error(&issue(&mut h, &c, &c.giver, RETURN, r(12)), CollateralError::PartyNotEligible);
+    assert_anchor_error(
+        &issue(&mut h, &c, &c.giver, RETURN, r(12)),
+        CollateralError::PartyNotEligible,
+    );
 
     // Disputing stays open to a suspended giver.
     let ix = mmf_sdk::ix_collateral::dispute_call(&c.giver.pubkey(), &c.agr, &open_call, r(13));
@@ -58,7 +64,8 @@ fn a_suspended_giver_adds_nothing_but_can_still_reduce() {
     assert_eq!(call_status(&h, &open_call), CallStatus::Disputed);
     // The taker can still lower the exposure and release.
     exposure(&mut h, &c, &c.taker, 400_000_000_000, r(3)).expect("lower");
-    release(&mut h, &c, &c.taker, r(9), None, 100_000_000_000).expect("release to a suspended giver");
+    release(&mut h, &c, &c.taker, r(9), None, 100_000_000_000)
+        .expect("release to a suspended giver");
     t.check(&h);
 
     // Deadlines never move with a suspension or a reinstatement.
@@ -81,12 +88,18 @@ fn a_kyc_expired_giver_is_refused_like_a_suspended_one() {
     let state: compliance_hook::HolderState =
         fixtures::read(&h, &mmf_sdk::pda::holder(&c.m(), &c.giver.pubkey()).0);
     clock::set_unix_timestamp(&mut h.svm, state.kyc_expiry_ts);
-    assert_anchor_error(&pledge(&mut h, &c, &c.giver, 1, r(10)), CollateralError::PartyNotEligible);
+    assert_anchor_error(
+        &pledge(&mut h, &c, &c.giver, 1, r(10)),
+        CollateralError::PartyNotEligible,
+    );
     assert_anchor_error(
         &substitute_on(&mut h, &c.agr, &c.giver, r(9), r(11), UNITS_FOR_MILLION),
         CollateralError::PartyNotEligible,
     );
-    assert_anchor_error(&issue(&mut h, &c, &c.giver, RETURN, r(12)), CollateralError::PartyNotEligible);
+    assert_anchor_error(
+        &issue(&mut h, &c, &c.giver, RETURN, r(12)),
+        CollateralError::PartyNotEligible,
+    );
 }
 
 #[test]
@@ -94,7 +107,10 @@ fn a_suspended_giver_cannot_confirm_a_raise() {
     let (mut h, c, _) = covered(Ready::TwoStep);
     exposure(&mut h, &c, &c.taker, 2 * MILLION, r(2)).expect("pending raise");
     suspend(&mut h, &c, &c.giver.pubkey());
-    assert_anchor_error(&confirm(&mut h, &c, &c.giver, 2 * MILLION, r(2)), CollateralError::PartyNotEligible);
+    assert_anchor_error(
+        &confirm(&mut h, &c, &c.giver, 2 * MILLION, r(2)),
+        CollateralError::PartyNotEligible,
+    );
 }
 
 #[test]
@@ -103,8 +119,14 @@ fn a_suspended_taker_can_only_reduce() {
     exposure(&mut h, &c, &c.taker, 3 * MILLION / 2, r(2)).expect("an open call");
     t.call(c.agr.call(&r(2)));
     suspend(&mut h, &c, &c.taker.pubkey());
-    assert_anchor_error(&exposure(&mut h, &c, &c.taker, 2 * MILLION, r(3)), CollateralError::PartyNotEligible);
-    assert_anchor_error(&issue(&mut h, &c, &c.taker, DELIVERY, r(4)), CollateralError::PartyNotEligible);
+    assert_anchor_error(
+        &exposure(&mut h, &c, &c.taker, 2 * MILLION, r(3)),
+        CollateralError::PartyNotEligible,
+    );
+    assert_anchor_error(
+        &issue(&mut h, &c, &c.taker, DELIVERY, r(4)),
+        CollateralError::PartyNotEligible,
+    );
     cancel(&mut h, &c, &c.taker, r(2)).expect("cancel while suspended");
     exposure(&mut h, &c, &c.taker, 400_000_000_000, r(5)).expect("lower while suspended");
     release(&mut h, &c, &c.taker, r(9), None, 100_000_000_000).expect("release while suspended");
@@ -124,7 +146,8 @@ fn locks_work_while_transfers_are_paused() {
 
     pledge(&mut h, &c, &c.giver, 1_000_000, r(10)).expect("pledge while paused");
     t.pledge(c.agr.pledge(&r(10)));
-    substitute_on(&mut h, &c.agr, &c.giver, r(10), r(11), 2_000_000).expect("substitute while paused");
+    substitute_on(&mut h, &c.agr, &c.giver, r(10), r(11), 2_000_000)
+        .expect("substitute while paused");
     t.pledge(c.agr.pledge(&r(11)));
     release(&mut h, &c, &c.taker, r(11), None, 2_000_000).expect("release while paused");
     assert_eq!(lock_of(&h, &c.m(), &c.giver.pubkey()).0, UNITS_FOR_MILLION);

@@ -72,7 +72,11 @@ pub fn handle_substitute(
     // 1–3.
     let fund = load_fund(&ctx.accounts.fund_state, a)?;
     require!(a.is_active(), CollateralError::AgreementNotActive);
-    require_keys_eq!(ctx.accounts.giver.key(), a.giver, CollateralError::Unauthorized);
+    require_keys_eq!(
+        ctx.accounts.giver.key(),
+        a.giver,
+        CollateralError::Unauthorized
+    );
     // 4–6. An Active pledge of this agreement, replaced by at least as many units.
     let old = &ctx.accounts.old_pledge;
     require!(
@@ -127,7 +131,9 @@ pub fn handle_substitute(
     });
     let a = &mut ctx.accounts.agreement;
     a.pledged_units = pledged;
-    a.pledge_count = seq.checked_add(1).ok_or(error!(CollateralError::Overflow))?;
+    a.pledge_count = seq
+        .checked_add(1)
+        .ok_or(error!(CollateralError::Overflow))?;
     let valued = is_fresh(&fund, a, now);
     if valued {
         observe(a, &fund)?;

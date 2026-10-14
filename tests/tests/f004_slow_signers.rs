@@ -32,7 +32,12 @@ fn ready(ready: Ready) -> (Harness, CollatCtx, Tracker) {
 
 /// `ix` prepared on `signer`'s nonce account; `signer` is nonce authority and fee payer, as a
 /// custodian's own key would be.
-fn prepare(h: &Harness, ix: anchor_lang::solana_program::instruction::Instruction, signer: &Keypair, nonce: &Pubkey) -> Message {
+fn prepare(
+    h: &Harness,
+    ix: anchor_lang::solana_program::instruction::Instruction,
+    signer: &Keypair,
+    nonce: &Pubkey,
+) -> Message {
     let value = prepare::read_nonce(&h.account(nonce).unwrap().data).expect("nonce value");
     prepare::with_durable_nonce(&[ix], nonce, &signer.pubkey(), &signer.pubkey(), value)
 }
@@ -43,7 +48,13 @@ fn a_pledge_signed_six_hours_later_succeeds() {
     exposure(&mut h, &c, &c.taker, MILLION, r(1)).expect("$1M");
     let call = t.call(c.agr.call(&r(1)));
     let nonce = create_nonce_account(&mut h, &c.giver.pubkey());
-    let ix = ix_collateral::pledge(&c.giver.pubkey(), &c.giver.pubkey(), &c.agr, UNITS_FOR_MILLION, r(9));
+    let ix = ix_collateral::pledge(
+        &c.giver.pubkey(),
+        &c.giver.pubkey(),
+        &c.agr,
+        UNITS_FOR_MILLION,
+        r(9),
+    );
     let message = prepare(&h, ix, &c.giver, &nonce);
 
     clock::advance(&mut h.svm, 6 * HOUR);
@@ -57,7 +68,10 @@ fn a_pledge_signed_six_hours_later_succeeds() {
     // The same signed message again: its nonce has moved on, so nothing happens twice.
     let res = sign_and_submit(&mut h, message, &[&c.giver]);
     assert_eq!(res.unwrap_err().err, TransactionError::BlockhashNotFound);
-    assert_eq!(lock_of(&h, &c.m(), &c.giver.pubkey()), (UNITS_FOR_MILLION, 1));
+    assert_eq!(
+        lock_of(&h, &c.m(), &c.giver.pubkey()),
+        (UNITS_FOR_MILLION, 1)
+    );
 }
 
 #[test]
@@ -68,7 +82,9 @@ fn an_ordinary_transaction_of_the_same_pledge_expires() {
     let msg = Message::new(&[ix], Some(&c.giver.pubkey()));
     clock::advance(&mut h.svm, 6 * HOUR);
     expire_recent_blockhashes(&mut h);
-    let res = h.svm.send_transaction(Transaction::new(&[&c.giver], msg, old));
+    let res = h
+        .svm
+        .send_transaction(Transaction::new(&[&c.giver], msg, old));
     assert_eq!(res.unwrap_err().err, TransactionError::BlockhashNotFound);
 }
 
@@ -79,7 +95,13 @@ fn calls_opened_meanwhile_dont_invalidate_prepared_steps() {
     t.call(c.agr.call(&r(1)));
     // G prepares a pledge; before it is signed, T opens a second call.
     let g_nonce = create_nonce_account(&mut h, &c.giver.pubkey());
-    let ix = ix_collateral::pledge(&c.giver.pubkey(), &c.giver.pubkey(), &c.agr, UNITS_FOR_MILLION, r(9));
+    let ix = ix_collateral::pledge(
+        &c.giver.pubkey(),
+        &c.giver.pubkey(),
+        &c.agr,
+        UNITS_FOR_MILLION,
+        r(9),
+    );
     let pledge_msg = prepare(&h, ix, &c.giver, &g_nonce);
     exposure(&mut h, &c, &c.taker, 2 * MILLION, r(2)).expect("second call");
     t.call(c.agr.call(&r(2)));
@@ -92,14 +114,23 @@ fn calls_opened_meanwhile_dont_invalidate_prepared_steps() {
     // T prepares a release; before it is signed, G opens a return call.
     exposure(&mut h, &c, &c.taker, 0, r(3)).expect("no exposure");
     let t_nonce = create_nonce_account(&mut h, &c.taker.pubkey());
-    let ix = ix_collateral::release(&c.taker.pubkey(), &c.agr, &c.agr.pledge(&r(9)), None, 1_000_000);
+    let ix = ix_collateral::release(
+        &c.taker.pubkey(),
+        &c.agr,
+        &c.agr.pledge(&r(9)),
+        None,
+        1_000_000,
+    );
     let release_msg = prepare(&h, ix, &c.taker, &t_nonce);
     issue(&mut h, &c, &c.giver, 1, r(4)).expect("return call");
     t.call(c.agr.call(&r(4)));
     clock::advance(&mut h.svm, 2 * HOUR);
     expire_recent_blockhashes(&mut h);
     sign_and_submit(&mut h, release_msg, &[&c.taker]).expect("the prepared release still lands");
-    assert_eq!(lock_of(&h, &c.m(), &c.giver.pubkey()).0, UNITS_FOR_MILLION - 1_000_000);
+    assert_eq!(
+        lock_of(&h, &c.m(), &c.giver.pubkey()).0,
+        UNITS_FOR_MILLION - 1_000_000
+    );
     t.check(&h);
 }
 
@@ -108,12 +139,21 @@ fn a_confirmation_for_a_replaced_raise_is_refused() {
     let (mut h, c, _) = ready(Ready::TwoStep);
     exposure(&mut h, &c, &c.taker, MILLION, r(1)).expect("pending raise");
     let nonce = create_nonce_account(&mut h, &c.giver.pubkey());
-    let ix = ix_collateral::confirm_exposure(&c.giver.pubkey(), &c.giver.pubkey(), &c.agr, MILLION, r(1));
+    let ix = ix_collateral::confirm_exposure(
+        &c.giver.pubkey(),
+        &c.giver.pubkey(),
+        &c.agr,
+        MILLION,
+        r(1),
+    );
     let message = prepare(&h, ix, &c.giver, &nonce);
     // While the giver's custodian approves, the taker replaces the raise.
     exposure(&mut h, &c, &c.taker, 2 * MILLION, r(2)).expect("newer raise");
     clock::advance(&mut h.svm, 4 * HOUR);
     expire_recent_blockhashes(&mut h);
-    assert_anchor_error(&sign_and_submit(&mut h, message, &[&c.giver]), CollateralError::PendingRaiseMismatch);
+    assert_anchor_error(
+        &sign_and_submit(&mut h, message, &[&c.giver]),
+        CollateralError::PendingRaiseMismatch,
+    );
     assert_eq!(agreement_of(&h, &c).pending_raise_value, 2 * MILLION);
 }

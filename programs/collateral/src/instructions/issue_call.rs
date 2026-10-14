@@ -10,7 +10,9 @@ use crate::call_account;
 use crate::errors::CollateralError;
 use crate::events::CallIssued;
 use crate::state::{CollateralCall, PledgeAgreement};
-use crate::valuation::{coverage, fresh, load_fund, load_holder, observe, require_eligible, snapshot};
+use crate::valuation::{
+    coverage, fresh, load_fund, load_holder, observe, require_eligible, snapshot,
+};
 
 #[event_cpi]
 #[derive(Accounts)]
@@ -67,9 +69,19 @@ pub fn handle_issue_call(ctx: Context<IssueCall>, kind: u8, external_ref: [u8; 3
             let uncalled = shortfall(coverage(&fund, a)?)
                 .checked_sub(a.called_outstanding)
                 .ok_or(error!(CollateralError::Overflow))?;
-            require!(uncalled > a.min_transfer_value, CollateralError::NothingToCall);
-            let call =
-                call_account::delivery_call(a, agreement, &fund, now, uncalled, external_ref, ctx.bumps.call)?;
+            require!(
+                uncalled > a.min_transfer_value,
+                CollateralError::NothingToCall
+            );
+            let call = call_account::delivery_call(
+                a,
+                agreement,
+                &fund,
+                now,
+                uncalled,
+                external_ref,
+                ctx.bumps.call,
+            )?;
             call_account::count_delivery(a, uncalled)?;
             call
         }
@@ -109,7 +121,10 @@ pub fn handle_issue_call(ctx: Context<IssueCall>, kind: u8, external_ref: [u8; 3
                 bump: ctx.bumps.call,
                 _reserved: [0; 64],
             };
-            a.call_count = a.call_count.checked_add(1).ok_or(error!(CollateralError::Overflow))?;
+            a.call_count = a
+                .call_count
+                .checked_add(1)
+                .ok_or(error!(CollateralError::Overflow))?;
             a.open_return_call = ctx.accounts.call.key();
             call
         }

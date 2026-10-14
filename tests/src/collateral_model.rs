@@ -325,7 +325,12 @@ impl Model {
 
     /// Applies a raise at a fresh price: observe, set the exposure, open the call if needed.
     /// Returns the opened call's index.
-    fn apply_raise(&mut self, a: usize, value: u64, external_ref: [u8; 32]) -> ModelResult<Option<usize>> {
+    fn apply_raise(
+        &mut self,
+        a: usize,
+        value: u64,
+        external_ref: [u8; 32],
+    ) -> ModelResult<Option<usize>> {
         self.fresh(a)?;
         let before = self.clone();
         self.observe(a)?;
@@ -346,7 +351,12 @@ impl Model {
     // --- instructions ---
 
     /// `update_exposure`, signed by the taker. Returns the call it opened, if any.
-    pub fn update_exposure(&mut self, a: usize, value: u64, external_ref: [u8; 32]) -> ModelResult<Option<usize>> {
+    pub fn update_exposure(
+        &mut self,
+        a: usize,
+        value: u64,
+        external_ref: [u8; 32],
+    ) -> ModelResult<Option<usize>> {
         if external_ref == [0; 32] {
             return Err("ZeroExternalRef");
         }
@@ -374,7 +384,12 @@ impl Model {
     }
 
     /// `confirm_exposure`, signed by the giver.
-    pub fn confirm_exposure(&mut self, a: usize, value: u64, external_ref: [u8; 32]) -> ModelResult<Option<usize>> {
+    pub fn confirm_exposure(
+        &mut self,
+        a: usize,
+        value: u64,
+        external_ref: [u8; 32],
+    ) -> ModelResult<Option<usize>> {
         let ag = &self.agreements[a];
         let Some(pending) = ag.pending else {
             return Err("NoPendingRaise");
@@ -389,7 +404,12 @@ impl Model {
     }
 
     /// `issue_call`: Delivery by the taker, Return by the giver.
-    pub fn issue_call(&mut self, a: usize, kind: CallKind, external_ref: [u8; 32]) -> ModelResult<usize> {
+    pub fn issue_call(
+        &mut self,
+        a: usize,
+        kind: CallKind,
+        external_ref: [u8; 32],
+    ) -> ModelResult<usize> {
         if self.agreements[a].call_refs.contains(&external_ref) {
             return Err("AlreadyInUse");
         }
@@ -463,7 +483,13 @@ impl Model {
     }
 
     /// `pledge`, signed by `actor`. Returns the pledge index.
-    pub fn pledge(&mut self, a: usize, actor: Actor, units: u64, pledge_ref: [u8; 32]) -> ModelResult<usize> {
+    pub fn pledge(
+        &mut self,
+        a: usize,
+        actor: Actor,
+        units: u64,
+        pledge_ref: [u8; 32],
+    ) -> ModelResult<usize> {
         if self.agreements[a].pledge_refs.contains(&pledge_ref) {
             return Err("AlreadyInUse");
         }
@@ -481,7 +507,11 @@ impl Model {
             return Err("PartyNotEligible");
         }
         let ag = &self.agreements[a];
-        if ag.pledged.checked_add(units).is_none_or(|p| p > ag.terms.cap_units) {
+        if ag
+            .pledged
+            .checked_add(units)
+            .is_none_or(|p| p > ag.terms.cap_units)
+        {
             return Err("PledgeLimitExceeded");
         }
         let h = &self.holders[giver];
@@ -533,7 +563,8 @@ impl Model {
             return Err("KeeperNeedsReturnCall");
         }
         if let Some(c) = return_call {
-            if self.agreements[a].open_return != Some(c) || self.calls[c].status != CallStatus::Open {
+            if self.agreements[a].open_return != Some(c) || self.calls[c].status != CallStatus::Open
+            {
                 return Err("WrongReturnCall");
             }
             let call = &self.calls[c];
@@ -576,7 +607,13 @@ impl Model {
     }
 
     /// `substitute`, signed by `actor`. Returns the new pledge index.
-    pub fn substitute(&mut self, old: usize, actor: Actor, new_units: u64, pledge_ref: [u8; 32]) -> ModelResult<usize> {
+    pub fn substitute(
+        &mut self,
+        old: usize,
+        actor: Actor,
+        new_units: u64,
+        pledge_ref: [u8; 32],
+    ) -> ModelResult<usize> {
         let a = self.pledges[old].agreement;
         if self.agreements[a].pledge_refs.contains(&pledge_ref) {
             return Err("AlreadyInUse");
@@ -599,7 +636,10 @@ impl Model {
             return Err("PartyNotEligible");
         }
         let ag = &self.agreements[a];
-        if (ag.pledged - remaining).checked_add(new_units).is_none_or(|p| p > ag.terms.cap_units) {
+        if (ag.pledged - remaining)
+            .checked_add(new_units)
+            .is_none_or(|p| p > ag.terms.cap_units)
+        {
             return Err("PledgeLimitExceeded");
         }
         let h = &self.holders[giver];
@@ -733,9 +773,16 @@ impl Model {
                         && c.seq >= ag.met_below
                 })
                 .collect();
-            assert_eq!(usize::from(ag.open_delivery), open.len(), "I16 count: agreement {a}");
+            assert_eq!(
+                usize::from(ag.open_delivery),
+                open.len(),
+                "I16 count: agreement {a}"
+            );
             let total: u64 = open.iter().map(|c| c.value).sum();
-            assert!(ag.demanded <= total, "I16 demanded ≤ Σ values: agreement {a}");
+            assert!(
+                ag.demanded <= total,
+                "I16 demanded ≤ Σ values: agreement {a}"
+            );
             if open.is_empty() {
                 assert_eq!(ag.demanded, 0, "I16 zero: agreement {a}");
             }
@@ -766,14 +813,22 @@ mod tests {
         let mut m = Model::new(&[2_000_000_000_000, 0], ONE, 1_000);
         let a = m.add_agreement(0, 1, worked());
         // US2: $1M with nothing pledged opens a $1M call.
-        let c = m.update_exposure(a, 1_000_000_000_000, [1; 32]).unwrap().unwrap();
+        let c = m
+            .update_exposure(a, 1_000_000_000_000, [1; 32])
+            .unwrap()
+            .unwrap();
         assert_eq!(m.calls[c].value, 1_000_000_000_000);
         assert_eq!(m.calls[c].units_required, 1_020_408_163_266);
         assert_eq!(m.calls[c].deadline, 1_000 + 14_400);
         assert_eq!(m.calls[c].enforce_after, 1_000 + 21_600);
-        assert_eq!(m.issue_call(a, CallKind::Delivery, [2; 32]), Err("NothingToCall"));
+        assert_eq!(
+            m.issue_call(a, CallKind::Delivery, [2; 32]),
+            Err("NothingToCall")
+        );
         // US3: pledging the units required meets it.
-        let p = m.pledge(a, Actor::Giver, 1_020_408_163_266, [3; 32]).unwrap();
+        let p = m
+            .pledge(a, Actor::Giver, 1_020_408_163_266, [3; 32])
+            .unwrap();
         assert_eq!(m.call_status(c), CallStatus::Met);
         assert_eq!(m.transfer(0, 1, 979_591_836_735), Err("PledgedUnitsLocked"));
         // US4: lower to $400 000; the return call releases 612,244.897959 units.
@@ -781,7 +836,10 @@ mod tests {
         let r = m.issue_call(a, CallKind::Return, [5; 32]).unwrap();
         assert_eq!(m.calls[r].value, 600_000_000_000);
         assert_eq!(m.calls[r].units_required, 612_244_897_959);
-        assert_eq!(m.release(p, Actor::Keeper, 612_244_897_959, Some(r)), Ok(true));
+        assert_eq!(
+            m.release(p, Actor::Keeper, 612_244_897_959, Some(r)),
+            Ok(true)
+        );
         assert_eq!(m.holders[0].locked, 408_163_265_307);
         assert_eq!(m.coverage(a), Ok(0));
         m.check_invariants();
@@ -797,7 +855,10 @@ mod tests {
         m.pledge(a, Actor::Giver, units, [2; 32]).unwrap();
         assert_eq!(m.agreements[a].demanded, 400_000_000_000);
         // A $500 000 raise opens a new $500 000 call instead of folding into the first.
-        let c = m.update_exposure(a, 1_500_000_000_000, [3; 32]).unwrap().unwrap();
+        let c = m
+            .update_exposure(a, 1_500_000_000_000, [3; 32])
+            .unwrap()
+            .unwrap();
         assert_eq!(m.calls[c].value, 500_000_000_000);
         assert_eq!(m.agreements[a].open_delivery, 2);
         m.check_invariants();
@@ -808,9 +869,13 @@ mod tests {
         let mut m = Model::new(&[2_000_000_000_000, 0], ONE, 0);
         let a = m.add_agreement(0, 1, worked());
         m.update_exposure(a, 1_000_000_000_000, [1; 32]).unwrap();
-        m.pledge(a, Actor::Giver, 1_020_408_163_266, [2; 32]).unwrap();
+        m.pledge(a, Actor::Giver, 1_020_408_163_266, [2; 32])
+            .unwrap();
         m.publish(99_000_000);
-        assert_eq!(m.issue_call(a, CallKind::Delivery, [3; 32]), Err("NothingToCall"));
+        assert_eq!(
+            m.issue_call(a, CallKind::Delivery, [3; 32]),
+            Err("NothingToCall")
+        );
         m.publish(98_500_000);
         let c = m.issue_call(a, CallKind::Delivery, [4; 32]).unwrap();
         assert_eq!(m.calls[c].value, 15_000_000_000);
