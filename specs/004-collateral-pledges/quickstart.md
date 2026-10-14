@@ -23,8 +23,9 @@ cargo run -p devnet-e2e -- --feature f004   # one devnet run (below)
 
 ## Test fixture `collateral_ready_fund`
 
-1. F001–F003: launch a fund, onboard giver G and taker T, publish $1.00, and give G 2 000 000
-   units (`seed_units`, which keeps I4).
+1. F001–F003: launch a fund with `max_nav_move_bps = 500` (so test publishes of $0.985–$1.01
+   pass F002's price-move guard), onboard giver G and taker T, publish $1.00, and give G
+   2 000 000 units (`seed_units`, which keeps I4).
 2. T proposes an agreement with the worked terms: haircut 200 bps, MTA $10 000, cure 4 h, grace
    2 h, pledge limit 5 000 000 units, max price age 26 h, taker may raise alone, a non-zero
    document hash. G signs it.
