@@ -1006,6 +1006,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
 
 [[package]]
+name = "collateral"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "compliance_hook",
+ "mmf-common",
+]
+
+[[package]]
 name = "combine"
 version = "3.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1843,6 +1852,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
+ "collateral",
  "compliance_hook",
  "dvp_settlement",
  "fund",
@@ -2534,6 +2544,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
+ "collateral",
  "compliance_hook",
  "dvp_settlement",
  "fund",
@@ -5701,6 +5712,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "base64 0.22.1",
+ "collateral",
  "compliance_hook",
  "dvp_settlement",
  "fund",

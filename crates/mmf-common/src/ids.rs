@@ -10,6 +10,9 @@ pub const GOVERNANCE_PROGRAM_ID: Pubkey = pubkey!("8Z7an6h8k8dbq7Bxzxyh4HseyaNgT
 /// F003. Must match `programs/dvp_settlement`'s `declare_id!`.
 pub const DVP_SETTLEMENT_PROGRAM_ID: Pubkey =
     pubkey!("418DJ7wBLXAWBGA81vGLxEJTMxZMNMqrmj6t3sErck6w");
+/// F004. Must match `programs/collateral`'s `declare_id!`.
+pub const COLLATERAL_PROGRAM_ID: Pubkey =
+    pubkey!("2RGrj5Jp8PGFVNRFNbJJtZVAph9mBYEubX6QMgqup6Yi");
 
 pub const SPL_TOKEN_PROGRAM_ID: Pubkey = pubkey!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 pub const TOKEN_2022_PROGRAM_ID: Pubkey = pubkey!("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");

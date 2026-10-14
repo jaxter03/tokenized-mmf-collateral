@@ -75,10 +75,10 @@ says the same.
 **Purpose**: confirm a green F001–F003 baseline, then add the fifth program and the new crate
 edges.
 
-- [ ] T001 Run `anchor build && cargo test -p mmf-common && cargo test -p tests` on the branch
+- [X] T001 Run `anchor build && cargo test -p mmf-common && cargo test -p tests` on the branch
   before any change. Confirm F001–F003 are green (Constitution XII baseline), and record the test
   count in the PR description draft
-- [ ] T002 Create the `collateral` program (research R1):
+- [X] T002 Create the `collateral` program (research R1):
   - `programs/collateral/Cargo.toml` with
     `anchor-lang = { version = "=1.1.2", features = ["event-cpi"] }`, `mmf-common`, and
     `compliance_hook = { path = "../compliance_hook", features = ["cpi", "no-entrypoint"] }`,
@@ -91,7 +91,7 @@ edges.
     others.
 
   `anchor build` must produce five `.so` files
-- [ ] T003 Add the crate edges from plan.md "Primary Dependencies":
+- [X] T003 Add the crate edges from plan.md "Primary Dependencies":
   - `collateral = { path = "../collateral", features = ["cpi", "no-entrypoint"] }` in
     `programs/governance/Cargo.toml`;
   - `collateral = { path = "../programs/collateral", features = ["no-entrypoint"] }` in
@@ -100,7 +100,7 @@ edges.
   Confirm there is no cycle: `cargo tree -p compliance_hook | grep collateral` and
   `cargo tree -p collateral | grep governance` must both be empty. `anchor build` succeeds and
   `scripts/check-duplicate-crates.sh` passes
-- [ ] T004 In `tests/src/harness.rs`, load `collateral.so` at `COLLATERAL_PROGRAM_ID` alongside
+- [X] T004 In `tests/src/harness.rs`, load `collateral.so` at `COLLATERAL_PROGRAM_ID` alongside
   the four existing programs. Run the suite: still green
 
 ---
