@@ -613,7 +613,7 @@ cancelling the call, by compliance resolution through governance, or when the ca
 
 ### Interface stubs for User Story 6
 
-- [ ] T060 [US6] Add stubs, with account structs per contracts/collateral.md and
+- [X] T060 [US6] Add stubs, with account structs per contracts/collateral.md and
   contracts/governance.md:
   - `dispute_call(dispute_ref)`, `withdraw_dispute()` and
     `resolve_dispute(outcome, reason, case_ref_hash, actor)` in
@@ -621,12 +621,12 @@ cancelling the call, by compliance resolution through governance, or when the ca
   - `governance::resolve_call_dispute(outcome, reason, case_ref_hash)` in
     `programs/governance/src/instructions/resolve_call_dispute.rs`, with the `collateral_caller`
     PDA account.
-- [ ] T061 [P] [US6] Add the SDK builders `ix_collateral::{dispute_call, withdraw_dispute}` and
+- [X] T061 [P] [US6] Add the SDK builders `ix_collateral::{dispute_call, withdraw_dispute}` and
   `ix_governance::resolve_call_dispute(compliance, role_registry, fund_state, agreement, call, outcome, reason, case_ref_hash)`
 
 ### Tests for User Story 6 (write first; they must fail) ⚠️
 
-- [ ] T062 [US6] Write `tests/tests/f004_dispute.rs` (FR-020 for Disputed calls, FR-031–FR-033).
+- [X] T062 [US6] Write `tests/tests/f004_dispute.rs` (FR-020 for Disputed calls, FR-031–FR-033).
   Run compliance through its Squads vault, as `f003_reject.rs` does:
   - **US6 independent test**;
   - **Dispute rejections**: a Return call → `WrongCallKind`; a Disputed, Cancelled or
@@ -649,14 +649,14 @@ cancelling the call, by compliance resolution through governance, or when the ca
 
 ### Implementation for User Story 6
 
-- [ ] T063 [US6] Implement `dispute_call` and `withdraw_dispute` per their contracts
+- [X] T063 [US6] Implement `dispute_call` and `withdraw_dispute` per their contracts
   (`settle_status` first). Emit `CallDisputed` / `DisputeWithdrawn`
-- [ ] T064 [US6] Implement `collateral::resolve_dispute` (checks 1–4). The caller must be
+- [X] T064 [US6] Implement `collateral::resolve_dispute` (checks 1–4). The caller must be
   governance's `["collateral-caller"]`, derived from `GOVERNANCE_PROGRAM_ID`. Cancelled shares
   `cancel_call`'s delivery bookkeeping. Emit `DisputeResolved`
-- [ ] T065 [US6] Implement `governance::resolve_call_dispute` (checks 1–3, then the CPI signed by
+- [X] T065 [US6] Implement `governance::resolve_call_dispute` (checks 1–3, then the CPI signed by
   `["collateral-caller"]`, with `actor = compliance`), following `reject_settlement`
-- [ ] T066 [US6] Make T062 pass. Call depth through Squads ≤ 4
+- [X] T066 [US6] Make T062 pass. Call depth through Squads ≤ 4
 
 **Checkpoint**: all six stories pass.
 
