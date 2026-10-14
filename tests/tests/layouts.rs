@@ -1,22 +1,27 @@
-//! T019 (F001), T008 (F002): account layouts are fixed, and the read-only views in
+//! T019 (F001), T008 (F002), T011 (F003): account layouts are fixed, and the read-only views in
 //! `mmf_common::views` decode program-serialized accounts to the same values (guards against
 //! layout drift, F001 research R12).
 
 use anchor_lang::prelude::Pubkey;
 use anchor_lang::{AccountSerialize, Discriminator, Space};
 use compliance_hook::{HolderState, Registry};
+use dvp_settlement::{DvpConfig, SettlementInstruction};
 use fund::{FundState, FundTerms, NavRecord};
 use governance::RoleRegistry;
+use mmf_common::ids::{COMPLIANCE_HOOK_PROGRAM_ID, DVP_SETTLEMENT_PROGRAM_ID};
 use mmf_common::jurisdiction::{self, SET_WORDS};
+use mmf_common::seeds;
 use mmf_common::views::{
-    FundStateView, RegistryView, RoleRegistryView, FUND_STATE_DISCRIMINATOR,
-    REGISTRY_DISCRIMINATOR, ROLE_REGISTRY_DISCRIMINATOR,
+    FundStateView, HolderStateView, RegistryView, RoleRegistryView, SettlementView,
+    FUND_STATE_DISCRIMINATOR, HOLDER_STATE_DISCRIMINATOR, REGISTRY_DISCRIMINATOR,
+    ROLE_REGISTRY_DISCRIMINATOR, SETTLEMENT_INSTRUCTION_DISCRIMINATOR,
 };
 
 const RESERVED: [u8; 64] = [0xAB; 64];
-/// FundState's reserved bytes after F002 took 12 of them (research R10).
-const FUND_RESERVED: [u8; 52] = [0xAB; 52];
-/// `8 + FundState::INIT_SPACE` as shipped in F001; F002 must not change it.
+/// FundState's reserved bytes after F002 took 12 of them (F002 research R10) and F003 took 8
+/// more (F003 research R9).
+const FUND_RESERVED: [u8; 44] = [0xAB; 44];
+/// `8 + FundState::INIT_SPACE` as shipped in F001; F002 and F003 must not change it.
 const F001_FUND_STATE_LEN: usize =
     8 + 1 + 32 + 32 + 219 + 1 + 8 + 8 + 8 + 16 + 8 + 8 + 8 + 8 + 32 + 4 + 1 + 64;
 
@@ -40,6 +45,11 @@ fn discriminator_constants_match_anchor() {
     assert_eq!(FundState::DISCRIMINATOR, FUND_STATE_DISCRIMINATOR);
     assert_eq!(RoleRegistry::DISCRIMINATOR, ROLE_REGISTRY_DISCRIMINATOR);
     assert_eq!(Registry::DISCRIMINATOR, REGISTRY_DISCRIMINATOR);
+    assert_eq!(HolderState::DISCRIMINATOR, HOLDER_STATE_DISCRIMINATOR);
+    assert_eq!(
+        SettlementInstruction::DISCRIMINATOR,
+        SETTLEMENT_INSTRUCTION_DISCRIMINATOR
+    );
 }
 
 #[test]
@@ -66,19 +76,20 @@ fn fund_state_layout_and_view() {
         nav_seq: 3,
         accrual_index: 0x0102_0304_0506_0708_090A_0B0C_0D0E_0F10,
         daily_rate_e12: 123_287_671,
-        units_outstanding: 0,
-        redeemed_today: 0,
-        day_start_ts: 0,
-        cash_treasury: Pubkey::default(),
+        units_outstanding: 2_000_000_000_000,
+        redeemed_today: 500_000_000_000,
+        day_start_ts: 20_739 * 86_400,
+        cash_treasury: Pubkey::new_unique(),
         current_cycle: 0,
         bump: 254,
         nav_period_end_day: 20_741,
         pending_override_nav: 99_000_000,
+        units_at_day_start: 1_500_000_000_000,
         _reserved: FUND_RESERVED,
     };
     let d = bytes(&fs);
 
-    // F002 took reserved bytes without resizing or moving any F001 field (research R10).
+    // F002 and F003 took reserved bytes without resizing or moving any F001 field.
     assert_eq!(
         d.len(),
         F001_FUND_STATE_LEN,
@@ -100,7 +111,12 @@ fn fund_state_layout_and_view() {
         &99_000_000u64.to_le_bytes(),
         "then pending_override_nav"
     );
-    assert_eq!(&d[tail + 12..], &FUND_RESERVED, "then 52 reserved bytes");
+    assert_eq!(
+        &d[tail + 12..tail + 20],
+        &1_500_000_000_000u64.to_le_bytes(),
+        "then units_at_day_start (F003)"
+    );
+    assert_eq!(&d[tail + 20..], &FUND_RESERVED, "then 44 reserved bytes");
 
     let v = FundStateView::decode(&d);
     assert_eq!(
@@ -110,6 +126,12 @@ fn fund_state_layout_and_view() {
             role_registry: fs.role_registry,
             status: 1,
             accrual_index: fs.accrual_index,
+            cash_mint: fs.terms.cash_mint,
+            nav: 100_000_000,
+            nav_seq: 3,
+            nav_period_end_day: 20_741,
+            units_outstanding: 2_000_000_000_000,
+            cash_treasury: fs.cash_treasury,
         }
     );
 }
@@ -206,16 +228,23 @@ fn registry_layout_and_view() {
             fund_state: r.fund_state,
             kyc_providers: r.kyc_providers,
             allowed_jurisdictions: allowed,
+            transfers_paused: true,
         }
     );
 }
 
 #[test]
 fn holder_state_layout() {
+    let mint = Pubkey::new_unique();
+    let owner = Pubkey::new_unique();
+    let (key, bump) = Pubkey::find_program_address(
+        &[seeds::HOLDER, mint.as_ref(), owner.as_ref()],
+        &COMPLIANCE_HOOK_PROGRAM_ID,
+    );
     let h = HolderState {
         version: HolderState::VERSION,
-        mint: Pubkey::new_unique(),
-        owner: Pubkey::new_unique(),
+        mint,
+        owner,
         status: 1,
         class: 0,
         jurisdiction: *b"US",
@@ -229,13 +258,124 @@ fn holder_state_layout() {
         accrued_e18: 0,
         last_balance: 0,
         last_slot: 0,
-        last_paid_cycle: 0,
-        bump: 251,
+        last_paid_cycle: 7,
+        bump,
         _reserved: RESERVED,
     };
-    let d = bytes(&h);
+    let mut d = bytes(&h);
     assert_frame::<HolderState>(&d, HolderState::DISCRIMINATOR, 1);
     // owner sits right after version and mint: the hook's ExtraAccountMeta seeds don't read it,
     // but clients and indexers do.
     assert_eq!(&d[8 + 1 + 32..8 + 1 + 64], h.owner.as_ref());
+
+    // F003: settlement reads it through HolderStateView.
+    let mut lamports = 0u64;
+    let info = anchor_lang::prelude::AccountInfo::new(
+        &key,
+        false,
+        false,
+        &mut lamports,
+        &mut d,
+        &COMPLIANCE_HOOK_PROGRAM_ID,
+        false,
+    );
+    let v = HolderStateView::load(&info, &mint, &owner).expect("view loads");
+    assert_eq!(
+        v,
+        HolderStateView {
+            mint,
+            owner,
+            status: 1,
+            class: 0,
+            kyc_expiry_ts: 1_800_000_000,
+            bump,
+        }
+    );
+}
+
+#[test]
+fn dvp_config_layout() {
+    let c = DvpConfig {
+        version: DvpConfig::VERSION,
+        fund_state: Pubkey::new_unique(),
+        next_seq: 1,
+        default_expiry_secs: 86_400,
+        bump: 255,
+        escrow_bump: 254,
+        _reserved: RESERVED,
+    };
+    let d = bytes(&c);
+    // 8 + 1 + 32 + 8 + 4 + 1 + 1 + 64 (data-model.md).
+    assert_eq!(d.len(), 119);
+    assert_frame::<DvpConfig>(&d, DvpConfig::DISCRIMINATOR, 1);
+}
+
+#[test]
+fn settlement_instruction_layout_and_view() {
+    let fund_state = Pubkey::new_unique();
+    let created_by = Pubkey::new_unique();
+    let external_ref = [0x42; 32];
+    let (key, bump) = Pubkey::find_program_address(
+        &[
+            seeds::SETTLEMENT,
+            fund_state.as_ref(),
+            created_by.as_ref(),
+            &external_ref,
+        ],
+        &DVP_SETTLEMENT_PROGRAM_ID,
+    );
+    let si = SettlementInstruction {
+        version: SettlementInstruction::VERSION,
+        fund_state,
+        seq: 9,
+        kind: 1,
+        seller: Pubkey::new_unique(),
+        buyer: fund_state,
+        units: 500_000_000_000,
+        cash_amount: 500_000_000_001,
+        nav_seq: 4,
+        not_before_ts: 10,
+        expires_at_ts: 20,
+        status: 3,
+        seller_funded_at: 11,
+        buyer_funded_at: 12,
+        external_ref,
+        created_by,
+        created_at: 9,
+        closed_at: 0,
+        cancel_requests: 2,
+        units_to_return: 0,
+        cash_to_return: 0,
+        bump,
+        _reserved: RESERVED,
+    };
+    let mut d = bytes(&si);
+    // 333 bytes with the discriminator (data-model.md).
+    assert_eq!(d.len(), 333);
+    assert_frame::<SettlementInstruction>(&d, SettlementInstruction::DISCRIMINATOR, 1);
+
+    let mut lamports = 0u64;
+    let info = anchor_lang::prelude::AccountInfo::new(
+        &key,
+        false,
+        false,
+        &mut lamports,
+        &mut d,
+        &DVP_SETTLEMENT_PROGRAM_ID,
+        false,
+    );
+    let v = SettlementView::load(&info).expect("view loads");
+    assert_eq!(
+        v,
+        SettlementView {
+            fund_state,
+            kind: 1,
+            units: 500_000_000_000,
+            cash_amount: 500_000_000_001,
+            status: 3,
+            external_ref,
+            created_by,
+            bump,
+        }
+    );
 }

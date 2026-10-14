@@ -1334,6 +1334,7 @@ dependencies = [
  "anchor-spl",
  "bs58",
  "compliance_hook",
+ "dvp_settlement",
  "fund",
  "mmf-common",
  "mmf-sdk",
@@ -1392,6 +1393,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.8",
+]
+
+[[package]]
+name = "dvp_settlement"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "fund",
+ "mmf-common",
 ]
 
 [[package]]
@@ -1672,6 +1683,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
+ "compliance_hook",
  "mmf-common",
  "spl-token-metadata-interface",
 ]
@@ -1832,6 +1844,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "compliance_hook",
+ "dvp_settlement",
  "fund",
  "mmf-common",
 ]
@@ -2509,6 +2522,9 @@ name = "mmf-common"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
+ "anchor-spl",
+ "solana-program-option",
+ "solana-program-pack",
  "solana-sha256-hasher",
 ]
 
@@ -2519,13 +2535,16 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "compliance_hook",
+ "dvp_settlement",
  "fund",
  "futures",
  "governance",
  "mmf-common",
  "solana-ed25519-program",
+ "solana-hash 3.1.0",
  "solana-instructions-sysvar",
  "solana-keypair",
+ "solana-message",
  "solana-signer",
  "spl-associated-token-account-interface",
  "spl-tlv-account-resolution",
@@ -5683,6 +5702,7 @@ dependencies = [
  "anchor-spl",
  "base64 0.22.1",
  "compliance_hook",
+ "dvp_settlement",
  "fund",
  "futures",
  "governance",

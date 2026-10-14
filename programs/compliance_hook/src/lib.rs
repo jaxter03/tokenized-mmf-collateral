@@ -84,6 +84,11 @@ pub mod compliance_hook {
         instructions::set_paused::handle_set_paused(ctx, paused, reason, case_ref_hash, actor)
     }
 
+    /// `fund` only (signer = its FundState PDA): settle interest before a mint or burn (F003).
+    pub fn accrue(ctx: Context<Accrue>, post_balance: u64) -> Result<()> {
+        instructions::accrue::handle_accrue(ctx, post_balance)
+    }
+
     /// Token-2022 transfer hook entry point.
     #[instruction(discriminator = ExecuteInstruction::SPL_DISCRIMINATOR_SLICE)]
     pub fn execute(ctx: Context<Execute>, amount: u64) -> Result<()> {

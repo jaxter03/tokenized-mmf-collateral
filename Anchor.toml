@@ -7,11 +7,13 @@ skip-lint = false
 
 [programs.devnet]
 compliance_hook = "A2R9A9xmCpicyUAYixJZr63oBPmKSR95CxxLoSPQfqtM"
+dvp_settlement = "418DJ7wBLXAWBGA81vGLxEJTMxZMNMqrmj6t3sErck6w"
 fund = "HV75Ur4qgfHHTNwbJdpiTMkq2sA7YoynBXFtzpsZzYT5"
 governance = "8Z7an6h8k8dbq7Bxzxyh4HseyaNgTHpVzSwvcq5H9pTV"
 
 [programs.localnet]
 compliance_hook = "A2R9A9xmCpicyUAYixJZr63oBPmKSR95CxxLoSPQfqtM"
+dvp_settlement = "418DJ7wBLXAWBGA81vGLxEJTMxZMNMqrmj6t3sErck6w"
 fund = "HV75Ur4qgfHHTNwbJdpiTMkq2sA7YoynBXFtzpsZzYT5"
 governance = "8Z7an6h8k8dbq7Bxzxyh4HseyaNgTHpVzSwvcq5H9pTV"
 

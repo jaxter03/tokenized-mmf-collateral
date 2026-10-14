@@ -1,3 +1,4 @@
+pub mod accrue;
 pub mod approve_fund_account;
 pub mod approve_investor;
 pub mod common;
@@ -8,6 +9,7 @@ pub mod set_rules;
 pub mod set_status;
 pub mod thaw_holding_account;
 
+pub use accrue::*;
 pub use approve_fund_account::*;
 pub use approve_investor::*;
 pub use init_registry::*;

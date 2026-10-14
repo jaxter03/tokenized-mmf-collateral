@@ -4,7 +4,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
 use mmf_common::enums::{FundStatus, HolderClass, HolderStatus};
-use mmf_common::ids::FUND_PROGRAM_ID;
+use mmf_common::ids::{DVP_SETTLEMENT_PROGRAM_ID, FUND_PROGRAM_ID};
 use mmf_common::seeds;
 use mmf_common::views::{FundStateView, RoleRegistryView};
 
@@ -64,18 +64,10 @@ pub fn handle_register_holder(
         HookError::SelfRegistrationClassNotAllowed
     );
 
-    // 5–6. Fund-operated accounts must be the system's own PDA (FR-019, research R17).
-    match class {
-        HolderClass::Escrow => return err!(HookError::ClassNotAvailable),
-        HolderClass::FundTreasury => {
-            let treasury = Pubkey::find_program_address(
-                &[seeds::TREASURY, reg.fund_state.as_ref()],
-                &FUND_PROGRAM_ID,
-            )
-            .0;
-            require_keys_eq!(owner, treasury, HookError::NotSystemControlled);
-        }
-        _ => {}
+    // 5–6. Fund-operated accounts must be the system's own PDA (FR-019, research R17; F003
+    // enables the settlement escrow).
+    if let Some(system_owner) = system_owner(class, &reg.fund_state) {
+        require_keys_eq!(owner, system_owner, HookError::NotSystemControlled);
     }
 
     // 7. One record per owner, ever (FR-014; a revoked record stays and blocks re-registration).
@@ -191,4 +183,16 @@ fn create_record(
         .with_signer(signer),
         &crate::ID,
     )
+}
+
+/// The only owner a fund-operated class may have: the fund treasury PDA `["treasury",
+/// fund_state]` of `fund`, or the settlement escrow PDA `["escrow", fund_state]` of
+/// `dvp_settlement` (F003). `None` for investors.
+pub(crate) fn system_owner(class: HolderClass, fund_state: &Pubkey) -> Option<Pubkey> {
+    let (seed, program) = match class {
+        HolderClass::FundTreasury => (seeds::TREASURY, FUND_PROGRAM_ID),
+        HolderClass::Escrow => (seeds::ESCROW, DVP_SETTLEMENT_PROGRAM_ID),
+        HolderClass::Investor | HolderClass::CollateralVault => return None,
+    };
+    Some(Pubkey::find_program_address(&[seed, fund_state.as_ref()], &program).0)
 }

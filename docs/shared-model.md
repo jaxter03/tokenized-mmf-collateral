@@ -135,14 +135,15 @@ nav_seq                u64      [F002]  last published NavRecord seq (0 = none)
 accrual_index          u128     [F002]
 daily_rate_e12         u64      [F002]  last published rate
 units_outstanding      u64      [F003]
-redeemed_today         u64      [F003]
-day_start_ts           i64      [F003]
+redeemed_today         u64      [F003]  units burned by redemptions since day_start_ts
+day_start_ts           i64      [F003]  00:00 UTC of the current redemption day (0 = never); rolled over before each mint/burn
 cash_treasury          Pubkey   [F003]  token account for cash
 current_cycle          u32      [F006]
 bump                   u8
 nav_period_end_day     u32      [F002]  last UTC day covered by a NavRecord (0 = none); after bump so F001 offsets don't move
 pending_override_nav   u64      [F002]  price the next publish may use beyond max_nav_move_bps (0 = none); set only via governance ["fund-caller"]; cleared by every publish
-_reserved              [u8; 52]
+units_at_day_start     u64      [F003]  units_outstanding when the redemption day rolled over (the daily limit's base)
+_reserved              [u8; 44]
 ```
 
 **FundTerms** (embedded)
@@ -181,39 +182,47 @@ version u8 · cycle u32 · owner Pubkey · amount u64 · paid_ts i64 · bump u8
 
 ### 4.3 `dvp_settlement` [F003]
 
-**DvpConfig**: PDA `["dvp", fund_state]`
+**DvpConfig**: PDA `["dvp", fund_state]`. Created by `init_dvp` (issuer) once `FundState.cash_treasury` is set.
 
 ```text
-version u8 · fund_state Pubkey · next_seq u64 · default_expiry_secs u32 · bump u8 · _reserved
+version u8 · fund_state Pubkey · next_seq u64 · default_expiry_secs u32 (86_400 unless given) · bump u8 · escrow_bump u8 · _reserved
 ```
 
 **Escrow authority**: PDA `["escrow", fund_state]`. One per fund. It owns:
-- the unit escrow token account (fund mint), with its own `HolderState` of class `Escrow`, approved at F003 setup;
-- the cash escrow token account (cash mint).
+- the unit escrow: its ATA for the fund mint (Token-2022), with its own `HolderState` of class `Escrow` (owner = this PDA), registered and approved by compliance and thawed after `init_dvp`;
+- the cash escrow: its ATA for `terms.cash_mint` under the cash mint's token program.
 
-Per-instruction amounts are tracked in `SettlementInstruction`, not in separate vaults.
+Per-instruction amounts are tracked in `SettlementInstruction`, not in separate vaults. The escrow balances are ≥ the sum held by all instructions (I13); anything sent outside an instruction is never released by one.
 
-**SettlementInstruction**: PDA `["settlement", fund_state, seq]`
+**SettlementInstruction**: PDA `["settlement", fund_state, created_by, external_ref]`. Never closed. The address is fixed by the creator before submission, so prepared (durable-nonce) steps stay valid; `seq` numbers instructions per fund.
 
 ```text
 version          u8
-seq              u64
+fund_state       Pubkey
+seq              u64     DvpConfig.next_seq at creation
 kind             u8      0 Subscription, 1 Redemption, 2 SecondaryTransfer
 seller           Pubkey  Subscription: fund_state; others: unit owner
 buyer            Pubkey  Redemption: fund_state; others: unit receiver
 units            u64
-cash_amount      u64     fixed at creation from NavRecord(nav_seq), rounding per section 8
+cash_amount      u64     fixed at creation from FundState.nav (= NavRecord(nav_seq).nav), rounding per section 8; secondary: agreed amount
 nav_seq          u64
 not_before_ts    i64
 expires_at_ts    i64
 status           u8      0 Instructed, 1 SellerFunded, 2 BuyerFunded, 3 Affirmed, 4 Settled, 5 Cancelled, 6 Expired, 7 Rejected
-seller_funded_at i64
+seller_funded_at i64     subscription: when the transfer agent affirmed for the Fund
 buyer_funded_at  i64
-external_ref     [u8; 32]
+external_ref     [u8; 32] non-zero; unique per creator (in the seeds)
 created_by       Pubkey
+created_at       i64
+closed_at        i64     time of the final status; 0 while open
+cancel_requests  u8      bit 0 seller side, bit 1 buyer side (Affirmed only)
+units_to_return  u64     earmarked for the seller once Cancelled / Expired / Rejected
+cash_to_return   u64     earmarked for the buyer side (redemption: cash_treasury)
 bump             u8
 _reserved        [u8; 64]
 ```
+
+Sides: the transfer agent acts for the Fund (seller side of a subscription, buyer side of a redemption). Cancel, expire and reject only earmark; `return_leg` (anyone) delivers each earmarked leg and can be retried.
 
 ### 4.4 `collateral` [F004, F005]
 
@@ -306,6 +315,8 @@ _reserved       [u8; 64]
 
 **Fund caller**: PDA `["fund-caller"]` of governance. Signs `fund::set_nav_override` / `clear_nav_override` CPIs. Shared by every fund, so governance checks that the role registry is bound to the target fund. [F002]
 
+**DVP caller**: PDA `["dvp-caller"]` of governance. Signs `dvp_settlement::reject` CPIs for `reject_settlement` (compliance). Shared by every fund; governance checks the role registry is bound to the target fund. RejectSettlement accepts the F001 reasons (0, 1, 2, 3, 6). [F003]
+
 **Token admin**: PDA `["token-admin", mint]` of governance. Holds the mint's transfer hook authority. Signs nothing until F007. [F001]
 
 **Delegate authority**: PDA `["delegate", mint]`. This is the mint's permanent delegate. It signs only inside `execute_enforcement` [F005] and `execute_action` for Seize or ForcedTransfer [F007].
@@ -358,8 +369,15 @@ version u8 · epoch u64 · slot u64 · register_root [u8; 32] · pledge_root [u8
 | `publish_daily` | fund | fund_admin (+ separate payer) | F002 |
 | `approve_nav_override`, `withdraw_nav_override` | governance → fund | compliance | F002 (record from F007) |
 | `set_nav_override`, `clear_nav_override` | fund | governance PDA `["fund-caller"]` only | F002 |
-| `create_instruction`, `affirm_and_fund`, `cancel` | dvp_settlement | parties | F003 |
-| `settle`, `expire` | dvp_settlement | keeper or anyone (permissionless, state-checked) | F003 |
+| `set_cash_treasury` | fund | issuer (once; Setup or Open) | F003 |
+| `init_dvp` | dvp_settlement | issuer (+ separate payer) | F003 |
+| `create_instruction` | dvp_settlement | investor or transfer_agent (subscription, redemption); seller or buyer (secondary) (+ separate payer) | F003 |
+| `affirm_and_fund`, `cancel`, `withdraw_cancel` | dvp_settlement | the side's party: transfer_agent for the Fund side, else the seller / buyer | F003 |
+| `settle`, `expire`, `return_leg` | dvp_settlement | keeper or anyone (permissionless, state-checked) | F003 |
+| `reject_settlement` | governance → dvp_settlement | compliance | F003 (record from F007) |
+| `reject` | dvp_settlement | governance PDA `["dvp-caller"]` only | F003 |
+| `mint_for_subscription`, `burn_for_redemption` | fund | dvp escrow PDA `["escrow", fund_state]` only (CPI) | F003 |
+| `accrue` | compliance_hook | `FundState` PDA only (CPI) | F003 |
 | `propose/sign_agreement`, `pledge`, `release`, `substitute`, `dispute_call` | collateral | giver / taker per section 4.4 | F004 |
 | `update_exposure`, `issue_call` | collateral | taker (giver affirms unless unilateral) | F004 |
 | `mark_defaulted` | collateral | keeper (state-checked) | F005 |
@@ -376,8 +394,9 @@ version u8 · epoch u64 · slot u64 · register_root [u8; 32] · pledge_root [u8
 | Caller | Callee instruction | Callee checks |
 |---|---|---|
 | Token-2022 | `compliance_hook::execute` | standard transfer-hook checks (section 6) |
-| `fund` | `compliance_hook::accrue(owner, pre_balance)` | signer = `FundState` PDA [F003: built with mint/burn, the first callers] |
-| `dvp_settlement` | `fund::mint_for_subscription`, `fund::burn_for_redemption` | signer = escrow authority PDA; instruction Affirmed |
+| `fund` | `compliance_hook::accrue(post_balance)` | signer = `FundState` PDA (`registry.fund_state`); pre-balance read from the holding account; F003 accepts the `Escrow` class only (F006 widens to investors) |
+| `dvp_settlement` | `fund::mint_for_subscription`, `fund::burn_for_redemption` | signer = escrow authority PDA of this fund; the `SettlementInstruction` passed is owned by dvp at its own PDA, same fund, right kind, Affirmed, same units; mint also needs the cash escrow ≥ `cash_amount` (I5); burn enforces the daily limit |
+| `governance` | `dvp_settlement::reject` | signer = governance PDA `["dvp-caller"]` [F003] |
 | `collateral` | `compliance_hook::set_lien(owner, ±units)` | signer = PDA `["hook-caller"]` of `registry.collateral_program` |
 | `collateral` | `governance::execute_enforcement(call)` | signer = collateral PDA `["gov-caller"]`; call account owned by collateral and status Defaulted |
 | `governance` | `compliance_hook::set_status` / `set_paused` | signer = governance PDA `["hook-admin"]` |
@@ -427,8 +446,10 @@ Mint and burn do not trigger the hook, so `fund` calls `compliance_hook::accrue`
 | I2 | `token_balance(holder) >= pledged_amount` at all times | F004 |
 | I3 | Only approved holders (or escrow/treasury classes) hold a non-zero balance | F001 |
 | I4 | `FundState.units_outstanding == mint supply` | F003 |
-| I5 | Every unit minted by subscription has its cash in escrow in the same transaction | F003 |
-| I6 | A settlement ends with both legs moved or every party at its starting balance | F003 |
+| I5 | Every unit minted by subscription has its cash in escrow when minted, and that cash is paid to `cash_treasury` in the same transaction | F003 |
+| I6 | A settlement ends with both legs moved or, once its earmarked returns are delivered, every party at its starting units and cash | F003 |
+| I13 | Unit escrow balance ≥ Σ units held and cash escrow balance ≥ Σ cash held over all `SettlementInstruction`s (held = funded amounts while open, earmarks once final); equal when nothing was sent to the escrow outside an instruction | F003 |
+| I14 | For the current redemption day, `redeemed_today × 10_000 ≤ units_at_day_start × redemption_gate_bps` | F003 |
 | I7 | Enforced value ≤ shortfall at the price record used | F005 |
 | I8 | Every discretionary admin action has an `ActionRecord` | F007 (F001–F006 call `record_action` once F007 lands; before that, events only) |
 | I9 | Σ distribution receipts for a cycle == total due, within rounding (section 8) | F006 |
@@ -450,6 +471,7 @@ Mint and burn do not trigger the hook, so `fund` calls `compliance_hook::accrue`
 | Interest accrued: `balance × Δindex` (exact in e18) | exact; paid amount = floor(accrued_e18 / 10^18) | Remainder stays in `accrued_e18` for the next cycle |
 | Index increment per publish: `daily_rate_e12 × 10^6 × days_covered` | exact | No division [F002] |
 | Price-move check: `abs(nav − prev) × 10_000 ≤ prev × max_nav_move_bps` (prev = last nav, or target_nav before the first publish) | exact (cross-multiplied); equal to the limit passes | No division, so no boundary rounding [F002] |
+| Redemption limit: `(redeemed_today + units) × 10_000 ≤ units_at_day_start × redemption_gate_bps` | exact (cross-multiplied); equal to the limit passes | No division [F003] |
 
 Worked check (used in tests): NAV 1.00, haircut 2 %:
 - $1,000,000 needs ceil(1,020,408.16…) = **1,020,409** units.
@@ -459,7 +481,7 @@ Worked check (used in tests): NAV 1.00, haircut 2 %:
 
 ## 9. Events (names are shared; payloads include `fund`, `slot`, `unix_ts`)
 
-`RolesInitialized`, `RolesAssigned`, `FundCreated`, `RegistryInitialized`, `RegisterRulesSet`, `FundLaunched`, `HolderRegistered`, `HolderApproved`, `HolderStatusChanged`, `TransfersPaused`, `HoldingAccountThawed`, `TransferValidated` (from F002 also carries `accrual_index`, `source_accrued_e18`, `destination_accrued_e18`), `Accrued` (compliance_hook::accrue, F003), `NavPublished`, `NavOverrideApproved`, `NavOverrideWithdrawn`, `SettlementCreated`, `LegFunded`, `Settled`, `SettlementCancelled`, `SettlementExpired`, `SettlementRejected`, `AgreementProposed`, `AgreementActive`, `ExposureUpdated`, `CallIssued`, `CallMet`, `CallDisputed`, `CallDefaulted`, `Pledged`, `Released`, `Substituted`, `LienSet`, `HoldPlaced`, `HoldLifted`, `Enforced`, `CycleClosed`, `Distributed`, `CycleFinalised`, `ActionProposed`, `ActionExecuted`, `ActionCancelled`, `RegisterRootCommitted`, `FundWindingDown`, `FundClosed`.
+`RolesInitialized`, `RolesAssigned`, `FundCreated`, `RegistryInitialized`, `RegisterRulesSet`, `FundLaunched`, `HolderRegistered`, `HolderApproved`, `HolderStatusChanged`, `TransfersPaused`, `HoldingAccountThawed`, `TransferValidated` (from F002 also carries `accrual_index`, `source_accrued_e18`, `destination_accrued_e18`), `Accrued` (compliance_hook::accrue, F003; `emit!`: owner, pre_balance, post_balance, accrual_index, accrued_e18), `NavPublished`, `NavOverrideApproved`, `NavOverrideWithdrawn`, `CashTreasurySet`, `SubscriptionMinted`, `RedemptionBurned`, `DvpInitialized`, `SettlementCreated`, `LegFunded`, `Settled`, `CancelRequested`, `CancelRequestWithdrawn`, `SettlementCancelled`, `SettlementExpired`, `SettlementRejected`, `LegReturned`, `AgreementProposed`, `AgreementActive`, `ExposureUpdated`, `CallIssued`, `CallMet`, `CallDisputed`, `CallDefaulted`, `Pledged`, `Released`, `Substituted`, `LienSet`, `HoldPlaced`, `HoldLifted`, `Enforced`, `CycleClosed`, `Distributed`, `CycleFinalised`, `ActionProposed`, `ActionExecuted`, `ActionCancelled`, `RegisterRootCommitted`, `FundWindingDown`, `FundClosed`.
 
 ---
 
@@ -481,10 +503,10 @@ Worked check (used in tests): NAV 1.00, haircut 2 %:
 |---|---|---|
 | F001 | mint + extensions, `FundState` (Setup/Open), `Registry`, `ExtraAccountMetaList` (all 5 entries), `HolderState`, `RoleRegistry` | hook steps 0, 1, 3, 4, 6, 7, 9, 10; `holder_count`, `last_balance`, `last_slot` |
 | F002 | `NavRecord` | `FundState.nav*`, `accrual_index`, `daily_rate_e12`, `nav_period_end_day`, `pending_override_nav`; `HolderState.index_at_last_touch`, `accrued_e18`; hook step 8; governance `["fund-caller"]` and the override instructions |
-| F003 | `DvpConfig`, escrow authority + its `HolderState`, `SettlementInstruction` | `FundState.units_outstanding`, `redeemed_today`, `cash_treasury`; `compliance_hook::accrue` and the `fund → accrue` CPI before every mint and burn (moved from F002: no caller existed) |
+| F003 | `DvpConfig`, escrow authority + its two ATAs + its `HolderState`, `SettlementInstruction` | `FundState.units_outstanding`, `redeemed_today`, `day_start_ts`, `units_at_day_start`, `cash_treasury`; `compliance_hook::accrue` (escrow class only) and the `fund → accrue` CPI before every mint and burn; Escrow class in `register_holder` / `approve_fund_account`; governance `["dvp-caller"]` and `reject_settlement` |
 | F004 | `PledgeAgreement`, `Pledge`, `CollateralCall` | `Registry.collateral_program`; `HolderState.pledged_amount`, `active_liens`; hook step 5 |
 | F005 | `EnforcementHold` | `CollateralCall.enforced_*`; delegate PDA signing in `execute_enforcement`; hook step 2 |
-| F006 | `DistributionCycle`, `DistributionReceipt` | `FundState.current_cycle`; `HolderState.last_paid_cycle` |
+| F006 | `DistributionCycle`, `DistributionReceipt` | `FundState.current_cycle`; `HolderState.last_paid_cycle`; `accrue` widened to Investor holders with the `holder_count` update |
 | F007 | `ActionRecord` (full), `RegisterRoot` | `RoleRegistry.timelock_secs`; `record_action` wired into F001–F006 admin paths |
 | F008 | none on-chain | reads everything; must not require new on-chain fields |
 

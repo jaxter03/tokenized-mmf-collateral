@@ -5,10 +5,10 @@ used as collateral. The fund's token enforces its own rules: only approved, KYC-
 institutions can hold it, and every compliance action is on-chain and on record.
 
 Built feature by feature with [Spec Kit](https://github.com/github/spec-kit). **F001 — fund
-launch, roles and holder onboarding** is merged; **F002 — daily price and interest accrual** is
-implemented on its branch. F003–F008 (subscription/redemption, collateral, enforcement,
-distributions, governance, operator tooling) follow in order; see
-[docs/speckit-inputs.md](docs/speckit-inputs.md).
+launch, roles and holder onboarding** and **F002 — daily price and interest accrual** are merged;
+**F003 — subscription, redemption and transfer settlement** is implemented on its branch.
+F004–F008 (collateral, enforcement, distributions, governance, operator tooling) follow in order;
+see [docs/speckit-inputs.md](docs/speckit-inputs.md).
 
 ## What F001 does
 
@@ -41,6 +41,53 @@ distributions, governance, operator tooling) follow in order; see
   10^18, no rounding). Whoever holds units at a publish earns it, whatever their status. Rounding
   to whole units happens only at payout (F006).
 
+## What F003 does
+
+Cash for units, and back, so that either both sides move or neither does. Units come into
+existence only at the moment their cash reaches the fund's treasury.
+
+- **Agree**: an investor or the transfer agent creates a subscription or redemption; two holders
+  create a secondary transfer. It is priced from the latest price record (which can't be more than
+  a day old) and keeps that price: subscription cash rounds up, redemption cash down.
+- **Fund**: each side places its leg in one per-fund escrow when it is ready (the Fund's side of
+  a subscription only affirms: its units are created at settlement). Units go in through the
+  transfer hook, so every holder rule applies. A step prepared on the signer's durable nonce stays
+  valid for hours, so custodians' approval flows fit.
+- **Settle**: anyone (normally the keeper) triggers settlement once both legs are in. One
+  instruction moves both legs: a subscription's units are minted into escrow, delivered and its
+  cash paid to the treasury; a redemption's units are burned within the daily limit (10 % of the
+  units outstanding at the start of the UTC day, by default) and its cash paid; a secondary
+  transfer swaps units and cash. If any part fails, nothing moves.
+- **Unwind**: either side cancels before both legs are in (both must agree once they are),
+  anyone expires an instruction after its expiry (24 h by default), and compliance rejects one
+  through governance. Each funded leg is earmarked and returned by a separate step anyone can
+  trigger and retry, so an unwind never depends on a return being deliverable right away.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Instructed: create
+    Instructed --> SellerFunded: seller funds / Fund affirms
+    Instructed --> BuyerFunded: buyer funds
+    SellerFunded --> Affirmed: buyer funds
+    BuyerFunded --> Affirmed: seller funds
+    Affirmed --> Settled: settle (both legs, one step)
+    Instructed --> Cancelled: cancel
+    SellerFunded --> Cancelled: cancel
+    BuyerFunded --> Cancelled: cancel
+    Affirmed --> Cancelled: both sides cancel
+    Instructed --> Expired: expire
+    SellerFunded --> Expired: expire
+    BuyerFunded --> Expired: expire
+    Affirmed --> Expired: expire
+    Instructed --> Rejected: compliance
+    SellerFunded --> Rejected: compliance
+    BuyerFunded --> Rejected: compliance
+    Affirmed --> Rejected: compliance
+    Cancelled --> [*]: return_leg (each funded leg)
+    Expired --> [*]: return_leg
+    Rejected --> [*]: return_leg
+```
+
 The specifications, plans and designs are in [specs/](specs/); the rules every feature follows
 are in the [constitution](.specify/memory/constitution.md) and
 [docs/shared-model.md](docs/shared-model.md).
@@ -49,7 +96,9 @@ are in the [constitution](.specify/memory/constitution.md) and
 
 ### Programs, accounts and authorities
 
-Three Anchor programs share one Token-2022 mint. Every authority over the mint is a program PDA, so
+Four Anchor programs share one Token-2022 mint (the diagram shows F001's three; F003's
+`dvp_settlement` owns the escrow and asks `fund` to mint and burn, see
+[specs/003-dvp-settlement/plan.md](specs/003-dvp-settlement/plan.md)). Every authority over the mint is a program PDA, so
 no person's key can mint, freeze or reconfigure the token.
 
 ```mermaid
@@ -162,8 +211,9 @@ holder's full status history can be rebuilt from those events alone.
 
 ## Tests
 
-**157 tests pass in the LiteSVM suite, plus 23 shared-crate unit tests.**
-- Every rule has a rejection test asserting the exact error; all 73 error variants are covered.
+**278 tests pass in the LiteSVM suite, plus 45 shared-crate and SDK unit tests** (4 more —
+the scale tests and a long property run — are `#[ignore]`d and run in release).
+- Every rule has a rejection test asserting the exact error; all 113 error variants are covered.
 - 128 randomized F001 operation sequences, now with publishes interleaved, are checked against a
   reference model.
 - F002 suites: `f002_publish`, `f002_override` and `f002_accrual`. The spec's own test is in
@@ -172,10 +222,21 @@ holder's full status history can be rebuilt from those events alone.
 - `accrual_prop`: 64 randomized 90-day simulations with transfers, suspensions and pauses. Every
   holder's interest equals an independent day-by-day model exactly after every step, and an
   auditor's rebuild from the records alone agrees.
-- Two scale tests, run in release. The hook's cost and a publish's cost are identical with 10 or
+- F003 suites, one per story and rule group: `f003_setup`, `f003_create`, `f003_fund`,
+  `f003_subscribe`, `f003_redeem`, `f003_secondary`, `f003_cancel_expire_reject`, `f003_reject`,
+  `f003_returns`, `f003_slow_signers` (durable nonces with LiteSVM's blockhash check on),
+  `f003_escrow`, `f003_mint_burn_guard`, `f003_accrual`, `f003_rebuild`. The spec's own tests:
+  a $2M subscription at $1.00, a 500 000-unit redemption, a 1 000 000-unit secondary for
+  $999 500, and three one-sided instructions cancelled, expired and rejected with every funder
+  restored exactly.
+- `dvp_prop`: randomized settlement sequences (creates, funding, settles, cancels, expiries,
+  rejections, returns, suspensions, pauses, publishes, clock moves) against an independent model;
+  outcomes, including which error comes first, and every balance must agree after every step.
+- Scale tests, run in release. The hook's cost and a publish's cost are identical with 10 or
   10 000 holders. A settlement's cost doesn't change with the number of holders or with how many
   publishes have passed since the holder's last one; it varies by 1–2 compute units with the
-  amounts involved, and the test allows a 16-unit band.
+  amounts involved, and the test allows a 16-unit band. A subscription's and a redemption's
+  settlement cost the same with 10 or 10 000 holders and 1 or 1 000 open instructions.
 
 ![F001 program tests passing on LiteSVM](docs/images/tests-litesvm.png)
 
@@ -203,10 +264,15 @@ programs/
   fund/             fund terms, status, the Token-2022 mint, daily price records (create_fund,
                     launch, publish_daily, set_/clear_nav_override)
   compliance_hook/  holder register, onboarding, and the transfer hook (incl. interest settlement)
-  governance/       roles, compliance actions, price overrides
+  governance/       roles, compliance actions, price overrides, settlement rejection
+  dvp_settlement/   escrowed settlement of subscriptions, redemptions and secondary transfers
+                    (init_dvp, create_instruction, affirm_and_fund, settle, cancel, expire,
+                    reject, return_leg)
 crates/
-  mmf-common/       program ids, seeds, enums, ISO 3166 table, KYC statement format, account views
-  mmf-sdk/          instruction builders, PDA helpers, mock KYC provider, hooked transfers
+  mmf-common/       program ids, seeds, enums, ISO 3166 table, KYC statement format, account
+                    views, settlement formulas, cash-token checks
+  mmf-sdk/          instruction builders, PDA helpers, mock KYC provider, hooked transfers,
+                    durable-nonce prepared steps
 tests/              LiteSVM harness and test suites; mainnet fixtures in tests/fixtures/
 scripts/
   devnet-e2e/       end-to-end run against devnet or a local validator
@@ -221,10 +287,10 @@ Requirements: Rust 1.90 (pinned in `rust-toolchain.toml`), Anchor CLI 1.1.2 (`av
 Solana CLI 3.1.10 or newer.
 
 ```bash
-anchor build                                          # the three programs
+anchor build                                          # the four programs
 cargo test -p mmf-common                              # shared types
 cargo test -p tests                                   # LiteSVM suites, incl. randomized invariants
-cargo test -p tests --release --test scale -- --ignored   # 10 vs 10 000 holders (hook, publish, settlement)
+cargo test -p tests --release -- --ignored            # scale (10 vs 10 000 holders) and long property runs
 scripts/check-error-coverage.sh                       # every error variant has a test
 ```
 
@@ -239,10 +305,15 @@ still runs every hook check). `--continue <mint>` publishes the next record on a
 Rehearse it free on a local validator, then run it on devnet once the programs are deployed.
 Commands are in the [F001](specs/001-fund-launch-onboarding/quickstart.md#devnet-run-r16) and
 [F002](specs/002-daily-price-accrual/quickstart.md#devnet-run-research-r13) quickstarts.
+`devnet-e2e --feature f003` runs settlement on a new fund with real units and a mock stablecoin
+(a subscription funded through a prepared durable-nonce step, an expired secondary and its return,
+and a redemption that today's limit refuses); `--feature f003 --continue <mint>` settles that
+redemption on a later UTC day. See the
+[F003 quickstart](specs/003-dvp-settlement/quickstart.md).
 
 ## Status
 
-F001 is merged. F002 is implemented and tested on `002-daily-price-accrual`; its devnet run and
-human review gate ([review.md](specs/002-daily-price-accrual/review.md)) are pending before it
+F001 and F002 are merged. F003 is implemented and tested on `003-dvp-settlement`; its devnet run
+and human review gate ([review.md](specs/003-dvp-settlement/review.md)) are pending before it
 merges. Devnet deployment of the programs is still pending. Nothing here is audited — don't use it
 with real assets.

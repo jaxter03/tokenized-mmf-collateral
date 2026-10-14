@@ -54,10 +54,23 @@ pub enum FundError {
     PriceMoveTooLarge,
     #[msg("Arithmetic overflow")]
     Overflow,
-    #[msg("Only governance may call this instruction")]
+    #[msg("Caller is not the program allowed to call this instruction")]
     UnauthorizedCaller,
     #[msg("A price override is already pending")]
     OverrideAlreadyPending,
     #[msg("No price override is pending")]
     NoOverridePending,
+    // --- F003 (appended so F001/F002 codes keep their numbers) ---
+    #[msg("The treasury cash account is already set")]
+    CashTreasuryAlreadySet,
+    #[msg("Treasury cash account must be a token account of the fund's cash mint")]
+    InvalidCashTreasury,
+    #[msg("Cash mint has a transfer fee or transfer hook, which settlement does not support")]
+    UnsupportedCashMint,
+    #[msg("Settlement instruction does not match this mint or burn")]
+    SettlementMismatch,
+    #[msg("The subscription's cash is not held in escrow")]
+    CashNotEscrowed,
+    #[msg("Redemption would exceed the fund's daily redemption limit")]
+    RedemptionLimitExceeded,
 }

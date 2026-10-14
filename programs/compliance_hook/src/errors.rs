@@ -22,6 +22,8 @@ pub enum HookError {
     InvalidClass,
     #[msg("An institution may register itself only as an investor")]
     SelfRegistrationClassNotAllowed,
+    // retired (F003): escrow is now registrable and CollateralVault is rejected earlier as
+    // InvalidClass, so nothing returns this. Kept so later codes keep their numbers.
     #[msg("This holder class is not available yet")]
     ClassNotAvailable,
     #[msg("Fund-operated accounts must be owned by the system's own PDA")]
@@ -85,4 +87,9 @@ pub enum HookError {
     HolderCapReached,
     #[msg("Arithmetic overflow")]
     Overflow,
+    // --- F003 (appended so F001/F002 codes keep their numbers) ---
+    #[msg("Holder record or holding account does not match the owner")]
+    WrongHolder,
+    #[msg("Interest is settled here only for the escrow holder")]
+    ClassNotAccrued,
 }

@@ -7,4 +7,9 @@ rust-version.workspace = true
 
 [dependencies]
 anchor-lang = "=1.1.2"
+anchor-spl = { version = "=1.1.2", features = ["token_2022", "token_2022_extensions"] }
 solana-sha256-hasher = "3"
+
+[dev-dependencies]
+solana-program-pack = "3"
+solana-program-option = "3"

@@ -1,4 +1,4 @@
-//! Records (F001 FR-033, F002 FR-020). Emitted with `emit_cpi!`; every payload carries `fund`,
+//! Records (F001 FR-033, F002 FR-020, F003 FR-031). Emitted with `emit_cpi!`; every payload carries `fund`,
 //! `slot`, `unix_ts`.
 
 use anchor_lang::prelude::*;
@@ -64,6 +64,43 @@ pub struct NavOverrideWithdrawn {
     pub reason: u8,
     pub case_ref_hash: [u8; 32],
     pub actor: Pubkey,
+    pub slot: u64,
+    pub unix_ts: i64,
+}
+
+/// The issuer designated the treasury cash account (F003).
+#[event]
+pub struct CashTreasurySet {
+    pub fund: Pubkey,
+    pub cash_treasury: Pubkey,
+    pub signer: Pubkey,
+    pub slot: u64,
+    pub unix_ts: i64,
+}
+
+/// A settled subscription's units were created in escrow (F003).
+#[event]
+pub struct SubscriptionMinted {
+    pub fund: Pubkey,
+    /// The SettlementInstruction account.
+    pub settlement: Pubkey,
+    pub units: u64,
+    /// After this mint.
+    pub units_outstanding: u64,
+    pub slot: u64,
+    pub unix_ts: i64,
+}
+
+/// A settled redemption's units were destroyed in escrow (F003).
+#[event]
+pub struct RedemptionBurned {
+    pub fund: Pubkey,
+    pub settlement: Pubkey,
+    pub units: u64,
+    /// After this burn.
+    pub units_outstanding: u64,
+    pub redeemed_today: u64,
+    pub units_at_day_start: u64,
     pub slot: u64,
     pub unix_ts: i64,
 }

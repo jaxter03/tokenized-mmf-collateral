@@ -74,6 +74,17 @@ pub fn assert_instruction_error(res: &TxResult, expected: InstructionError) {
     }
 }
 
+/// Invariant I4 (F003): `FundState.units_outstanding` equals the mint's supply.
+#[track_caller]
+pub fn assert_i4(h: &crate::Harness, mint: &anchor_lang::prelude::Pubkey) {
+    let fs: fund::FundState = crate::fixtures::read(h, &mmf_sdk::pda::fund_state(mint).0);
+    let supply = crate::units::supply(h, mint);
+    assert_eq!(
+        fs.units_outstanding, supply,
+        "I4: units_outstanding must equal the mint's supply"
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

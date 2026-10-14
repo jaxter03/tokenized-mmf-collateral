@@ -83,8 +83,52 @@ struct World {
 
 impl World {
     fn new() -> Self {
+        Self::with_settlement(false)
+    }
+
+    /// `settlement = true` also sets up F003 settlement (treasury cash account, `init_dvp`, the
+    /// escrow approved and thawed), so an approved escrow holder exists alongside the investors.
+    fn with_settlement(settlement: bool) -> Self {
         let mut h = Harness::new();
         let ctx = fixtures::launched_fund(&mut h, CAP);
+        if settlement {
+            let m = ctx.m();
+            let i = ctx.issuer.pubkey();
+            let program = fixtures::token_program_of(&h, &ctx.cash_mint);
+            let t = fixtures::create_cash_ata(&mut h, &ctx.transfer_agent.pubkey(), &ctx.cash_mint);
+            h.send(
+                &[
+                    mmf_sdk::ix_fund::set_cash_treasury(&i, &m, &t, &ctx.cash_mint),
+                    mmf_sdk::ix_dvp::init_dvp(
+                        &i,
+                        &h.payer.pubkey(),
+                        &m,
+                        &ctx.cash_mint,
+                        &program,
+                        None,
+                    ),
+                ],
+                &[&ctx.issuer],
+            )
+            .expect("settlement setup");
+            let c = ctx.compliance.pubkey();
+            let escrow = pda::escrow_authority(&ctx.fund_state()).0;
+            let unit_escrow = pda::unit_escrow(&ctx.fund_state(), &m);
+            h.send(
+                &[
+                    mmf_sdk::ix_hook::register_holder(&c, &c, &m, &escrow, 2),
+                    mmf_sdk::ix_hook::approve_fund_account(&c, &m, &escrow),
+                    mmf_sdk::ix_hook::thaw_holding_account(
+                        &h.payer.pubkey(),
+                        &m,
+                        &escrow,
+                        &unit_escrow,
+                    ),
+                ],
+                &[&ctx.compliance],
+            )
+            .expect("escrow approved");
+        }
         let keys: Vec<Keypair> = (0..INVESTORS).map(|_| h.funded_keypair()).collect();
         let now = clock::now(&h.svm);
         let mut investors = vec![Investor::unregistered(); INVESTORS];
@@ -306,6 +350,8 @@ impl World {
         );
         assert_eq!(reg.transfers_paused, self.model.paused);
         fixtures::check_i12(&self.h, &self.ctx);
+        // F003 (T072): units outstanding is the supply.
+        tests::assert::assert_i4(&self.h, &self.ctx.m());
     }
 }
 
@@ -315,6 +361,19 @@ proptest! {
     #[test]
     fn random_sequences_keep_every_invariant(ops in prop::collection::vec(op(), 15..60)) {
         let mut w = World::new();
+        w.check_invariants(&Op::Warp { days: 0 });
+        for op in &ops {
+            let (predicted, actual) = w.step(op);
+            prop_assert_eq!(predicted, actual, "outcome of {:?} (model {:?})", op, w.model);
+            w.check_invariants(op);
+        }
+    }
+
+    /// F003 (T072): the same sequences on a fund with settlement set up (an approved escrow
+    /// holder exists; it is never counted toward the cap).
+    #[test]
+    fn random_sequences_keep_every_invariant_with_settlement_set_up(ops in prop::collection::vec(op(), 15..60)) {
+        let mut w = World::with_settlement(true);
         w.check_invariants(&Op::Warp { days: 0 });
         for op in &ops {
             let (predicted, actual) = w.step(op);

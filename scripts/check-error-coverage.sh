@@ -2,7 +2,8 @@
 # SC-004: every error variant declared in an #[error_code] enum under programs/*/src/errors.rs
 # must be asserted by at least one test in tests/tests/. A variant counts as covered when some
 # test file references it as `EnumName::Variant`, so shared names (e.g. Unauthorized) are checked
-# per program. Exits 1 and lists the uncovered variants otherwise.
+# per program. A variant preceded by a `// retired` comment (kept only so later codes keep their
+# numbers, and returned by nothing) is skipped. Exits 1 and lists the uncovered variants otherwise.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -24,8 +25,10 @@ pairs="$(awk '
   }
   inside && /^[[:space:]]*}/  { inside = 0; next }
   inside && /^[[:space:]]*#/  { next }
+  inside && /^[[:space:]]*\/\/[[:space:]]*retired/ { retired = 1; next }
   inside && /^[[:space:]]*\/\// { next }
   inside && /^[[:space:]]*[A-Z][A-Za-z0-9_]*[[:space:]]*(,|=|$)/ {
+    if (retired) { retired = 0; next }
     v = $0; sub(/^[[:space:]]*/, "", v); sub(/[^A-Za-z0-9_].*$/, "", v); print name, v
   }
 ' "${error_files[@]}")"
