@@ -162,7 +162,7 @@ green.
 - [X] T007 [P] In `crates/mmf-common/src/views.rs`, add `nav_ts: i64` to `FundStateView`
   (offset `FUND_NAV + 8`; `FUND_NAV_SEQ` already sits after it) and decode it. Extend the
   FundState decode test with a known `nav_ts`
-- [ ] T008 Create `programs/collateral/src/state.rs`, `errors.rs` and `events.rs` per
+- [X] T008 Create `programs/collateral/src/state.rs`, `errors.rs` and `events.rs` per
   data-model.md:
   - **Accounts**: `PledgeAgreement`, `Pledge` and `CollateralCall`, with **exactly** the field
     order and types listed and `#[derive(InitSpace)]`. Sizes must be **432 B** (8 + 424), **196 B**
@@ -175,15 +175,15 @@ green.
     `slot: u64` and `unix_ts: i64`. Valuing events also carry `coverage: i128`, `nav_seq: u64`,
     `called_outstanding: u64` and `met_below_seq: u64`. `ExposureUpdated` carries
     `outcome: u8` and an `opened_call: Option<CallOpened>`.
-- [ ] T009 [P] In `programs/compliance_hook/src/errors.rs`, **append** (after `ClassNotAccrued`)
+- [X] T009 [P] In `programs/compliance_hook/src/errors.rs`, **append** (after `ClassNotAccrued`)
   `PledgedUnitsLocked`, `InsufficientUnlockedUnits`, `NotCollateralCaller` and `LienUnderflow`.
   Add the `LienSet` event to `events.rs` (`owner`, `lock`, `unlock`, `opened`, `closed`,
   `pledged_amount`, `active_liens`, `slot`, `unix_ts`). Add
   `#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy)] pub struct LienChange { lock: u64, unlock: u64, opened: u16, closed: u16 }`
   to `state.rs`
-- [ ] T010 Update `tests/tests/layouts.rs` (depends on T007, T008): assert the three new account
+- [X] T010 Update `tests/tests/layouts.rs` (depends on T007, T008): assert the three new account
   sizes and the `FundStateView` `nav_ts` offset against a serialized FundState
-- [ ] T011 [P] In `crates/mmf-sdk/src/pda.rs`, add `agreement(fund_state, giver, taker, nonce)`,
+- [X] T011 [P] In `crates/mmf-sdk/src/pda.rs`, add `agreement(fund_state, giver, taker, nonce)`,
   `pledge(agreement, pledge_ref)`, `call(agreement, external_ref)`, `hook_caller()` and
   `collateral_caller()`, with a unit test that each matches `find_program_address` over the
   seeds from T006

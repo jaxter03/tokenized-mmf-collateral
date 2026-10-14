@@ -13,5 +13,6 @@ Collected while implementing, so the PR description can list them (Constitution 
 | Task | File | Change | Why |
 |---|---|---|---|
 | T004 | `tests/src/harness.rs` | loads `collateral.so` at `COLLATERAL_PROGRAM_ID` | fifth program (research R1) |
+| T010 | `tests/tests/layouts.rs` | FundStateView expectation gains `nav_ts`; new `collateral_account_layouts` test | `FundStateView` reads `nav_ts` for collateral's price age (research R4) |
 
 ## Other notes

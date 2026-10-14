@@ -1,9 +1,9 @@
-//! Every PDA (F001, F002, F003) (docs/shared-model.md §4, §4.5; data-model.md). Each function returns
+//! Every PDA (F001–F004) (docs/shared-model.md §4, §4.5; data-model.md). Each function returns
 //! `(address, bump)`.
 
 use anchor_lang::prelude::Pubkey;
 use mmf_common::ids::{
-    ASSOCIATED_TOKEN_PROGRAM_ID, COMPLIANCE_HOOK_PROGRAM_ID, DVP_SETTLEMENT_PROGRAM_ID,
+    ASSOCIATED_TOKEN_PROGRAM_ID, COLLATERAL_PROGRAM_ID, COMPLIANCE_HOOK_PROGRAM_ID, DVP_SETTLEMENT_PROGRAM_ID,
     FUND_PROGRAM_ID, GOVERNANCE_PROGRAM_ID, TOKEN_2022_PROGRAM_ID,
 };
 use mmf_common::seeds;
@@ -129,6 +129,47 @@ pub fn dvp_caller() -> (Pubkey, u8) {
     Pubkey::find_program_address(&[seeds::DVP_CALLER], &GOVERNANCE_PROGRAM_ID)
 }
 
+/// collateral `["agreement", fund_state, giver, taker, nonce.to_le_bytes()]` → PledgeAgreement
+/// (F004).
+pub fn agreement(fund_state: &Pubkey, giver: &Pubkey, taker: &Pubkey, nonce: u64) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            seeds::AGREEMENT,
+            fund_state.as_ref(),
+            giver.as_ref(),
+            taker.as_ref(),
+            &nonce.to_le_bytes(),
+        ],
+        &COLLATERAL_PROGRAM_ID,
+    )
+}
+
+/// collateral `["pledge", agreement, pledge_ref]` → Pledge (F004, research R6).
+pub fn pledge(agreement: &Pubkey, pledge_ref: &[u8; 32]) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[seeds::PLEDGE, agreement.as_ref(), pledge_ref],
+        &COLLATERAL_PROGRAM_ID,
+    )
+}
+
+/// collateral `["call", agreement, external_ref]` → CollateralCall (F004, research R6).
+pub fn call(agreement: &Pubkey, external_ref: &[u8; 32]) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[seeds::CALL, agreement.as_ref(), external_ref],
+        &COLLATERAL_PROGRAM_ID,
+    )
+}
+
+/// collateral `["hook-caller"]`: signs `compliance_hook::set_lien` (F004).
+pub fn hook_caller() -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[seeds::HOOK_CALLER], &COLLATERAL_PROGRAM_ID)
+}
+
+/// governance `["collateral-caller"]`: signs `collateral::resolve_dispute` (F004).
+pub fn collateral_caller() -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[seeds::COLLATERAL_CALLER], &GOVERNANCE_PROGRAM_ID)
+}
+
 /// Any owner's associated token account for `mint` under `token_program` (cash accounts, F003).
 pub fn ata(owner: &Pubkey, mint: &Pubkey, token_program: &Pubkey) -> Pubkey {
     Pubkey::find_program_address(
@@ -190,6 +231,11 @@ mod tests {
             escrow_authority(&fs).0,
             settlement(&fs, &Pubkey::new_unique(), &[1; 32]).0,
             dvp_caller().0,
+            agreement(&fs, &Pubkey::new_unique(), &Pubkey::new_unique(), 1).0,
+            pledge(&Pubkey::new_unique(), &[1; 32]).0,
+            call(&Pubkey::new_unique(), &[1; 32]).0,
+            hook_caller().0,
+            collateral_caller().0,
         ];
         for (i, a) in all.iter().enumerate() {
             assert!(!a.is_on_curve(), "PDA {i} must be off-curve");
@@ -235,6 +281,37 @@ mod tests {
         assert_ne!(
             holder(&mint, &Pubkey::new_unique()).0,
             holder(&mint, &Pubkey::new_unique()).0
+        );
+    }
+
+    #[test]
+    fn collateral_pdas_match_their_seeds() {
+        let (fs, g, t) = (Pubkey::new_unique(), Pubkey::new_unique(), Pubkey::new_unique());
+        let a = agreement(&fs, &g, &t, 7);
+        assert_eq!(
+            a,
+            Pubkey::find_program_address(
+                &[b"agreement", fs.as_ref(), g.as_ref(), t.as_ref(), &7u64.to_le_bytes()],
+                &COLLATERAL_PROGRAM_ID
+            )
+        );
+        assert_ne!(a.0, agreement(&fs, &t, &g, 7).0, "giver and taker are ordered");
+        assert_ne!(a.0, agreement(&fs, &g, &t, 8).0, "nonce is in the seeds");
+        assert_eq!(
+            pledge(&a.0, &[3; 32]),
+            Pubkey::find_program_address(&[b"pledge", a.0.as_ref(), &[3; 32]], &COLLATERAL_PROGRAM_ID)
+        );
+        assert_eq!(
+            call(&a.0, &[4; 32]),
+            Pubkey::find_program_address(&[b"call", a.0.as_ref(), &[4; 32]], &COLLATERAL_PROGRAM_ID)
+        );
+        assert_eq!(
+            hook_caller(),
+            Pubkey::find_program_address(&[b"hook-caller"], &COLLATERAL_PROGRAM_ID)
+        );
+        assert_eq!(
+            collateral_caller(),
+            Pubkey::find_program_address(&[b"collateral-caller"], &GOVERNANCE_PROGRAM_ID)
         );
     }
 }

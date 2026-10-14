@@ -92,4 +92,13 @@ pub enum HookError {
     WrongHolder,
     #[msg("Interest is settled here only for the escrow holder")]
     ClassNotAccrued,
+    // --- F004 (appended so F001–F003 codes keep their numbers) ---
+    #[msg("Transfer would leave the sender's balance below its locked units")]
+    PledgedUnitsLocked,
+    #[msg("Holder does not have enough unlocked units")]
+    InsufficientUnlockedUnits,
+    #[msg("Caller is not the collateral program's hook-caller PDA")]
+    NotCollateralCaller,
+    #[msg("Lien change would take locked units or active liens below zero")]
+    LienUnderflow,
 }

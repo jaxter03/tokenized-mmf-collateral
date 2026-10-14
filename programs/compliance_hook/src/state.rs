@@ -121,6 +121,17 @@ impl HolderState {
     }
 }
 
+/// One change to a holder's lock, asked for by `collateral` (contracts/compliance_hook.md
+/// `set_lien`): pledge = lock N, opened 1; release = unlock R, closed 1 when the pledge empties;
+/// substitution = lock N, unlock R, opened 1, closed 1.
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LienChange {
+    pub lock: u64,
+    pub unlock: u64,
+    pub opened: u16,
+    pub closed: u16,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
