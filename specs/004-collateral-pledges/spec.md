@@ -41,8 +41,8 @@ Terms used below:
 - **Call**: a demand for more collateral (**delivery call**, from the taker) or for the return of
   excess collateral (**return call**, from the giver).
 - **Unresolved**: a delivery call that is Open or Disputed (from F005, also Defaulted).
-- **Uncalled shortfall**: the shortfall minus the total value of the agreement's unresolved
-  delivery calls.
+- **Demanded part**: the part of the current shortfall that unresolved delivery calls already
+  demand (FR-015). **Uncalled shortfall**: the shortfall minus the demanded part.
 
 Worked figures used in the tests below (unless a test says otherwise): price $1.00, haircut 2%,
 minimum transfer amount $10,000, time to meet a call 4 hours, grace period 2 hours, pledge limit
@@ -142,8 +142,8 @@ rejected; a transfer of 979,591.836734 units succeeds.
 **Acceptance Scenarios**:
 
 1. **Given** an Active agreement and enough unlocked units, **When** the giver pledges N units,
-   **Then** N units are locked, no units move, the pledge records the price record in use, and
-   every delivery call that the new coverage covers is Met in the same step.
+   **Then** N units are locked, no units move, the pledge records the price record in use, and,
+   if coverage is now zero or more, every unresolved delivery call is Met in the same step.
 2. **Given** N is more than the giver's unlocked units, or would take the agreement's pledged units
    above its pledge limit, **When** the giver pledges N, **Then** it is rejected and nothing
    changes.
@@ -185,8 +185,8 @@ call is Met.
 2. **Given** an excess at or below the minimum transfer amount, or another return call already
    open on the agreement, **When** the giver opens a return call, **Then** it is rejected.
 3. **Given** an open return call, **When** the taker or the keeper releases units from an active
-   pledge, **Then** those units are unlocked, no units move, and the call is Met once the units
-   released since it opened reach its units.
+   pledge against it, **Then** those units are unlocked, no units move, and the call is Met once
+   the units released against it reach its units.
 4. **Given** a release that would make coverage negative at the current price, **When** the taker
    or the keeper attempts it, **Then** it is rejected.
 5. **Given** no open return call, **When** the keeper releases units, or releases more than the
@@ -194,8 +194,6 @@ call is Met.
 6. **Given** an active pledge, **When** the giver or anyone other than the taker or keeper tries to
    release it, or anyone tries to release more than the pledge still holds, **Then** it is
    rejected.
-7. **Given** an open return call, **When** a delivery call opens on the agreement, **Then** the
-   return call is Cancelled in the same step.
 
 ---
 
@@ -268,15 +266,20 @@ Cancelled, and the taker can open a new call for the shortfall.
   publish must not grow in cost with the number of agreements. The taker opens a delivery call for
   the uncalled shortfall once it exceeds the minimum transfer amount (US2 scenario 5).
 - **The price rises, or exposure falls, while a call is open**: anyone can ask for a re-check at a
-  fresh price, and every delivery call the coverage now covers is Met. The same check runs inside
-  every exposure update, call, pledge, release and substitution made at a fresh price.
+  fresh price; if coverage is zero or more, every unresolved delivery call is Met. The same check
+  runs inside every exposure update, call, pledge, release and substitution made at a fresh price.
+  A price move counts from the first step that values the agreement at the new price.
 - **Several pledges and calls on one agreement at once**: pledges add up; collateral value is
-  taken on the agreement's total pledged units, rounded once. Each new delivery call covers only
-  the uncalled shortfall, so calls never double-count. Unresolved delivery calls are met oldest
-  first: a call is Met as soon as the remaining shortfall is no more than the total value of the
-  unresolved delivery calls opened after it, and all are Met once coverage is zero or more. A call
-  is met by covering the current shortfall, not by delivering its original value. At most one
-  return call is open per agreement.
+  taken on the agreement's total pledged units, rounded once. The agreement tracks the demanded
+  part of the shortfall, and a new delivery call covers only the rest, so calls never
+  double-count. When a pledge, a lower exposure or a higher price shrinks the shortfall, the
+  demanded part shrinks with it, so a later rise opens a new call with its own deadline. All
+  unresolved delivery calls are Met together once a step at a fresh price finds coverage zero or
+  more; a call is met by covering the current shortfall, not by delivering its original value.
+  Enforcement (F005) is limited by the shortfall and by the defaulted call's own value, so an
+  earlier call never lets the taker enforce a later call's amount early. At most one return call
+  is open per agreement, and it stays open alongside any delivery call until it is Met or the
+  giver cancels it.
 - **One giver, several agreements**: locked units are the sum over all the giver's active pledges
   in every agreement. A pledge limit applies per agreement. A release under one agreement never
   changes another agreement's pledges.
@@ -378,8 +381,11 @@ Cancelled, and the taker can open a new call for the shortfall.
   uncalled shortfall as its value, the units required (FR-010), the price record used, issued
   time, deadline = issued time + time to meet a call, enforce-after time = deadline + grace period,
   the external reference, and status Open. Any other request MUST be rejected.
-- **FR-015**: Opening a delivery call MUST cancel any open return call on the agreement in the
-  same step, so a request to return collateral never stands beside a demand for more.
+- **FR-015**: System MUST keep, per agreement, the demanded part of the shortfall: opening a
+  delivery call raises it to the whole shortfall; every step that values the agreement at a fresh
+  price lowers it to the shortfall when the shortfall has fallen below it; cancelling an
+  unresolved delivery call lowers it by that call's value (not below zero); and it is zero
+  whenever no delivery call is unresolved.
 - **FR-016**: System MUST let the giver open a return call when the excess at a fresh price is more
   than the minimum transfer amount and no other return call is open, recording the excess as its
   value, the units it covers (FR-010), the price record used, issued time, deadline = issued time
@@ -387,11 +393,10 @@ Cancelled, and the taker can open a new call for the shortfall.
   enforce-after time.
 - **FR-017**: System MUST number calls per agreement from 1, reject an empty external reference or
   one already used by a call on the same agreement, and let anyone read any call.
-- **FR-018**: In every step that values an agreement at a fresh price, System MUST mark its
-  unresolved delivery calls Met, oldest first: a call is Met when the shortfall is no more than the
-  total value of the unresolved delivery calls opened after it, so all are Met once coverage is
-  zero or more. Met, like Cancelled, is final. Marking calls Met is part of the step that changed
-  coverage, so a call's status never disagrees with the coverage that step produced.
+- **FR-018**: In every step that values an agreement at a fresh price, System MUST check coverage:
+  if it is zero or more, every unresolved delivery call on the agreement is Met in that step. Met,
+  like Cancelled, is final. Marking calls Met is part of the step that changed coverage, so a
+  call's status never disagrees with the coverage that step produced.
 - **FR-019**: System MUST let anyone ask for a re-check of an agreement at a fresh price, which
   only applies FR-018. Its outcome MUST depend only on recorded state and the current time, never
   on who asked.
@@ -403,8 +408,9 @@ Cancelled, and the taker can open a new call for the shortfall.
 - **FR-021**: System MUST let only the giver pledge N > 0 units under an Active agreement, and MUST
   reject the pledge if N is more than the giver's unlocked units, if it would take the agreement's
   pledged units above the pledge limit, or if the giver is not Approved with valid KYC.
-- **FR-022**: A pledge MUST record its agreement, its number within the agreement, units, time,
-  the price record in use, released units (0), enforced units (0) and status Active; MUST add N to
+- **FR-022**: A pledge MUST record its agreement, its number within the agreement, the giver's
+  reference for it (not empty, and unique within the agreement), units, time, the price record in
+  use, released units (0), enforced units (0) and status Active; MUST add N to
   the giver's locked units and the agreement's pledged units; MUST move no units; and MUST apply
   FR-018 in the same step when the price is fresh.
 - **FR-023**: The fund's transfer rules MUST reject every transfer of units that would leave the
@@ -430,8 +436,8 @@ Cancelled, and the taker can open a new call for the shortfall.
   value is zero).
 - **FR-028**: A release MUST add R to the pledge's released units (status Released once nothing
   remains), subtract R from the giver's locked units and the agreement's pledged units, and move no
-  units. While a return call is open, released units count towards it, and it is Met once they
-  reach its units.
+  units. A release made against the open return call counts towards it, and the call is Met once
+  such releases reach its units. The keeper's releases are always made against it.
 - **FR-029**: System MUST reject a release by the giver or by anyone other than the taker or the
   keeper.
 
@@ -485,8 +491,9 @@ Cancelled, and the taker can open a new call for the shortfall.
   type (lien), interest to (giver), terms (haircut, time to meet a call, grace period, minimum
   transfer amount, pledge limit, maximum price age, legal document fingerprint, taker may raise
   exposure alone), status (Proposed, Active), each party's signature, total pledged units,
-  required value, any pending raise, next pledge and call numbers, created time.
-- **Pledge**: agreement, number, units, posted time, price record used, released units, enforced
+  required value, any pending raise, the demanded part of the shortfall, the open return call (if
+  any), next pledge and call numbers, created time.
+- **Pledge**: agreement, number, giver's reference, units, posted time, price record used, released units, enforced
   units (F005), status (Active, Released, Substituted; Enforced from F005).
 - **Call**: agreement, number, kind (delivery, return), value, units required or to be released,
   price record used, issued time, deadline, enforce-after time (delivery only), units released
@@ -555,8 +562,8 @@ Cancelled, and the taker can open a new call for the shortfall.
   use.
 - **Custodian behaviour**: custodians sign only what their institution approved. The system never
   holds an institution's signing key; it can only check that the right party signed.
-- **Scale**: one Fund, up to about 10,000 holders, hundreds of agreements, and up to about 10
-  unresolved calls per agreement at a time.
+- **Scale**: one Fund, up to about 10,000 holders and hundreds of agreements. The number of
+  unresolved calls on an agreement does not change the effort of any step.
 - **Out of scope**: title-transfer pledges, manufactured income, multilateral netting (backlog);
   terminating agreements or withdrawing proposals; changing terms after proposal; enforcement,
   defaults and holds (F005); and the collateral desk screens (F008).

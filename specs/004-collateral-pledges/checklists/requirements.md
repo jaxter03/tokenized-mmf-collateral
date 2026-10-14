@@ -38,13 +38,13 @@
 - No [NEEDS CLARIFICATION] markers: the three F004 input questions (`docs/speckit-inputs.md` §3)
   are answered from the input and `docs/shared-model.md` and listed in Assumptions for
   `/speckit-clarify` to confirm.
-- Decisions the spec adds beyond the input, for `/speckit-clarify` to review: oldest-first meeting
-  of several calls; a return call is cancelled when a delivery call opens; a permissionless
-  re-check; substitution only to an equal or larger pledge; compliance can resolve disputes;
-  pledging stays allowed on a stale price and while transfers are paused; "more than" the minimum
-  transfer amount read literally (design.md §6.5.4 says "at least" for delivery).
-- For `/speckit-plan`: the pending exposure raise, return-call progress and dispute reference are
-  not in `docs/shared-model.md` §4.4; the re-check and dispute-resolution steps are not in §5.1;
-  return-call units rounded down is not in §8. The §8 worked check (1,020,409 units) is in whole
-  units; at the smallest unit the figure is 1,020,408.163266, as used in this spec.
+- Decisions the spec adds beyond the input, for review: open delivery calls are Met together and
+  the agreement tracks the demanded part of the shortfall (changed from oldest-first during
+  planning, research R5); a permissionless re-check; substitution only to an equal or larger
+  pledge; compliance can resolve disputes; pledging stays allowed on a stale price and while
+  transfers are paused; "more than" the minimum transfer amount read literally (design.md §6.5.4
+  says "at least" for delivery).
+- Planning (2026-10-14) updated the spec as listed in plan.md "Spec adjustments made during
+  planning"; all checklist items still pass. The shared-model gaps noted at specify time are now
+  closed in `docs/shared-model.md` on this branch.
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`
