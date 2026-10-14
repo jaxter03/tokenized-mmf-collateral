@@ -53,6 +53,14 @@ pub mod collateral {
         instructions::pledge::handle_pledge(ctx, units, pledge_ref)
     }
 
+    pub fn release(ctx: Context<Release>, units: u64) -> Result<()> {
+        instructions::release::handle_release(ctx, units)
+    }
+
+    pub fn cancel_call(ctx: Context<CancelCall>) -> Result<()> {
+        instructions::cancel_call::handle_cancel_call(ctx)
+    }
+
     /// Anyone (permissionless, state-checked): observe coverage at a fresh price.
     pub fn check_coverage(ctx: Context<CheckCoverage>) -> Result<()> {
         instructions::check_coverage::handle_check_coverage(ctx)

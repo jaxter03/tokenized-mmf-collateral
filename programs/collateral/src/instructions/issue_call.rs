@@ -2,8 +2,8 @@
 //! the uncalled shortfall (Delivery) or the giver asks for the excess back (Return).
 
 use anchor_lang::prelude::*;
-use mmf_common::collateral::shortfall;
-use mmf_common::enums::CallKind;
+use mmf_common::collateral::{excess, shortfall, units_for_value_down};
+use mmf_common::enums::{CallKind, CallStatus};
 use mmf_common::seeds;
 
 use crate::call_account;
@@ -73,8 +73,46 @@ pub fn handle_issue_call(ctx: Context<IssueCall>, kind: u8, external_ref: [u8; 3
             call_account::count_delivery(a, uncalled)?;
             call
         }
-        // T053: the Return branch replaces this placeholder.
-        CallKind::Return => return err!(CollateralError::InvalidCallKind),
+        CallKind::Return => {
+            // 8R–10R. One open return call at a time, for an excess above the MTA that buys at
+            // least one base unit (rounded down: the taker keeps enough).
+            require!(
+                a.open_return_call == Pubkey::default(),
+                CollateralError::ReturnCallAlreadyOpen
+            );
+            let value = excess(coverage(&fund, a)?);
+            require!(value > a.min_transfer_value, CollateralError::NoExcess);
+            let units = units_for_value_down(value, fund.nav, a.haircut_bps)
+                .ok_or(error!(CollateralError::Overflow))?;
+            require!(units > 0, CollateralError::ReturnTooSmall);
+            let call = CollateralCall {
+                version: CollateralCall::VERSION,
+                agreement,
+                seq: a.call_count,
+                kind: CallKind::Return.as_u8(),
+                value_delta: value,
+                units_required: units,
+                nav_seq: fund.nav_seq,
+                issued_at: now,
+                cure_deadline_ts: now
+                    .checked_add(i64::from(a.call_cure_secs))
+                    .ok_or(error!(CollateralError::Overflow))?,
+                enforce_after_ts: 0,
+                status: CallStatus::Open.as_u8(),
+                enforced_units: 0,
+                enforced_value: 0,
+                external_ref,
+                units_released: 0,
+                dispute_ref: [0; 32],
+                disputed_at: 0,
+                closed_at: 0,
+                bump: ctx.bumps.call,
+                _reserved: [0; 64],
+            };
+            a.call_count = a.call_count.checked_add(1).ok_or(error!(CollateralError::Overflow))?;
+            a.open_return_call = ctx.accounts.call.key();
+            call
+        }
     };
     let opened = call_account::opened(&call, ctx.accounts.call.key());
     ctx.accounts.call.set_inner(call);

@@ -220,3 +220,48 @@ pub fn pledge(giver: &Pubkey, payer: &Pubkey, a: &Agr, units: u64, pledge_ref: [
         collateral::instruction::Pledge { units, pledge_ref },
     )
 }
+
+/// `release(units)` of `pledge`: signed by the taker, or the keeper (which must name the open
+/// return call). `return_call` is the open return call to count the release against, if any.
+pub fn release(
+    signer: &Pubkey,
+    a: &Agr,
+    pledge: &Pubkey,
+    return_call: Option<Pubkey>,
+    units: u64,
+) -> Instruction {
+    let fund_state = a.fund_state();
+    ix(
+        collateral::accounts::Release {
+            signer: *signer,
+            fund_state,
+            role_registry: pda::role_registry(&fund_state).0,
+            agreement: a.agreement(),
+            pledge: *pledge,
+            return_call,
+            registry: pda::registry(&a.mint).0,
+            giver_holder: a.giver_holder(),
+            giver_holding: pda::holding_account(&a.giver, &a.mint),
+            hook_caller: pda::hook_caller().0,
+            compliance_hook_program: COMPLIANCE_HOOK_PROGRAM_ID,
+            event_authority: event_authority(),
+            program: COLLATERAL_PROGRAM_ID,
+        },
+        collateral::instruction::Release { units },
+    )
+}
+
+/// `cancel_call()`: the taker for a Delivery call, the giver for a Return call.
+pub fn cancel_call(signer: &Pubkey, a: &Agr, call: &Pubkey) -> Instruction {
+    ix(
+        collateral::accounts::CancelCall {
+            signer: *signer,
+            fund_state: a.fund_state(),
+            agreement: a.agreement(),
+            call: *call,
+            event_authority: event_authority(),
+            program: COLLATERAL_PROGRAM_ID,
+        },
+        collateral::instruction::CancelCall {},
+    )
+}
