@@ -3,6 +3,7 @@
 
 use anchor_lang::prelude::*;
 
+pub mod call_account;
 pub mod errors;
 pub mod events;
 pub mod instructions;
@@ -25,6 +26,31 @@ pub mod collateral {
 
     pub fn sign_agreement(ctx: Context<SignAgreement>) -> Result<()> {
         instructions::sign_agreement::handle_sign_agreement(ctx)
+    }
+
+    pub fn update_exposure(
+        ctx: Context<UpdateExposure>,
+        required_value: u64,
+        external_ref: [u8; 32],
+    ) -> Result<()> {
+        instructions::exposure::handle_update_exposure(ctx, required_value, external_ref)
+    }
+
+    pub fn confirm_exposure(
+        ctx: Context<ConfirmExposure>,
+        required_value: u64,
+        external_ref: [u8; 32],
+    ) -> Result<()> {
+        instructions::exposure::handle_confirm_exposure(ctx, required_value, external_ref)
+    }
+
+    pub fn issue_call(ctx: Context<IssueCall>, kind: u8, external_ref: [u8; 32]) -> Result<()> {
+        instructions::issue_call::handle_issue_call(ctx, kind, external_ref)
+    }
+
+    /// Anyone (permissionless, state-checked): observe coverage at a fresh price.
+    pub fn check_coverage(ctx: Context<CheckCoverage>) -> Result<()> {
+        instructions::check_coverage::handle_check_coverage(ctx)
     }
 }
 

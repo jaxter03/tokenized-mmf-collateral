@@ -324,7 +324,7 @@ now + 21 600, and `called_outstanding` equal to the value.
 
 ### Interface stubs for User Story 2
 
-- [ ] T027 [US2] Add stubs, with account structs per contracts/collateral.md, for:
+- [X] T027 [US2] Add stubs, with account structs per contracts/collateral.md, for:
   - `update_exposure(required_value, external_ref)` and
     `confirm_exposure(required_value, external_ref)` in `instructions/exposure.rs`;
   - `issue_call(kind, external_ref)` in `instructions/issue_call.rs`;
@@ -332,12 +332,12 @@ now + 21 600, and `called_outstanding` equal to the value.
 
   In `update_exposure` and `confirm_exposure`, the `call` account is an `UncheckedAccount`
   constrained to its PDA; it is not `init`
-- [ ] T028 [P] [US2] Add SDK builders in `crates/mmf-sdk/src/ix_collateral.rs` for the four
+- [X] T028 [P] [US2] Add SDK builders in `crates/mmf-sdk/src/ix_collateral.rs` for the four
   instructions. Each derives the call PDA from the external reference
 
 ### Tests for User Story 2 (write first; they must fail) ⚠️
 
-- [ ] T029 [US2] Write `tests/tests/f004_exposure.rs` (FR-011–FR-013):
+- [X] T029 [US2] Write `tests/tests/f004_exposure.rs` (FR-011–FR-013):
   - **US2 independent test**: the event payload carries the opened call;
   - **Party and reference checks**: G or an outsider → `Unauthorized`; a zero reference →
     `ZeroExternalRef`;
@@ -356,7 +356,7 @@ now + 21 600, and `called_outstanding` equal to the value.
     - a lower exposure clears the pending raise;
     - confirmation on a stale price → `StalePrice`; by a suspended G → `PartyNotEligible`;
   - **FR-007**: both instructions on `proposed_only` → `AgreementNotActive`
-- [ ] T030 [P] [US2] Write `tests/tests/f004_calls.rs` part 1 (FR-014, FR-015, FR-017–FR-019, no
+- [X] T030 [P] [US2] Write `tests/tests/f004_calls.rs` part 1 (FR-014, FR-015, FR-017–FR-019, no
   pledges):
   - after the $1M call, `issue_call(Delivery)` → `NothingToCall`;
   - T raises to $1.5M → a second call for $500 000 (units `units_for_value_up`), with
@@ -372,20 +372,20 @@ now + 21 600, and `called_outstanding` equal to the value.
 
 ### Implementation for User Story 2
 
-- [ ] T031 [US2] Create `programs/collateral/src/call_account.rs`:
+- [X] T031 [US2] Create `programs/collateral/src/call_account.rs`:
   `open_delivery_call(a, call_info, payer, system_program, external_ref, value, fund, now, bump)`.
   - It fails with `CallRefInUse` if the account already holds data.
   - It creates the account by `system_program::create_account` with `invoke_signed` over
     `["call", agreement, external_ref, bump]`, then serializes a `CollateralCall` per
     contracts/collateral.md "Opening a delivery call".
   - It updates `a.call_count`, `a.open_delivery_calls` and `a.called_outstanding`.
-- [ ] T032 [US2] Implement `update_exposure` and `confirm_exposure` per their contracts (checks
+- [X] T032 [US2] Implement `update_exposure` and `confirm_exposure` per their contracts (checks
   in order; effects per branch). Run `observe` before applying a raise (R7). Emit
   `ExposureUpdated` with the outcome
-- [ ] T033 [US2] Implement `issue_call` for **Delivery** (checks 1–8D and 11). Until T053 the
+- [X] T033 [US2] Implement `issue_call` for **Delivery** (checks 1–8D and 11). Until T053 the
   Return branch returns `InvalidCallKind`, with a `// T053` comment
-- [ ] T034 [US2] Implement `check_coverage` (checks 1–3; `observe` only). Emit `CoverageChecked`
-- [ ] T035 [US2] Make T029 and T030 pass. Each instruction is ≤ 80 000 CU
+- [X] T034 [US2] Implement `check_coverage` (checks 1–3; `observe` only). Emit `CoverageChecked`
+- [X] T035 [US2] Make T029 and T030 pass. Each instruction is ≤ 80 000 CU
 
 **Checkpoint**: US2 independent test passes.
 

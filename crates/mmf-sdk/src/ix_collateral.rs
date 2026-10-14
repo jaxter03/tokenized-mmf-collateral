@@ -104,3 +104,96 @@ pub fn sign_agreement(signer: &Pubkey, a: &Agr) -> Instruction {
         collateral::instruction::SignAgreement {},
     )
 }
+
+/// `update_exposure(required_value, external_ref)`: signed by the taker (and the payer, which
+/// pays for a call account if one opens).
+pub fn update_exposure(
+    signer: &Pubkey,
+    payer: &Pubkey,
+    a: &Agr,
+    required_value: u64,
+    external_ref: [u8; 32],
+) -> Instruction {
+    ix(
+        collateral::accounts::UpdateExposure {
+            signer: *signer,
+            payer: *payer,
+            fund_state: a.fund_state(),
+            agreement: a.agreement(),
+            signer_holder: pda::holder(&a.mint, signer).0,
+            call: a.call(&external_ref),
+            system_program: anchor_lang::system_program::ID,
+            event_authority: event_authority(),
+            program: COLLATERAL_PROGRAM_ID,
+        },
+        collateral::instruction::UpdateExposure {
+            required_value,
+            external_ref,
+        },
+    )
+}
+
+/// `confirm_exposure(required_value, external_ref)`: signed by the giver (and the payer).
+pub fn confirm_exposure(
+    signer: &Pubkey,
+    payer: &Pubkey,
+    a: &Agr,
+    required_value: u64,
+    external_ref: [u8; 32],
+) -> Instruction {
+    ix(
+        collateral::accounts::ConfirmExposure {
+            signer: *signer,
+            payer: *payer,
+            fund_state: a.fund_state(),
+            agreement: a.agreement(),
+            signer_holder: pda::holder(&a.mint, signer).0,
+            call: a.call(&external_ref),
+            system_program: anchor_lang::system_program::ID,
+            event_authority: event_authority(),
+            program: COLLATERAL_PROGRAM_ID,
+        },
+        collateral::instruction::ConfirmExposure {
+            required_value,
+            external_ref,
+        },
+    )
+}
+
+/// `issue_call(kind, external_ref)`: kind 0 Delivery (the taker), 1 Return (the giver).
+pub fn issue_call(
+    signer: &Pubkey,
+    payer: &Pubkey,
+    a: &Agr,
+    kind: u8,
+    external_ref: [u8; 32],
+) -> Instruction {
+    ix(
+        collateral::accounts::IssueCall {
+            signer: *signer,
+            payer: *payer,
+            fund_state: a.fund_state(),
+            agreement: a.agreement(),
+            signer_holder: pda::holder(&a.mint, signer).0,
+            call: a.call(&external_ref),
+            system_program: anchor_lang::system_program::ID,
+            event_authority: event_authority(),
+            program: COLLATERAL_PROGRAM_ID,
+        },
+        collateral::instruction::IssueCall { kind, external_ref },
+    )
+}
+
+/// `check_coverage()`: signed by any key.
+pub fn check_coverage(triggered_by: &Pubkey, a: &Agr) -> Instruction {
+    ix(
+        collateral::accounts::CheckCoverage {
+            triggered_by: *triggered_by,
+            fund_state: a.fund_state(),
+            agreement: a.agreement(),
+            event_authority: event_authority(),
+            program: COLLATERAL_PROGRAM_ID,
+        },
+        collateral::instruction::CheckCoverage {},
+    )
+}

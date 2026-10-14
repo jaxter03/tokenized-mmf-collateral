@@ -207,3 +207,56 @@ pub fn revoke(h: &mut Harness, ctx: &FundCtx, owner: &Pubkey) {
     let ix = mmf_sdk::ix_governance::revoke_holder(&ctx.compliance.pubkey(), &ctx.m(), owner, 3, [1; 32]);
     h.send(&[ix], &[&ctx.compliance]).expect("revoke");
 }
+
+use crate::fixtures::CollatCtx;
+
+/// A 32-byte reference from a small number (zero stays all-zero).
+pub fn r(n: u8) -> [u8; 32] {
+    [n; 32]
+}
+
+/// `update_exposure` signed by `signer`, paid by the harness payer.
+pub fn exposure(h: &mut Harness, c: &CollatCtx, signer: &Keypair, value: u64, external_ref: [u8; 32]) -> TxResult {
+    let ix = mmf_sdk::ix_collateral::update_exposure(&signer.pubkey(), &h.payer.pubkey(), &c.agr, value, external_ref);
+    h.send(&[ix], &[signer])
+}
+
+/// `confirm_exposure` signed by `signer`.
+pub fn confirm(h: &mut Harness, c: &CollatCtx, signer: &Keypair, value: u64, external_ref: [u8; 32]) -> TxResult {
+    let ix = mmf_sdk::ix_collateral::confirm_exposure(&signer.pubkey(), &h.payer.pubkey(), &c.agr, value, external_ref);
+    h.send(&[ix], &[signer])
+}
+
+/// `issue_call` signed by `signer` (kind 0 Delivery, 1 Return).
+pub fn issue(h: &mut Harness, c: &CollatCtx, signer: &Keypair, kind: u8, external_ref: [u8; 32]) -> TxResult {
+    let ix = mmf_sdk::ix_collateral::issue_call(&signer.pubkey(), &h.payer.pubkey(), &c.agr, kind, external_ref);
+    h.send(&[ix], &[signer])
+}
+
+/// `check_coverage` signed by `signer`.
+pub fn check(h: &mut Harness, c: &CollatCtx, signer: &Keypair) -> TxResult {
+    let ix = mmf_sdk::ix_collateral::check_coverage(&signer.pubkey(), &c.agr);
+    h.send(&[ix], &[signer])
+}
+
+/// Advances one day and publishes `nav` for it (rate 0), as the fund admin.
+pub fn publish_next_day(h: &mut Harness, c: &CollatCtx, nav: u64) {
+    crate::clock::advance(&mut h.svm, 86_400);
+    crate::fixtures::publish(h, c, nav, 0, 1).expect("publish");
+}
+
+/// Moves the clock to `secs` after the latest publish (93 600 is the worked maximum age).
+pub fn age_price(h: &mut Harness, c: &CollatCtx, secs: i64) {
+    let fs: fund::FundState = read(h, &c.fund_state());
+    crate::clock::set_unix_timestamp(&mut h.svm, fs.nav_ts + secs);
+}
+
+/// The agreement as stored.
+pub fn agreement_of(h: &Harness, c: &CollatCtx) -> PledgeAgreement {
+    read(h, &c.agreement())
+}
+
+/// The call at `external_ref` as stored.
+pub fn call_of(h: &Harness, c: &CollatCtx, external_ref: [u8; 32]) -> CollateralCall {
+    read(h, &c.agr.call(&external_ref))
+}
