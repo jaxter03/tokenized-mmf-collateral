@@ -153,3 +153,57 @@ impl Tracker {
         }
     }
 }
+
+// ---- step helpers shared by the f004 test files -------------------------------------------
+
+use mmf_sdk::ix_collateral::Agr;
+use solana_keypair::Keypair;
+use solana_signer::Signer;
+
+use crate::fixtures::{CollatBase, FundCtx};
+use crate::TxResult;
+
+/// The agreement between the fixture's giver and taker with `nonce`.
+pub fn agr(c: &CollatBase, nonce: u64) -> Agr {
+    Agr {
+        mint: c.m(),
+        giver: c.giver.pubkey(),
+        taker: c.taker.pubkey(),
+        nonce,
+    }
+}
+
+/// `propose_agreement` signed by `proposer`, paid by the harness payer.
+pub fn propose(
+    h: &mut Harness,
+    mint: &Pubkey,
+    proposer: &Keypair,
+    args: collateral::ProposeArgs,
+) -> TxResult {
+    let ix = mmf_sdk::ix_collateral::propose_agreement(&proposer.pubkey(), &h.payer.pubkey(), mint, args);
+    h.send(&[ix], &[proposer])
+}
+
+/// `sign_agreement` signed by `signer`.
+pub fn sign(h: &mut Harness, signer: &Keypair, a: &Agr) -> TxResult {
+    let ix = mmf_sdk::ix_collateral::sign_agreement(&signer.pubkey(), a);
+    h.send(&[ix], &[signer])
+}
+
+/// Compliance suspends `owner` (reason 3, operational error).
+pub fn suspend(h: &mut Harness, ctx: &FundCtx, owner: &Pubkey) {
+    let ix = mmf_sdk::ix_governance::suspend_holder(&ctx.compliance.pubkey(), &ctx.m(), owner, 3, [1; 32]);
+    h.send(&[ix], &[&ctx.compliance]).expect("suspend");
+}
+
+/// Compliance reinstates `owner`.
+pub fn reinstate(h: &mut Harness, ctx: &FundCtx, owner: &Pubkey) {
+    let ix = mmf_sdk::ix_governance::reinstate_holder(&ctx.compliance.pubkey(), &ctx.m(), owner, 3, [1; 32]);
+    h.send(&[ix], &[&ctx.compliance]).expect("reinstate");
+}
+
+/// Compliance revokes `owner`.
+pub fn revoke(h: &mut Harness, ctx: &FundCtx, owner: &Pubkey) {
+    let ix = mmf_sdk::ix_governance::revoke_holder(&ctx.compliance.pubkey(), &ctx.m(), owner, 3, [1; 32]);
+    h.send(&[ix], &[&ctx.compliance]).expect("revoke");
+}

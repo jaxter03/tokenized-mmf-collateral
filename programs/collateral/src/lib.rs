@@ -5,16 +5,28 @@ use anchor_lang::prelude::*;
 
 pub mod errors;
 pub mod events;
+pub mod instructions;
 pub mod state;
 pub mod valuation;
 
 pub use errors::CollateralError;
+pub use instructions::*;
 pub use state::{CollateralCall, Pledge, PledgeAgreement, ProposeArgs};
 
 declare_id!("2RGrj5Jp8PGFVNRFNbJJtZVAph9mBYEubX6QMgqup6Yi");
 
 #[program]
-pub mod collateral {}
+pub mod collateral {
+    use super::*;
+
+    pub fn propose_agreement(ctx: Context<ProposeAgreement>, args: ProposeArgs) -> Result<()> {
+        instructions::propose_agreement::handle_propose_agreement(ctx, args)
+    }
+
+    pub fn sign_agreement(ctx: Context<SignAgreement>) -> Result<()> {
+        instructions::sign_agreement::handle_sign_agreement(ctx)
+    }
+}
 
 #[cfg(test)]
 mod tests {

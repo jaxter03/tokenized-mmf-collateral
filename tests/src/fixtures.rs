@@ -670,9 +670,81 @@ pub fn collateral_base_fund_opts(h: &mut Harness, priced: bool) -> CollatBase {
     }
 }
 
+/// Which agreement `collateral_ready_fund_opts` sets up.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Ready {
+    /// The worked terms, signed by both: Active.
+    Standard,
+    /// As Standard, but the taker may not raise exposure alone.
+    TwoStep,
+    /// As Standard, on a fund with no published price.
+    Unpriced,
+    /// Proposed by the taker, not signed (every FR-007 test).
+    ProposedOnly,
+}
+
+/// A collateral base fund plus the agreement (nonce 1) between its giver and taker (T025).
+pub struct CollatCtx {
+    pub base: CollatBase,
+    pub agr: mmf_sdk::ix_collateral::Agr,
+}
+
+impl std::ops::Deref for CollatCtx {
+    type Target = CollatBase;
+    fn deref(&self) -> &CollatBase {
+        &self.base
+    }
+}
+
+impl CollatCtx {
+    pub fn agreement(&self) -> Pubkey {
+        self.agr.agreement()
+    }
+}
+
+/// The taker proposes the worked terms (nonce 1) and the giver signs: an Active agreement.
+pub fn collateral_ready_fund(h: &mut Harness) -> CollatCtx {
+    collateral_ready_fund_opts(h, Ready::Standard)
+}
+
+pub fn collateral_ready_fund_opts(h: &mut Harness, ready: Ready) -> CollatCtx {
+    let base = collateral_base_fund_opts(h, ready != Ready::Unpriced);
+    let mut args = worked_terms(&base.giver.pubkey(), &base.taker.pubkey(), 1);
+    if ready == Ready::TwoStep {
+        args.taker_may_call_unilaterally = false;
+    }
+    let agr = mmf_sdk::ix_collateral::Agr {
+        mint: base.m(),
+        giver: base.giver.pubkey(),
+        taker: base.taker.pubkey(),
+        nonce: 1,
+    };
+    crate::collateral::propose(h, &base.m(), &base.taker, args).expect("propose");
+    if ready != Ready::ProposedOnly {
+        crate::collateral::sign(h, &base.giver, &agr).expect("sign");
+    }
+    CollatCtx { base, agr }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn collateral_ready_fund_variants() {
+        let mut h = Harness::new();
+        for (ready, status, unilateral) in [
+            (Ready::Standard, 1, true),
+            (Ready::TwoStep, 1, false),
+            (Ready::Unpriced, 1, true),
+            (Ready::ProposedOnly, 0, true),
+        ] {
+            let c = collateral_ready_fund_opts(&mut h, ready);
+            let a: collateral::PledgeAgreement = read(&h, &c.agreement());
+            assert_eq!(a.status, status, "{ready:?}");
+            assert_eq!(a.taker_may_call_unilaterally, unilateral, "{ready:?}");
+        }
+    }
 
     #[test]
     fn collateral_base_fund_holds_the_worked_figures() {

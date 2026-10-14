@@ -262,19 +262,19 @@ flag set. G signs → Active. An outsider's signature → `Unauthorized`; T sign
 
 ### Interface stubs for User Story 1
 
-- [ ] T020 [US1] Add stubs (handlers return `Ok(())`), with full account structs from
+- [X] T020 [US1] Add stubs (handlers return `Ok(())`), with full account structs from
   contracts/collateral.md and `#[event_cpi]`, for `propose_agreement(args: ProposeArgs)` and
   `sign_agreement()` in `programs/collateral/src/instructions/{propose_agreement,sign_agreement}.rs`,
   and register them in `lib.rs`. `ProposeArgs` has the fields of the contract's `args` block in
   that order
-- [ ] T021 [P] [US1] Create `crates/mmf-sdk/src/ix_collateral.rs` with
+- [X] T021 [P] [US1] Create `crates/mmf-sdk/src/ix_collateral.rs` with
   `propose_agreement(proposer, payer, fund_state, args)` and
   `sign_agreement(signer, fund_state, agreement, giver, taker)`. They derive every PDA (agreement,
   both HolderStates, event authority)
 
 ### Tests for User Story 1 (write first; they must fail) ⚠️
 
-- [ ] T022 [US1] Write `tests/tests/f004_agreement.rs` (FR-001–FR-006; quickstart rows), in the
+- [X] T022 [US1] Write `tests/tests/f004_agreement.rs` (FR-001–FR-006; quickstart rows), in the
   contract check order:
   - **Happy path**: T proposes, then G signs. Assert every stored term, `status`, both flags,
     `pledge_count == call_count == 1` and `created_ts` / `activated_ts`. The reverse (G proposes,
@@ -297,16 +297,16 @@ flag set. G signs → Active. An outsider's signature → `Unauthorized`; T sign
 
 ### Implementation for User Story 1
 
-- [ ] T023 [US1] Implement `propose_agreement` per its contract (checks 1–13 in order), using
+- [X] T023 [US1] Implement `propose_agreement` per its contract (checks 1–13 in order), using
   `valuation::eligible` and `HolderStateView::load`. Set the proposer's flag and the counters to
   1. Emit `AgreementProposed`
-- [ ] T024 [US1] Implement `sign_agreement` per its contract (checks 1–5): set the flag, then
+- [X] T024 [US1] Implement `sign_agreement` per its contract (checks 1–5): set the flag, then
   `Active` and `activated_ts`. Emit `AgreementActive`
-- [ ] T025 [US1] Add `collateral_ready_fund(h) -> CollatCtx` to `tests/src/fixtures.rs`:
+- [X] T025 [US1] Add `collateral_ready_fund(h) -> CollatCtx` to `tests/src/fixtures.rs`:
   `collateral_base_fund`, then T proposes with `worked_terms()` and nonce 1, and G signs.
   Variants: `two_step` (`taker_may_call_unilaterally = false`), `unpriced`, and
   `proposed_only` (not signed, used by every FR-007 test)
-- [ ] T026 [US1] Make T022 pass. Check that each instruction is ≤ 80 000 CU (R14)
+- [X] T026 [US1] Make T022 pass. Check that each instruction is ≤ 80 000 CU (R14)
 
 **Checkpoint**: US1 independent test passes.
 
