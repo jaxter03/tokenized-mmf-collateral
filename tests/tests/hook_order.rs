@@ -628,3 +628,37 @@ fn accrual_arithmetic_fails_closed() {
         before
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// F004 T040: step 5 (locked units) sits after the sender check and before the receiver check
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn locked_units_are_checked_between_sender_and_receiver() {
+    use tests::collateral::{exposure, pledge, r};
+    let mut h = Harness::new();
+    let c = fixtures::collateral_ready_fund(&mut h);
+    exposure(&mut h, &c, &c.taker, 1_000_000_000_000, r(1)).expect("$1M");
+    pledge(&mut h, &c, &c.giver, 1_020_408_163_266, r(9)).expect("pledge");
+    let over = 979_591_836_735; // one base unit more than G's unlocked units
+
+    // Over the lock to a receiver that isn't approved (suspended: its account stays thawed)
+    // → PledgedUnitsLocked: step 5 comes before step 6.
+    suspend(&mut h, &c, &c.taker.pubkey());
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &c, &c.giver, &c.taker.pubkey(), over),
+        HookError::PledgedUnitsLocked,
+    );
+    // A suspended sender with locked units → SenderNotApproved: step 4 comes first.
+    suspend(&mut h, &c, &c.giver.pubkey());
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &c, &c.giver, &c.taker.pubkey(), over),
+        HookError::SenderNotApproved,
+    );
+    // Paused → TransfersPaused: step 3 comes first.
+    pause(&mut h, &c);
+    assert_anchor_error(
+        &fixtures::transfer(&mut h, &c, &c.giver, &c.taker.pubkey(), over),
+        HookError::TransfersPaused,
+    );
+}

@@ -115,3 +115,82 @@ fn proposed_agreement_takes_no_calls() {
     let anyone = h.funded_keypair();
     assert_anchor_error(&check(&mut h, &c, &anyone), CollateralError::AgreementNotActive);
 }
+
+// ---- part 2 (T042): with pledges and price moves -----------------------------------------
+
+use tests::collateral::{pledge, publish_next_day};
+
+const UNITS_FOR_MILLION: u64 = 1_020_408_163_266;
+
+fn units_for(value: u64, nav: u64) -> u64 {
+    mmf_common::collateral::units_for_value_up(value, nav, 200).unwrap()
+}
+
+#[test]
+fn open_calls_are_met_together() {
+    let (mut h, c, mut t) = ready(Ready::Standard);
+    exposure(&mut h, &c, &c.taker, MILLION, r(1)).expect("$1M");
+    exposure(&mut h, &c, &c.taker, MILLION * 3 / 2, r(2)).expect("$1.5M");
+    let (first, second) = (t.call(c.agr.call(&r(1))), t.call(c.agr.call(&r(2))));
+    // Covering the first call's value alone leaves both open: coverage is still negative.
+    pledge(&mut h, &c, &c.giver, UNITS_FOR_MILLION, r(10)).expect("partial");
+    t.pledge(c.agr.pledge(&r(10)));
+    assert_eq!(call_status(&h, &first), CallStatus::Open);
+    assert_eq!(call_status(&h, &second), CallStatus::Open);
+    assert_eq!(agreement_of(&h, &c).called_outstanding, MILLION / 2, "capped at the shortfall");
+    t.check(&h);
+    // Covering the rest meets both in the same transaction.
+    pledge(&mut h, &c, &c.giver, units_for(MILLION / 2, 100_000_000), r(11)).expect("the rest");
+    t.pledge(c.agr.pledge(&r(11)));
+    assert_eq!(call_status(&h, &first), CallStatus::Met);
+    assert_eq!(call_status(&h, &second), CallStatus::Met);
+    let a = agreement_of(&h, &c);
+    assert_eq!((a.called_outstanding, a.open_delivery_calls, a.met_below_seq), (0, 0, 3));
+    t.check(&h);
+}
+
+#[test]
+fn a_rise_after_a_partial_pledge_opens_a_new_call() {
+    let (mut h, c, mut t) = ready(Ready::Standard);
+    exposure(&mut h, &c, &c.taker, MILLION, r(1)).expect("$1M");
+    t.call(c.agr.call(&r(1)));
+    pledge(&mut h, &c, &c.giver, units_for(600_000_000_000, 100_000_000), r(10)).expect("$600k of value");
+    t.pledge(c.agr.pledge(&r(10)));
+    assert_eq!(agreement_of(&h, &c).called_outstanding, 400_000_000_000);
+    // The $500 000 rise is not folded into the first call: it gets its own call and deadline.
+    exposure(&mut h, &c, &c.taker, MILLION * 3 / 2, r(2)).expect("raise");
+    t.call(c.agr.call(&r(2)));
+    assert_eq!(call_of(&h, &c, r(2)).value_delta, 500_000_000_000);
+    let a = agreement_of(&h, &c);
+    assert_eq!((a.called_outstanding, a.open_delivery_calls), (900_000_000_000, 2));
+    t.check(&h);
+}
+
+#[test]
+fn price_moves_open_and_meet_calls() {
+    let (mut h, c, mut t) = ready(Ready::Standard);
+    exposure(&mut h, &c, &c.taker, MILLION, r(1)).expect("$1M");
+    let first = t.call(c.agr.call(&r(1)));
+    pledge(&mut h, &c, &c.giver, UNITS_FOR_MILLION, r(10)).expect("full cover");
+    t.pledge(c.agr.pledge(&r(10)));
+    assert_eq!(call_status(&h, &first), CallStatus::Met);
+
+    // $0.99: the shortfall is exactly the MTA, so nothing can be called.
+    publish_next_day(&mut h, &c, 99_000_000);
+    assert_anchor_error(&issue(&mut h, &c, &c.taker, DELIVERY, r(2)), CollateralError::NothingToCall);
+    // $0.985: a $15 000 shortfall, called for 15 539.210609 units.
+    publish_next_day(&mut h, &c, 98_500_000);
+    let meta = issue(&mut h, &c, &c.taker, DELIVERY, r(3)).expect("call the drop");
+    assert!(meta.compute_units_consumed <= 80_000, "used {}", meta.compute_units_consumed);
+    let drop = t.call(c.agr.call(&r(3)));
+    let call = call_of(&h, &c, r(3));
+    assert_eq!((call.value_delta, call.units_required, call.nav_seq), (15_000_000_000, 15_539_210_609, 3));
+    t.check(&h);
+    // Back to $1.00: anyone's re-check finds the cover and meets the call.
+    publish_next_day(&mut h, &c, 100_000_000);
+    assert_eq!(call_status(&h, &drop), CallStatus::Open, "not yet observed");
+    let anyone = h.funded_keypair();
+    check(&mut h, &c, &anyone).expect("re-check");
+    assert_eq!(call_status(&h, &drop), CallStatus::Met);
+    t.check(&h);
+}

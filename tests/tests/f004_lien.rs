@@ -54,3 +54,61 @@ fn set_lien_refuses_any_other_signer() {
     let state: compliance_hook::HolderState = read(&h, &holder);
     assert_eq!((state.pledged_amount, state.active_liens), (0, 0));
 }
+
+// ---- part 2 (T043): `set_lien`'s checks reached through a real pledge -----------------------
+
+use collateral::CollateralError;
+use tests::collateral::r;
+
+/// Account positions in `pledge` (`MakePledge`): registry, giver_holder, giver_holding.
+const REGISTRY: usize = 5;
+const GIVER_HOLDER: usize = 6;
+const GIVER_HOLDING: usize = 7;
+
+fn pledge_ix(h: &Harness, c: &fixtures::CollatCtx, units: u64, n: u8) -> tests::Ix {
+    mmf_sdk::ix_collateral::pledge(&c.giver.pubkey(), &h.payer.pubkey(), &c.agr, units, r(n))
+}
+
+#[test]
+fn holding_account_must_be_the_givers_for_this_mint() {
+    let mut h = Harness::new();
+    let c = fixtures::collateral_ready_fund(&mut h);
+    let m = c.m();
+
+    // Another owner's holding account (the taker's) next to the giver's record.
+    let mut ix = pledge_ix(&h, &c, 1, 1);
+    ix.accounts[GIVER_HOLDING].pubkey = mmf_sdk::pda::holding_account(&c.taker.pubkey(), &m);
+    assert_anchor_error(&h.send(&[ix], &[&c.giver]), HookError::WrongHolder);
+
+    // The giver's account for another fund's mint.
+    let other = fixtures::launched_fund(&mut h, 0);
+    let g = c.giver.pubkey();
+    let create = mmf_sdk::ix_hook::create_holding_account(&h.payer.pubkey(), &other.m(), &g);
+    h.send(&[create], &[]).expect("create the other mint's account");
+    let mut ix = pledge_ix(&h, &c, 1, 2);
+    ix.accounts[GIVER_HOLDING].pubkey = mmf_sdk::pda::holding_account(&g, &other.m());
+    assert_anchor_error(&h.send(&[ix], &[&c.giver]), HookError::WrongHolder);
+
+    // Another owner's holder record: collateral refuses it before the CPI.
+    let mut ix = pledge_ix(&h, &c, 1, 3);
+    ix.accounts[GIVER_HOLDER].pubkey = mmf_sdk::pda::holder(&m, &c.taker.pubkey()).0;
+    assert_anchor_error(&h.send(&[ix], &[&c.giver]), CollateralError::WrongHolder);
+
+    // Another fund's Registry: its mint differs from the holding account's.
+    let mut ix = pledge_ix(&h, &c, 1, 4);
+    ix.accounts[REGISTRY].pubkey = other.registry();
+    assert_anchor_error(&h.send(&[ix], &[&c.giver]), HookError::WrongHolder);
+
+    let state: compliance_hook::HolderState = read(&h, &mmf_sdk::pda::holder(&m, &g).0);
+    assert_eq!((state.pledged_amount, state.active_liens), (0, 0));
+}
+
+#[test]
+fn registry_without_a_collateral_program_refuses_liens() {
+    // Models a Registry created before F004 (research R16); no instruction can produce one now.
+    let mut h = Harness::new();
+    let c = fixtures::collateral_ready_fund(&mut h);
+    fixtures::patch::<Registry>(&mut h, &c.registry(), |reg| reg.collateral_program = Pubkey::default());
+    let ix = pledge_ix(&h, &c, 1, 1);
+    assert_anchor_error(&h.send(&[ix], &[&c.giver]), HookError::NotCollateralCaller);
+}

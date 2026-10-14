@@ -403,16 +403,16 @@ below the lock, and locked units keep earning interest (FR-021–FR-026, hook st
 
 ### Interface stubs for User Story 3
 
-- [ ] T036 [US3] Add the `pledge(units, pledge_ref)` stub with its account struct (`lien accounts`
+- [X] T036 [US3] Add the `pledge(units, pledge_ref)` stub with its account struct (`lien accounts`
   per contracts/collateral.md). Create `programs/collateral/src/lien.rs` with
   `set_lien_cpi(lien_accounts, change)`, signed by `["hook-caller"]` (this bump is the
   collateral program's)
-- [ ] T037 [P] [US3] Add the SDK builder `ix_collateral::pledge(giver, payer, fund_state, agreement, pledge_ref, units)`,
+- [X] T037 [P] [US3] Add the SDK builder `ix_collateral::pledge(giver, payer, fund_state, agreement, pledge_ref, units)`,
   which derives G's HolderState, ATA, Registry and `hook_caller`
 
 ### Tests for User Story 3 (write first; they must fail) ⚠️
 
-- [ ] T038 [US3] Write `tests/tests/f004_pledge.rs` (FR-021, FR-022, SC-001):
+- [X] T038 [US3] Write `tests/tests/f004_pledge.rs` (FR-021, FR-022, SC-001):
   - **US3 independent test**: snapshot every token account of the mint (and every cash account)
     before and after the pledge; all equal;
   - **Recorded fields**: `seq`, `pledge_ref`, `posted_at`, `nav_seq_at_post`, zero
@@ -426,7 +426,7 @@ below the lock, and locked units keep earning interest (FR-021–FR-026, hook st
     `check_coverage` → Met;
   - **FR-007**: `proposed_only` → `AgreementNotActive`;
   - `assert_locks` after every step
-- [ ] T039 [P] [US3] Write `tests/tests/f004_lock.rs` (FR-023, FR-026, SC-003). With G holding
+- [X] T039 [P] [US3] Write `tests/tests/f004_lock.rs` (FR-023, FR-026, SC-003). With G holding
   2 000 000 units and `1_020_408_163_266` locked:
   - a `transfer_checked` built by hand (raw instruction, no SDK helper) of `979_591_836_735` →
     `PledgedUnitsLocked`;
@@ -439,18 +439,18 @@ below the lock, and locked units keep earning interest (FR-021–FR-026, hook st
   - a fully locked G: a zero-unit transfer succeeds, and receiving units succeeds and raises the
     unlocked amount;
   - after every attempt, balances and locks are unchanged (I2)
-- [ ] T040 [P] [US3] Add the step-5 rows of contracts/compliance_hook.md to
+- [X] T040 [P] [US3] Add the step-5 rows of contracts/compliance_hook.md to
   `tests/tests/hook_order.rs`:
   - a suspended sender with locked units → `SenderNotApproved`;
   - paused → `TransfersPaused`;
   - over the lock to an unapproved receiver → `PledgedUnitsLocked`.
-- [ ] T041 [P] [US3] Write `tests/tests/f004_interest.rs` (SC-004, FR-026; also F002 US2
+- [X] T041 [P] [US3] Write `tests/tests/f004_interest.rs` (SC-004, FR-026; also F002 US2
   scenario 3):
   - two investors each hold 1 000 000 units; one pledges all of them;
   - five publishes at different rates (advance a day each), and each holder makes one transfer of
     0 units (touch);
   - their `accrued_e18` values are equal to the last digit
-- [ ] T042 [P] [US3] Write `tests/tests/f004_calls.rs` part 2 (FR-015, FR-018, with pledges):
+- [X] T042 [P] [US3] Write `tests/tests/f004_calls.rs` part 2 (FR-015, FR-018, with pledges):
   - **Two open calls** ($1M then +$500k): a partial pledge leaves both Open; a pledge covering
     the rest → both derived Met in that transaction;
   - **Demanded part**: a $1M call; G pledges value $600 000; T raises by $500 000 → a new call of
@@ -458,7 +458,7 @@ below the lock, and locked units keep earning interest (FR-021–FR-026, hook st
   - **Price moves**: from full cover at $1M, publish $0.99 → `issue_call` → `NothingToCall`;
     publish $0.985 → a call for `15_000_000_000` with units `15_539_210_609`; publish $1.00 again,
     then `check_coverage` by a random key → Met
-- [ ] T043 [P] [US3] Write `tests/tests/f004_lien.rs` part 2 (`set_lien` checks 2–5 through
+- [X] T043 [P] [US3] Write `tests/tests/f004_lien.rs` part 2 (`set_lien` checks 2–5 through
   `collateral`):
   - pledge passing another owner's ATA as `giver_holding` → `HookError::WrongHolder`;
   - another owner's HolderState as `giver_holder` → `CollateralError::WrongHolder`;
@@ -468,24 +468,24 @@ below the lock, and locked units keep earning interest (FR-021–FR-026, hook st
     `NotCollateralCaller` (moved from T015);
   - G's HolderState planted with `pledged_amount` 1 below an active pledge's remaining (via
     `set_account`, commented: "unreachable state; proves the underflow guard"), then the taker
-    releases the whole pledge → `LienUnderflow`. This test runs once `release` exists (US4) and is
-    `#[ignore]`d until T054
+    releases the whole pledge → `LienUnderflow`. Written with `release` in T054 (US4); until then
+    `set_lien`'s own unit tests cover the underflow arithmetic
 
 ### Implementation for User Story 3
 
-- [ ] T044 [US3] Complete `set_lien` (checks 2–5 and the effect) per contracts/compliance_hook.md.
+- [X] T044 [US3] Complete `set_lien` (checks 2–5 and the effect) per contracts/compliance_hook.md.
   Load and store the HolderState by hand, as `accrue` does, and reuse its holding-account check.
   Emit `LienSet` with `emit!`
-- [ ] T045 [US3] Add step 5 to `programs/compliance_hook/src/hook/execute.rs`, between steps 4 and
+- [X] T045 [US3] Add step 5 to `programs/compliance_hook/src/hook/execute.rs`, between steps 4 and
   6: `require!(post_src >= src.pledged_amount, HookError::PledgedUnitsLocked)`. Update the module
   doc comment's step list ("step 5 lands with F004; step 2 with F005")
-- [ ] T046 [US3] Implement `pledge` per its contract (checks 1–9):
+- [X] T046 [US3] Implement `pledge` per its contract (checks 1–9):
   - CPI `set_lien { lock: units, unlock: 0, opened: 1, closed: 0 }`;
   - create the Pledge;
   - `pledge_count += 1`, `pledged_units += units`;
   - if `fresh`, `observe`;
   - emit `Pledged` with `giver_locked_after`.
-- [ ] T047 [US3] Make T038–T043 pass (except T043's ignored case). Check `pledge` ≤ 80 000 CU,
+- [X] T047 [US3] Make T038–T043 pass (except T043's ignored case). Check `pledge` ≤ 80 000 CU,
   `set_lien` ≤ 15 000 CU and call depth ≤ 3
 
 **Checkpoint**: US1 + US2 + US3 (the MVP) pass. A $1M call is met by a pledge in one transaction

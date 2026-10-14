@@ -260,3 +260,25 @@ pub fn agreement_of(h: &Harness, c: &CollatCtx) -> PledgeAgreement {
 pub fn call_of(h: &Harness, c: &CollatCtx, external_ref: [u8; 32]) -> CollateralCall {
     read(h, &c.agr.call(&external_ref))
 }
+
+/// `pledge` signed by `signer`, for agreement `a`.
+pub fn pledge_on(h: &mut Harness, a: &Agr, signer: &Keypair, units: u64, pledge_ref: [u8; 32]) -> TxResult {
+    let ix = mmf_sdk::ix_collateral::pledge(&signer.pubkey(), &h.payer.pubkey(), a, units, pledge_ref);
+    h.send(&[ix], &[signer])
+}
+
+/// `pledge` on the fixture's agreement.
+pub fn pledge(h: &mut Harness, c: &CollatCtx, signer: &Keypair, units: u64, pledge_ref: [u8; 32]) -> TxResult {
+    pledge_on(h, &c.agr, signer, units, pledge_ref)
+}
+
+/// `owner`'s locked units and active liens.
+pub fn lock_of(h: &Harness, mint: &Pubkey, owner: &Pubkey) -> (u64, u16) {
+    let s: HolderState = read(h, &mmf_sdk::pda::holder(mint, owner).0);
+    (s.pledged_amount, s.active_liens)
+}
+
+/// The pledge at `pledge_ref` as stored.
+pub fn pledge_of(h: &Harness, c: &CollatCtx, pledge_ref: [u8; 32]) -> Pledge {
+    read(h, &c.agr.pledge(&pledge_ref))
+}
