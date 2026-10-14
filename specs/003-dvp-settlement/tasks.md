@@ -791,7 +791,11 @@ succeeds. One prepared for an instruction that is cancelled before submission is
   - every F001/F002 test or helper edit (T011, T013, T018, T072), with its reason
     (Constitution XII).
 
-  A human reviewer completes T079's checklist before merge
+  A human reviewer completes T079's checklist before merge.
+  **Status 2026-10-14**: full suite green (278 + 45 tests; 4 release-only tests pass, incl.
+  SC-007 and 200 property cases; 113 of 113 errors covered; clippy and fmt clean). PR
+  [#3](https://github.com/jaxter03/tokenized-mmf-collateral/pull/3) is open. It is left unchecked
+  until the reviewer signs off and it merges
 
 ---
 
