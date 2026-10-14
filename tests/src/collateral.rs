@@ -320,3 +320,23 @@ pub fn cancel(h: &mut Harness, c: &CollatCtx, signer: &Keypair, external_ref: [u
     let ix = mmf_sdk::ix_collateral::cancel_call(&signer.pubkey(), &c.agr, &c.agr.call(&external_ref));
     h.send(&[ix], &[signer])
 }
+
+/// `substitute` of the pledge at `old_ref` with `new_units` at `new_ref`, on agreement `a`.
+pub fn substitute_on(
+    h: &mut Harness,
+    a: &Agr,
+    signer: &Keypair,
+    old_ref: [u8; 32],
+    new_ref: [u8; 32],
+    new_units: u64,
+) -> TxResult {
+    let ix = mmf_sdk::ix_collateral::substitute(
+        &signer.pubkey(),
+        &h.payer.pubkey(),
+        a,
+        &a.pledge(&old_ref),
+        new_ref,
+        new_units,
+    );
+    h.send(&[ix], &[signer])
+}

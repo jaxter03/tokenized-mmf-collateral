@@ -57,6 +57,14 @@ pub mod collateral {
         instructions::release::handle_release(ctx, units)
     }
 
+    pub fn substitute(
+        ctx: Context<Substitute>,
+        new_units: u64,
+        new_pledge_ref: [u8; 32],
+    ) -> Result<()> {
+        instructions::substitute::handle_substitute(ctx, new_units, new_pledge_ref)
+    }
+
     pub fn cancel_call(ctx: Context<CancelCall>) -> Result<()> {
         instructions::cancel_call::handle_cancel_call(ctx)
     }

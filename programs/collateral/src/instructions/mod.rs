@@ -6,6 +6,7 @@ pub mod pledge;
 pub mod propose_agreement;
 pub mod release;
 pub mod sign_agreement;
+pub mod substitute;
 
 pub use cancel_call::*;
 pub use check_coverage::*;
@@ -15,3 +16,4 @@ pub use pledge::*;
 pub use propose_agreement::*;
 pub use release::*;
 pub use sign_agreement::*;
+pub use substitute::*;

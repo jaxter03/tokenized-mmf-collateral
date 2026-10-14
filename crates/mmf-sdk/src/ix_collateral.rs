@@ -265,3 +265,37 @@ pub fn cancel_call(signer: &Pubkey, a: &Agr, call: &Pubkey) -> Instruction {
         collateral::instruction::CancelCall {},
     )
 }
+
+/// `substitute(new_units, new_pledge_ref)`: signed by the giver (and the payer); replaces
+/// `old_pledge`.
+pub fn substitute(
+    giver: &Pubkey,
+    payer: &Pubkey,
+    a: &Agr,
+    old_pledge: &Pubkey,
+    new_pledge_ref: [u8; 32],
+    new_units: u64,
+) -> Instruction {
+    ix(
+        collateral::accounts::Substitute {
+            giver: *giver,
+            payer: *payer,
+            fund_state: a.fund_state(),
+            agreement: a.agreement(),
+            old_pledge: *old_pledge,
+            new_pledge: a.pledge(&new_pledge_ref),
+            registry: pda::registry(&a.mint).0,
+            giver_holder: a.giver_holder(),
+            giver_holding: pda::holding_account(&a.giver, &a.mint),
+            hook_caller: pda::hook_caller().0,
+            compliance_hook_program: COMPLIANCE_HOOK_PROGRAM_ID,
+            system_program: anchor_lang::system_program::ID,
+            event_authority: event_authority(),
+            program: COLLATERAL_PROGRAM_ID,
+        },
+        collateral::instruction::Substitute {
+            new_units,
+            new_pledge_ref,
+        },
+    )
+}

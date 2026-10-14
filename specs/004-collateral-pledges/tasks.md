@@ -573,10 +573,10 @@ Met.
 - The lock is `1_100_000_000_000` and no balance changed, all in one instruction.
 - Substituting with `1_000_000_000_000` → `SubstituteTooSmall`.
 
-- [ ] T056 [US5] Add the `substitute(new_units, new_pledge_ref)` stub (account struct per
+- [X] T056 [US5] Add the `substitute(new_units, new_pledge_ref)` stub (account struct per
   contracts/collateral.md) and the SDK builder
   `ix_collateral::substitute(giver, payer, fund_state, agreement, old_pledge, new_pledge_ref, new_units)`
-- [ ] T057 [US5] Write `tests/tests/f004_substitute.rs` (tests must fail):
+- [X] T057 [US5] Write `tests/tests/f004_substitute.rs` (tests must fail):
   - **US5 independent test**;
   - **Equal swap**: lock, `active_liens` and `pledged_units` all unchanged;
   - **Rejections**: `SubstituteTooSmall`; a net increase above the unlocked amount →
@@ -586,13 +586,13 @@ Met.
   - **Observe**: an open call is derived Met when the swap raises coverage to ≥ 0;
   - **FR-007**: `proposed_only` → `AgreementNotActive`;
   - `assert_locks` after every step
-- [ ] T058 [US5] Implement `substitute` per its contract (checks 1–9):
+- [X] T058 [US5] Implement `substitute` per its contract (checks 1–9):
   - one CPI `set_lien { lock: new, unlock: remaining, opened: 1, closed: 1 }`;
   - the old pledge becomes Substituted; the new pledge is created;
   - `pledged_units` and `pledge_count` updated;
   - `observe` if `fresh`;
   - emit `Substituted`.
-- [ ] T059 [US5] Make T057 pass
+- [X] T059 [US5] Make T057 pass
 
 **Checkpoint**: US5 independent test passes.
 
