@@ -1,5 +1,6 @@
 pub mod cancel_call;
 pub mod check_coverage;
+pub mod dispute;
 pub mod exposure;
 pub mod issue_call;
 pub mod pledge;
@@ -10,6 +11,7 @@ pub mod substitute;
 
 pub use cancel_call::*;
 pub use check_coverage::*;
+pub use dispute::*;
 pub use exposure::*;
 pub use issue_call::*;
 pub use pledge::*;

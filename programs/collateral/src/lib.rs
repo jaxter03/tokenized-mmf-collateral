@@ -69,6 +69,25 @@ pub mod collateral {
         instructions::cancel_call::handle_cancel_call(ctx)
     }
 
+    pub fn dispute_call(ctx: Context<DisputeCall>, dispute_ref: [u8; 32]) -> Result<()> {
+        instructions::dispute::handle_dispute_call(ctx, dispute_ref)
+    }
+
+    pub fn withdraw_dispute(ctx: Context<DisputeCall>) -> Result<()> {
+        instructions::dispute::handle_withdraw_dispute(ctx)
+    }
+
+    /// Governance only (`["collateral-caller"]`), for compliance.
+    pub fn resolve_dispute(
+        ctx: Context<ResolveDispute>,
+        outcome: u8,
+        reason: u8,
+        case_ref_hash: [u8; 32],
+        actor: Pubkey,
+    ) -> Result<()> {
+        instructions::dispute::handle_resolve_dispute(ctx, outcome, reason, case_ref_hash, actor)
+    }
+
     /// Anyone (permissionless, state-checked): observe coverage at a fresh price.
     pub fn check_coverage(ctx: Context<CheckCoverage>) -> Result<()> {
         instructions::check_coverage::handle_check_coverage(ctx)

@@ -299,3 +299,61 @@ pub fn substitute(
         },
     )
 }
+
+/// `dispute_call(dispute_ref)`: signed by the giver.
+pub fn dispute_call(signer: &Pubkey, a: &Agr, call: &Pubkey, dispute_ref: [u8; 32]) -> Instruction {
+    ix(
+        collateral::accounts::DisputeCall {
+            signer: *signer,
+            fund_state: a.fund_state(),
+            agreement: a.agreement(),
+            call: *call,
+            event_authority: event_authority(),
+            program: COLLATERAL_PROGRAM_ID,
+        },
+        collateral::instruction::DisputeCall { dispute_ref },
+    )
+}
+
+/// `withdraw_dispute()`: signed by the giver.
+pub fn withdraw_dispute(signer: &Pubkey, a: &Agr, call: &Pubkey) -> Instruction {
+    ix(
+        collateral::accounts::DisputeCall {
+            signer: *signer,
+            fund_state: a.fund_state(),
+            agreement: a.agreement(),
+            call: *call,
+            event_authority: event_authority(),
+            program: COLLATERAL_PROGRAM_ID,
+        },
+        collateral::instruction::WithdrawDispute {},
+    )
+}
+
+/// `resolve_dispute(...)` called directly (governance's `["collateral-caller"]` is the only real
+/// caller); tests use it to show anything else is refused. `caller` signs in the caller position.
+pub fn resolve_dispute_direct(
+    caller: &Pubkey,
+    a: &Agr,
+    call: &Pubkey,
+    outcome: u8,
+    reason: u8,
+    case_ref_hash: [u8; 32],
+) -> Instruction {
+    ix(
+        collateral::accounts::ResolveDispute {
+            collateral_caller: *caller,
+            fund_state: a.fund_state(),
+            agreement: a.agreement(),
+            call: *call,
+            event_authority: event_authority(),
+            program: COLLATERAL_PROGRAM_ID,
+        },
+        collateral::instruction::ResolveDispute {
+            outcome,
+            reason,
+            case_ref_hash,
+            actor: *caller,
+        },
+    )
+}
