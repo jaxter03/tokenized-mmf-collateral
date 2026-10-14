@@ -115,7 +115,7 @@ green.
 
 ### Shared code
 
-- [ ] T005 [P] Create `crates/mmf-common/src/collateral.rs` and export it from `lib.rs`
+- [X] T005 [P] Create `crates/mmf-common/src/collateral.rs` and export it from `lib.rs`
   (data-model "Units and formulas", research R4, R5). All functions are pure and use checked
   `u128` math; each returns `None` on overflow or on a result that doesn't fit:
   - `collateral_value(units: u64, nav: u64, haircut_bps: u16) -> Option<u64>` =
@@ -141,7 +141,7 @@ green.
   - `price_age` at max age and at max age + 1;
   - `observe` with S above, equal to and below D, and with S = 0;
   - `delivery_met` for each status
-- [ ] T006 [P] In `crates/mmf-common/src/seeds.rs`, add:
+- [X] T006 [P] In `crates/mmf-common/src/seeds.rs`, add:
   - `AGREEMENT = b"agreement"` (`["agreement", fund_state, giver, taker, nonce_le]`);
   - `PLEDGE = b"pledge"` (`["pledge", agreement, pledge_ref]`);
   - `CALL = b"call"` (`["call", agreement, external_ref]`);
@@ -159,7 +159,7 @@ green.
   - `ReasonCode::allowed_for_resolve_dispute()`, the same list as `allowed_in_f001`.
 
   Extend the round-trip unit test (unknown values are errors)
-- [ ] T007 [P] In `crates/mmf-common/src/views.rs`, add `nav_ts: i64` to `FundStateView`
+- [X] T007 [P] In `crates/mmf-common/src/views.rs`, add `nav_ts: i64` to `FundStateView`
   (offset `FUND_NAV + 8`; `FUND_NAV_SEQ` already sits after it) and decode it. Extend the
   FundState decode test with a known `nav_ts`
 - [ ] T008 Create `programs/collateral/src/state.rs`, `errors.rs` and `events.rs` per

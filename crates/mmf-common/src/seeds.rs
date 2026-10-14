@@ -30,3 +30,13 @@ pub const ESCROW: &[u8] = b"escrow";
 pub const SETTLEMENT: &[u8] = b"settlement";
 /// governance: `["dvp-caller"]` → signs `dvp_settlement::reject`. [F003]
 pub const DVP_CALLER: &[u8] = b"dvp-caller";
+/// collateral: `["agreement", fund_state, giver, taker, nonce.to_le_bytes()]` → PledgeAgreement. [F004]
+pub const AGREEMENT: &[u8] = b"agreement";
+/// collateral: `["pledge", agreement, pledge_ref]` → Pledge. [F004]
+pub const PLEDGE: &[u8] = b"pledge";
+/// collateral: `["call", agreement, external_ref]` → CollateralCall. [F004]
+pub const CALL: &[u8] = b"call";
+/// collateral: `["hook-caller"]` → signs `compliance_hook::set_lien`. [F004]
+pub const HOOK_CALLER: &[u8] = b"hook-caller";
+/// governance: `["collateral-caller"]` → signs `collateral::resolve_dispute`. [F004]
+pub const COLLATERAL_CALLER: &[u8] = b"collateral-caller";
