@@ -664,7 +664,7 @@ cancelling the call, by compliance resolution through governance, or when the ca
 
 ## Phase 9: Polish & cross-cutting concerns
 
-- [ ] T067 [P] Write `tests/tests/f004_status.rs` (FR-034, FR-035):
+- [X] T067 [P] Write `tests/tests/f004_status.rs` (FR-034, FR-035):
   - **Suspended or KYC-expired G**: pledge, substitute, confirm and return call →
     `PartyNotEligible`; release, dispute and cancelling its return call succeed;
   - **Suspended T**: a raise and a delivery call → `PartyNotEligible`; lowering, release and
@@ -674,7 +674,7 @@ cancelling the call, by compliance resolution through governance, or when the ca
     units fails with `TransfersPaused`.
 
   No program change is expected; if one is needed, stop and record it in research.md
-- [ ] T068 [P] Write `tests/tests/f004_slow_signers.rs` (FR-036, SC-008), using
+- [X] T068 [P] Write `tests/tests/f004_slow_signers.rs` (FR-036, SC-008), using
   `tests/src/nonce.rs` and `mmf_sdk::prepare::with_durable_nonce`:
   - **Delayed pledge**: G's pledge prepared on its durable nonce and submitted after 6 h →
     succeeds;
