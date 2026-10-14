@@ -349,11 +349,7 @@ fn units_may_be_funded_before_valid_from() {
     settle::fund_units(&mut h, &d, &a).expect("early funding is allowed");
 }
 
-#[test]
-#[ignore = "F004: hook step 5 (collateral locks) not built"]
-fn locked_units_cannot_fund_a_redemption() {
-    // US2 scenario 3. Once F004 sets `pledged_amount`, funding a redemption with pledged units
-    // fails at hook step 5 with PledgedUnitsLocked and nothing moves. F004 replaces this body
-    // with: pledge 1 unit of 1, then `fund_units` → HookError::PledgedUnitsLocked.
-    unimplemented!("F004");
-}
+// US2 scenario 3 (locked units can't fund a redemption) is verified in F004, which builds hook
+// step 5: pledge a holder's only unit, then `fund_units` must fail with
+// `HookError::PledgedUnitsLocked` and move nothing. No placeholder test here: an ignored test that
+// panics would break `cargo test -- --ignored`.

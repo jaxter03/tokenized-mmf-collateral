@@ -474,9 +474,10 @@ by 500 000; `redeemed_today` = 500 000.
   - the transfer agent funding a subscription's cash or a redemption's units → `Unauthorized`;
   - funding before `not_before_ts` is allowed.
 
-  The F004 collateral-lock case (US2 scenario 3) gets a placeholder test marked
-  `#[ignore = "F004: hook step 5 not built"]` with the expected `PledgedUnitsLocked` assertion
-  written out
+  The F004 collateral-lock case (US2 scenario 3) is recorded as a comment in `f003_fund.rs`
+  stating the test F004 adds (pledge a holder's only unit, then `fund_units` →
+  `PledgedUnitsLocked`). An `#[ignore]`d placeholder that panics was tried and removed: it broke
+  `cargo test -- --ignored`
 - [X] T043 [US2] Write `tests/tests/f003_redeem.rs`:
   - **spec independent test**;
   - **acceptance scenarios 1, 2, 4, 6**; cash = `floor(units × nav / 10^8)` at a non-$1 price;
