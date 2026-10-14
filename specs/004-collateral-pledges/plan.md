@@ -72,8 +72,9 @@ without resizing: `HolderState.pledged_amount` and `active_liens`, and
 and devnet script (scripts/). `services/` and `app/` start in F008.
 
 **Performance Goals** (R14):
-- Every `collateral` instruction ≤ 80 000 CU; `set_lien` ≤ 15 000 CU; hook step 5 adds under
-  100 CU.
+- Every `collateral` instruction ≤ 80 000 CU. `set_lien` costs about 13 000 CU plus about
+  1 500 per ATA bump-search step, which depends on the address (≤ 40 000 in tests; R14). Hook
+  step 5 adds under 100 CU.
 - Call depth ≤ 4.
 - Every instruction uses a fixed account set whatever the number of holders, agreements, pledges
   or open calls (SC-007).

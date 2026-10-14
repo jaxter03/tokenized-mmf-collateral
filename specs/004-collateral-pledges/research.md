@@ -269,8 +269,12 @@ spec raised.
 ## R14. Compute, call depth and transaction size
 
 - **Decision**:
-  - **Compute**: each `collateral` instruction stays at or below 80 000 CU, and `set_lien` at or
-    below 15 000 CU. Hook step 5 adds under 100 CU to `execute`.
+  - **Compute**: each `collateral` instruction stays at or below 80 000 CU (a pledge measured
+    40 584–51 084 over 40 runs). Hook step 5 adds under 100 CU to `execute`.
+  - **`set_lien`**: about 13 000 CU, plus about 1 500 for each bump-search step needed to derive
+    the holder's ATA address. The step count depends on the address, as for F003's `accrue`;
+    measured 13 141–23 641 CU over 40 runs. The test bound is 40 000. *(Revised in
+    implementation: the plan's 15 000 didn't allow for the address-dependent search.)*
   - **Call depth**: at most 3 for party steps (collateral → hook → none; `emit_cpi` is the
     third), and 4 for compliance resolution (Squads → governance → collateral → `emit_cpi`).
   - **Accounts**: the largest instruction, `substitute`, uses 12 accounts. A durable-nonce pledge

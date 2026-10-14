@@ -686,7 +686,7 @@ cancelling the call, by compliance resolution through governance, or when the ca
   - **Control**: an ordinary-blockhash transaction after 6 h → `BlockhashNotFound`.
 
   No program change is expected; if one is needed, stop and record it
-- [ ] T069 [P] Write `tests/tests/collateral_prop.rs` (proptest; SC-002, SC-003, SC-005):
+- [X] T069 [P] Write `tests/tests/collateral_prop.rs` (proptest; SC-002, SC-003, SC-005):
   - **Sequences**: random ops from research R15 against `collateral_model.rs`, with 2–4 holders,
     1–3 agreements and prices in [$0.95, $1.05];
   - **Each step**: the on-chain outcome (Ok, or the error name) equals the model's, and I1, I2,

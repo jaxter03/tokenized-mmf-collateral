@@ -22,5 +22,8 @@ Collected while implementing, so the PR description can list them (Constitution 
 - T015: the planted pre-F004 Registry test moved to T043; outside `collateral` no caller can sign as `["hook-caller"]`, so only a pledge reaches the empty-`collateral_program` check.
 - T044: `accrue`'s holder-account check split into `owner_accounts` (shared with `set_lien`) plus the Escrow-class check; `accrue`'s behaviour and errors are unchanged.
 - T046: the lien CPI is built by hand (`collateral::lien`), because Anchor's generated CPI passes an `UncheckedAccount` unsigned; `set_lien` keeps the caller unchecked so a wrong or unsigned caller reports `NotCollateralCaller`.
+- T047 / R14 revised: `set_lien` measured 13 141–23 641 CU over 40 runs (each owner's ATA needs a different number of bump-search steps), so the plan's 15 000 CU target was replaced by ≤ 40 000 in the test; the whole pledge stays ≤ 80 000 (max 51 084 measured).
+- T069: the property test's success floor is an aggregate over a fixed-seed run of 16 cases (≥ 25%; measured 335/975), not a per-case floor, which made random cases fail although chain and model agreed.
+- After T069: `cargo test -p tests` 373 passed, 5 ignored (release-only), 0 failed; `collateral_prop` 256 cases pass in release.
 - MVP checkpoint (T047): `cargo test -p tests` 333 passed, 4 ignored, 0 failed.
 - Phase 2 (T019): `cargo test -p tests` 285 passed, 4 ignored, 0 failed.

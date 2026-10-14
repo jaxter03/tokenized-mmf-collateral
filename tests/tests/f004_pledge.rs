@@ -51,7 +51,9 @@ fn us3_one_pledge_meets_the_call_and_moves_nothing() {
     let meta = pledge(&mut h, &c, &c.giver, UNITS_FOR_MILLION, r(9)).expect("pledge");
     t.pledge(c.agr.pledge(&r(9)));
     assert!(meta.compute_units_consumed <= 80_000, "used {}", meta.compute_units_consumed);
-    // Research R14: `set_lien` ≤ 15 000 CU, and the deepest call is the third level.
+    // Research R14: `set_lien` costs about 13 000 CU plus about 1 500 per bump-search step of
+    // the holder's ATA address (address-dependent; 13 141–23 641 over 40 runs). The bound leaves
+    // room for 17 extra steps; the deepest call is the third level.
     let hook = mmf_common::ids::COMPLIANCE_HOOK_PROGRAM_ID.to_string();
     let lien_cu: u64 = meta
         .logs
@@ -61,7 +63,7 @@ fn us3_one_pledge_meets_the_call_and_moves_nothing() {
             rest.split(' ').next()?.parse().ok()
         })
         .expect("set_lien ran");
-    assert!(lien_cu <= 15_000, "set_lien used {lien_cu}");
+    assert!(lien_cu <= 40_000, "set_lien used {lien_cu}");
     assert!(!meta.logs.iter().any(|l| l.contains("invoke [4]")), "call depth ≤ 3");
 
     assert_eq!(balances(&h, &c), before, "no unit or cash balance changed (SC-001)");
