@@ -2,12 +2,13 @@
 //! Token-2022 calls it during `transfer_checked`, after moving the balances, with the five base
 //! accounts read-only and then the extra accounts from the `ExtraAccountMetaList`.
 //!
-//! Steps (F001 builds 0, 1, 3, 4, 6, 7, 9, 10; F002 builds 8; step 5 arrives with F004 and
-//! step 2 with F005):
+//! Steps (F001 builds 0, 1, 3, 4, 6, 7, 9, 10; F002 builds 8; F004 builds 5; step 2, the
+//! enforcement bypass, arrives with F005):
 //!  0. both token accounts carry the `transferring` flag      → NotTransferring
 //!  1. accounts belong to this fund's mint                      → WrongMint
 //!  3. transfers paused                                         → TransfersPaused
 //!  4. sender approved with valid KYC                           → SenderNotApproved
+//!  5. sender's post-balance covers its locked units            → PledgedUnitsLocked
 //!  6. receiver approved, class allowed, jurisdiction allowed   → ReceiverNotApproved
 //!  7. new investor while the cap is reached                    → HolderCapReached
 //!  8. settle both sides' interest on their old balances         → WrongMint, Overflow
@@ -166,6 +167,14 @@ pub fn handle_execute(ctx: Context<Execute>, amount: u64) -> Result<()> {
     let mut src = src
         .filter(|h| h.approved(now))
         .ok_or(error!(HookError::SenderNotApproved))?;
+
+    // 5. Locked units stay (F004, research R3): no transfer may leave the sender's balance below
+    // its lock, whoever built it. A same-owner transfer is judged on the source account alone
+    // (fail closed; an owner has one usable account). The enforcement bypass is F005's step 2.
+    require!(
+        post_src >= src.pledged_amount,
+        HookError::PledgedUnitsLocked
+    );
 
     // 6. Receiver approved, of an allowed class, in an allowed jurisdiction (investors only).
     let registry = &a.registry;

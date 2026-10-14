@@ -7,6 +7,7 @@ pub mod call_account;
 pub mod errors;
 pub mod events;
 pub mod instructions;
+pub mod lien;
 pub mod state;
 pub mod valuation;
 
@@ -46,6 +47,10 @@ pub mod collateral {
 
     pub fn issue_call(ctx: Context<IssueCall>, kind: u8, external_ref: [u8; 32]) -> Result<()> {
         instructions::issue_call::handle_issue_call(ctx, kind, external_ref)
+    }
+
+    pub fn pledge(ctx: Context<MakePledge>, units: u64, pledge_ref: [u8; 32]) -> Result<()> {
+        instructions::pledge::handle_pledge(ctx, units, pledge_ref)
     }
 
     /// Anyone (permissionless, state-checked): observe coverage at a fresh price.

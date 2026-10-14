@@ -6,7 +6,7 @@
 use anchor_lang::prelude::Pubkey;
 use anchor_lang::solana_program::instruction::Instruction;
 use anchor_lang::{InstructionData, ToAccountMetas};
-use mmf_common::ids::COLLATERAL_PROGRAM_ID;
+use mmf_common::ids::{COLLATERAL_PROGRAM_ID, COMPLIANCE_HOOK_PROGRAM_ID};
 
 use crate::pda;
 
@@ -195,5 +195,28 @@ pub fn check_coverage(triggered_by: &Pubkey, a: &Agr) -> Instruction {
             program: COLLATERAL_PROGRAM_ID,
         },
         collateral::instruction::CheckCoverage {},
+    )
+}
+
+/// `pledge(units, pledge_ref)`: signed by the giver (and the payer). Passes the giver's
+/// HolderState and holding account, the Registry and `["hook-caller"]` for the lien CPI.
+pub fn pledge(giver: &Pubkey, payer: &Pubkey, a: &Agr, units: u64, pledge_ref: [u8; 32]) -> Instruction {
+    ix(
+        collateral::accounts::MakePledge {
+            giver: *giver,
+            payer: *payer,
+            fund_state: a.fund_state(),
+            agreement: a.agreement(),
+            pledge: a.pledge(&pledge_ref),
+            registry: pda::registry(&a.mint).0,
+            giver_holder: a.giver_holder(),
+            giver_holding: pda::holding_account(&a.giver, &a.mint),
+            hook_caller: pda::hook_caller().0,
+            compliance_hook_program: COMPLIANCE_HOOK_PROGRAM_ID,
+            system_program: anchor_lang::system_program::ID,
+            event_authority: event_authority(),
+            program: COLLATERAL_PROGRAM_ID,
+        },
+        collateral::instruction::Pledge { units, pledge_ref },
     )
 }
