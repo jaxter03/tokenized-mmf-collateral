@@ -1,0 +1,14 @@
+{
+  "name": "mmf-demo-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "e2e": "node e2e.mjs"
+  },
+  "dependencies": {
+    "@anchor-lang/core": "1.1.2",
+    "@solana/spl-token": "0.4.13",
+    "@solana/web3.js": "1.98.4"
+  }
+}
