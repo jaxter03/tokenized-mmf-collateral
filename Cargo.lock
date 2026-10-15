@@ -1342,6 +1342,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "bs58",
+ "collateral",
  "compliance_hook",
  "dvp_settlement",
  "fund",

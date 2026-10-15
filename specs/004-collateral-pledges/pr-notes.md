@@ -28,5 +28,6 @@ Collected while implementing, so the PR description can list them (Constitution 
 - T069: the property test's success floor is an aggregate over a fixed-seed run of 16 cases (≥ 25%; measured 335/975), not a per-case floor, which made random cases fail although chain and model agreed.
 - After T069: `cargo test -p tests` 373 passed, 5 ignored (release-only), 0 failed; `collateral_prop` 256 cases pass in release.
 - T071 measured (release): pledge 40 582 / 40 582, return call 23 337 / 23 339, release 34 384 / 34 384 CU at 10 holders + 1 agreement vs 10 000 holders + 300 agreements; publish 18 963 both.
+- Devnet script (T075) rehearsed on a local validator with the five programs and Token-2022 v11 (2026-10-15): 37 of 37 steps matched, including a pledge signed 130 s after it was prepared on a durable nonce, and `PledgedUnitsLocked` on a send one base unit over the lock. `scripts/devnet-e2e/src/f003.rs`: `send_prepared` made `pub(crate)` so the F004 run reuses it.
 - MVP checkpoint (T047): `cargo test -p tests` 333 passed, 4 ignored, 0 failed.
 - Phase 2 (T019): `cargo test -p tests` 285 passed, 4 ignored, 0 failed.

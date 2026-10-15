@@ -714,7 +714,7 @@ cancelling the call, by compliance resolution through governance, or when the ca
   tests
 - [X] T074 [P] Run `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt --check`
   and `scripts/check-duplicate-crates.sh`, then fix the findings
-- [ ] T075 [P] Extend `scripts/devnet-e2e` with `--feature f004` (in `src/f004.rs`), following
+- [X] T075 [P] Extend `scripts/devnet-e2e` with `--feature f004` (in `src/f004.rs`), following
   `src/f003.rs` and quickstart.md "Devnet run":
   - **Agreement**: a new fund; G gets units by an F003 subscription; T proposes and G signs;
   - **Call and pledge**: T sets $1M; G's pledge is prepared on a durable nonce and signed 130 s
