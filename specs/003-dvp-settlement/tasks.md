@@ -781,7 +781,7 @@ succeeds. One prepared for an instruction that is cancelled before submission is
   upgrade authority moved to the issuer's Squads vault with a time lock ≥ 1 h. Then run
   `cargo run -p devnet-e2e` (F001/F002 steps) and `cargo run -p devnet-e2e -- --feature f003`,
   and `--feature f003 --continue <mint>` on a later UTC day. Record program IDs and signatures in
-  `specs/003-dvp-settlement/devnet-run.md`
+  `specs/003-dvp-settlement/devnet-run.md` **Devnet 2026-10-15**: all five programs deployed and the run passed; see [devnet-run.md](../004-collateral-pledges/devnet-run.md). Still open: the Squads upgrade-authority handover and the `--continue` step on a later UTC day.
 - [ ] T081 Run the full suite and validation:
   `anchor build && cargo test -p mmf-common && cargo test -p tests && cargo test -p tests --release -- --ignored`
   and [quickstart.md](quickstart.md). Open the pull request `003-dvp-settlement` → `main`,

@@ -1,0 +1,44 @@
+F004 run on https://api.devnet.solana.com
+F004 end-to-end run as ANv8ZTvmR4dRVs4TCCULwLF8HT6zkUNsCLY6gMMUhRko
+[ 1] fund a test key: ok   5MUbpz5By4GH6rryAnYrWwKZ8XNnYLq7PzWwqyFeKK8Vx6aioEufsaJ6FY1ecYUkkVVeAzAv8x1yeuMZHUG7sYiE
+[ 2] fund a test key: ok   wbbYWUr4eppcRpMqhFNSU88LgfdtA4VP92nqZsq2yRjm2ygT7bRYyvbzEcWjZkTjoLQ1v77gxLV3yNrUuo7nERM
+[ 3] fund a test key: ok   4kzPsuMSQyd6PTSpqu1FtF2sPLE8NSWetBi6feBNX8csWjrDgJETkmKkFt9xovLVBma4PUrBM5Nh52KQnucjcRn2
+[ 4] fund a test key: ok   581FbQoGVVq7aGGXQTtdnXgtMcYST1XwevtNwPEPobt14LA2ud1CYNTM2uRyLEzC9Fjajy31XcTQraHJEmd1xKXN
+[ 5] fund a test key: ok   3tkbSznAasV7DHB5Pmy683ncmZV6Vzs9Ts7KLnD3PY1tUzygzpS3ZVojqxRxwrGpryaVQhNrcCJcFjXkJUauYcKF
+[ 6] fund a test key: ok   4Xu2j5tYE18ix3mEpe3qDJesLZwj1PimAc7YzTQW2XYF9H9c3fB32Q3seZwzrnximpN7B6L9cThrJ9gUAbFmTEah
+[ 7] F004-1. create the mock stablecoin: ok   4p2hx2DFP9dqXYFAPbUvwdtKqcjfTgw7CT6SQny6mQEDBo6rVonVq2xaa1YCuSA59eQJwt8pR54G1T2RgNe6echK
+[ 8] F004-1. init_roles + create_fund: ok   2KjHzjbrAjPtZMF5ZbnFHUzrFL82PcYXAwqEHpLhH13Zd9zWeH8iBsHVfESFgRXn87tc6h9F8yrTVXpAT1MoQcPk
+[ 9] F004-1. register rules, roles, launch: ok   3KhFXhBtvcWj8chjdVpreixmJSYBDCa7rZjZpmrgZZqmbnfEooKbGtcqYxogfBfKrPvXhspDyZBFFShgesXQeNvT
+[10] F004-1. the new Registry names the collateral program: ok   
+[11] F004-1. publish $1.00: ok   2oQ2LtuAMB6F1UCxHFw2aSftxYn5dxmvQtr3Fo4t6HiXh5QqvLs3KpdNmkKtB88asW8QUvrqJzRAao9tMPo1uMbc
+[12] F004-1. treasury cash account, set_cash_treasury, init_dvp: ok   RvbgWgvzxyM9LjCork7gDBM93x6Drs9VhaiVbaczjZBNY9ykqrKC58CJojnVa1oX2kSf7bmUe1tgKZsAfSEckTr
+[13] F004-1. compliance approves the escrow; thaw: ok   2wxeU5gd2cDg2i38ec81koW1CxTD8SWyBWDswJX4XEaBCFE2c8zgZ4dnmSoRx4kH47ZFzNZLxb5Vgot12TZAUV6f
+[14] F004-1. G registers itself: ok   5pRV3zWBSdT8FJYGvQJXsZq8j9dzaxPigTxv6xYPgVC9TEARLscZiLQqyp8CuBdwKTZRXGUHFf9zdkpzTk8y7cjB
+[15] F004-1. compliance approves G: ok   4zLkD2UCcq438dZqAiu1gJaR5HhVqJRc5kyan8m2x39LMcTfoL4MfDbuoH1V14FWUYJwDFe7ZoaNLuW9Zt1myuGJ
+[16] F004-1. T registers itself: ok   3LNPZPLvX7vbrFEymR9oBBeyjLEJaYVWtJvwZXpghD7qtQ6QFtjyDQqUhn4hLK5KPes3sZVXsuutoHsaiM3DpXTF
+[17] F004-1. compliance approves T: ok   5re6hi1PQH5RVaj17EwDJKcunbfU7L3bS37uZzSRQcRQUKhvT6nzddN4yQvTnCLKdj1qtj1bE3wvbcSchzaZFhs7
+[18] F004-1. G gets $2 000 000: ok   5gFNhkosSfjGKnAbWy7EmrTtesV7DEvPGFdUfGBiGpcEvJzN84Jf493re8ws8GBU2JrFLombcsrrvtJF3f6hL52g
+[19] F004-1. G subscribes for 2 000 000 units: ok   2J9osiGk5Zu2T3pGjDTrgcrwjsxUoBCaqxwqP9dtnoS8KZJRsozWnXu1ZazAZaU763WceLVeojAoaaxpmzc688Vf
+[20] F004-1. transfer agent affirms: ok   4agiZj8ByjkbKwyiY4YKReJNYwWRLxioodzLyVCAMB6eLirbetZvwRbqhe6CUS4vHbSV8c8XUc8gFwMSvpqVVmBn
+[21] F004-1. G funds the cash: ok   2UZoFoNk3eEb6vnQZVt5wTShLKgdX89hJV2sLMrcozJh4jC23AcBxvziVJ4HB9UdDsz7PjbmPCZzaxa7g11t2y2F
+[22] F004-1. keeper settles: ok   3wzG5FVL4VWzG7EEQ21DjqNqczgcPxTNrFV7iCdK2nZxAD4kzJca9oLzUkVdQ3kBwtFqWVSUexPmzxiVUtnqNY5b
+[23] F004-1. G holds 2 000 000 units: ok   2000000000000
+[24] F004-2. T proposes the agreement: ok   38mQigAAi1pZojdHTxbkJLBSfbaZtKKfxTZuJs9ZMiVdBGgUSpbhWQHNpS8iBZuC8ZYQeoGK5M2uZbZW3Y2MBgwe
+[25] F004-2. G signs it: ok   Ngh5WcQuhUGzBCzX2KGZwyDMcfvFRTGNR3Moivx8Kp7J7AagnzBXawV8tc1dGLThNWMSSMh6VNAvbHRzbW6NSu3
+[26] F004-3. T sets exposure $1 000 000: ok   4yHHRePrsQHcdK3AmHLePbCH1QjncS5YDYY2mUEQ6gFG5v9v9Nw3ZFqLd8EWyiimMKx5cesx7uGPfV7FMrRjdvqp
+[27] F004-3. a call opened for $1 000 000 needing 1 020 408.163266 units: ok   Some((1000000000000, 1020408163266))
+[28] F004-3. G's durable nonce account: ok   39oQjGa3CEYzQr9CK3c23pqbc1SdSFX12esZGka1mZuSJdmifcs1B4hyjZh9BEBiKE53cJmwQBh8zZj6tWfVep79
+F004-3. pledge prepared; waiting 130 s (past any recent blockhash) before signing…
+[29] F004-3. G signs and submits the prepared pledge: ok   4nHkaiF5MdosZ4KoLDizCtY7xTwUVyFkiq7nWYs9ia29Dd7zeQdKXtAX8GK6u73v7mYMNmPsSce6x5nyNTkN7H3o
+[30] F004-3. nothing moved; the units are locked: ok   balance 2000000000000, locked 1020408163266
+[31] F004-3. the call is Met: ok   Some(1)
+[32] F004-4. G sends 979 591.836735 units (one over the lock): rejected as expected: PledgedUnitsLocked
+[33] F004-4. G sends 979 591.836734 units: ok   3KgUaYcJHZVr7DRtpqq4VWxUQfW8mk8fYR6RfZR4Ltpjga1vKkrBgWudRzTbVUJPS8KqY7nRgdYAuBbk3jcRnaVY
+[34] F004-5. T lowers exposure to $400 000: ok   4L5vBxEPHSedEentAX9KMHvToYh175Zo8AaHCrVABhzzVPCZ5xKJGAmhde1hj6u1P3SZvS1rw7U3BQq14qRy1Sss
+[35] F004-5. G opens a return call: ok   4QZAuDpBDzqW4LEQCaLp5PQG5H1kDG5MWcLyRfjRcnJDoepkLVkncPGKN33Ao8DSJoJwtgRNULEt9UVHUE7QGKmy
+[36] F004-5. keeper releases 612 244.897959 units: ok   2E4ZHruU3Xfqk9yNWJmndKcuWDxkhJJJKSzBwqdn7RdD9Fwb1D9yM6YDFjaqvYMqC7wfiTXsavaQwckmSFq1KpCY
+[37] F004-5. G's lock is 408 163.265307 and the return call is Met: ok   locked 408163265307, status Some(1)
+
+Fund mint 2wPfNNTfswMhv3D6j3F7K4Y1f6VuWKqmUvFF9bhToXEV, agreement HKUAtoy3VoBBgRiqfrB5nhmg5F38F4vEcJ9QHmbgnfvZ
+
+All 37 steps matched their expected outcome.
