@@ -5,9 +5,9 @@ used as collateral. The fund's token enforces its own rules: only approved, KYC-
 institutions can hold it, and every compliance action is on-chain and on record.
 
 Built feature by feature with [Spec Kit](https://github.com/github/spec-kit). **F001 — fund
-launch, roles and holder onboarding**, **F002 — daily price and interest accrual** and **F003 —
-subscription, redemption and transfer settlement** are merged; **F004 — collateral agreements,
-margin calls and pledges** is implemented on its branch. F005–F008 (enforcement, distributions,
+launch, roles and holder onboarding**, **F002 — daily price and interest accrual**, **F003 —
+subscription, redemption and transfer settlement** and **F004 — collateral agreements, margin
+calls and pledges** are merged and deployed on devnet. F005–F008 (enforcement, distributions,
 governance, operator tooling) follow in order; see [docs/speckit-inputs.md](docs/speckit-inputs.md).
 
 ## Devnet deployment
@@ -402,8 +402,21 @@ and verify them is in [tests/fixtures/README.md](tests/fixtures/README.md).
 `scripts/devnet-e2e` runs the whole F001 flow and F002's first publish and override against a
 cluster, using zero-unit transfers (no units can be created before F003, and a zero-unit transfer
 still runs every hook check). `--continue <mint>` publishes the next record on a later UTC day.
-Rehearse it free on a local validator. On devnet, all four runs pass against the deployed
+Rehearse it free on a local validator. On devnet, all three runs pass against the deployed
 programs ([Devnet deployment](#devnet-deployment)).
+
+To run them against the devnet deployment, use a wallet with about 3 devnet SOL. It becomes the
+issuer and pays for every account:
+
+```bash
+cargo run -p devnet-e2e                       # F001 + F002: 34 steps
+cargo run -p devnet-e2e -- --feature f003     # F003: 31 steps
+cargo run -p devnet-e2e -- --feature f004     # F004: 37 steps
+# optional: RPC_URL=<devnet RPC> WALLET=<keypair.json>; defaults are api.devnet.solana.com and ~/.config/solana/id.json
+```
+
+Each run prints every step's signature and outcome, and exits 0 only if all of them match.
+
 Commands are in the [F001](specs/001-fund-launch-onboarding/quickstart.md#devnet-run-r16) and
 [F002](specs/002-daily-price-accrual/quickstart.md#devnet-run-research-r13) quickstarts.
 `devnet-e2e --feature f003` runs settlement on a new fund with real units and a mock stablecoin
@@ -415,11 +428,16 @@ collateral flow on a new fund: a $1M call met by a pledge signed 130 s after it 
 durable nonce, a send over the lock refused by the token, and the excess released against a
 return call. See the [F004 quickstart](specs/004-collateral-pledges/quickstart.md).
 
+## Demo
+
+[`demo/`](demo/) holds a presenter demo of the core idea: an investor meets a margin call raised
+elsewhere (a Tesla-backed loan) by pledging MMF shares, which keep earning interest while pledged.
+A demo assistant, Tony, narrates each step. It uses a small, separate Anchor program on a local
+validator and runs with one command (`demo/run.sh`). See [demo/README.md](demo/README.md).
+
 ## Status
 
-F001–F003 are merged. F004 is implemented and tested on `004-collateral-pledges`, and its human
-review gate ([review.md](specs/004-collateral-pledges/review.md)) is pending before it merges. All
-five programs have been on devnet since 2026-10-15, and every feature's end-to-end run passes
+F001–F004 are merged. All five programs have been on devnet since 2026-10-15, and every feature's end-to-end run passes
 there. Their upgrade authority is still the deploy wallet: the handover to a Squads vault with a
 time lock is still to do ([devnet-run.md](specs/004-collateral-pledges/devnet-run.md#still-open)).
 Nothing here is audited — don't use it with real assets.
