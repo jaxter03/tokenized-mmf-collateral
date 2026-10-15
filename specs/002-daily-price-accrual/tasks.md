@@ -467,7 +467,7 @@ figures plus fair interest.
   steps matched)* Upgrade the three programs on devnet through the issuer's Squads vault (F001 plan
   "Deployment and authorities") and run `cargo run -p devnet-e2e`. Then run
   `cargo run -p devnet-e2e -- --continue <fund>` on each of the next two UTC days. Record program
-  IDs, signatures and the three-record history in `specs/002-daily-price-accrual/devnet-run.md`
+  IDs, signatures and the three-record history in `specs/002-daily-price-accrual/devnet-run.md` **Devnet 2026-10-15**: all five programs deployed and the run passed; see [devnet-run.md](../004-collateral-pledges/devnet-run.md). Still open: the Squads upgrade authority and the next-day `--continue` publish.
 - [ ] T040 Run the full suite and validation:
   `anchor build && cargo test -p mmf-common && cargo test -p tests && cargo test -p tests --release -- --ignored`
   and [quickstart.md](quickstart.md). Open the pull request `002-daily-price-accrual` → `main`

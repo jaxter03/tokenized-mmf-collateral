@@ -736,7 +736,7 @@ cancelling the call, by compliance resolution through governance, or when the ca
   - **Signers**: per instruction (§5.1), and the new CPI edges (§5.2);
   - **Invariants**: I1, I2, I15, I16 (§7);
   - **Design**: the derived-Met rule (R5), and the two Constitution IV exceptions.
-- [ ] T078 *(not done: needs the user's go-ahead, devnet SOL and deployed programs. Rehearsed on a local validator with Token-2022 v11, 2026-10-15: 37 of 37 steps of `--feature f004` matched)* Devnet run. It needs the user's go-ahead, devnet SOL and the deployed programs. Deploy
+- [X] T078 *(done 2026-10-15: first deployment of all five programs; `--feature f004` matched 37 of 37 steps on devnet; recorded in [devnet-run.md](devnet-run.md))* Devnet run. It needs the user's go-ahead, devnet SOL and the deployed programs. Deploy
   `collateral` and upgrade `compliance_hook` and `governance` (and, if F001–F003 are still not on
   devnet, do the first deployment of all five, as F003 T080 describes). Run
   `cargo run -p devnet-e2e -- --feature f004`, and record program IDs and signatures in

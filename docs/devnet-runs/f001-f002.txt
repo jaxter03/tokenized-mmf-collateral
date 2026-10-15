@@ -1,0 +1,52 @@
+F001 + F002 end-to-end run on https://api.devnet.solana.com as ANv8ZTvmR4dRVs4TCCULwLF8HT6zkUNsCLY6gMMUhRko
+[ 1] fund a test key: ok   khGSWgE1P8dxfm5KAWzFymfs331iV4TTrUoTHeNvKr3G6TpuNM44wxxh1BFfm69nAWsLPHx1CYGVVifJEz4kxv1
+[ 2] fund a test key: ok   3J37X98SmGs2CV21CSxerrFJFbCzGDMrh255Y78GjyP5sApGH1gX5iEU8KRfQvWpGaEmz7DLvqwQfth1GkWk1Vza
+[ 3] fund a test key: ok   2D7MUMVGnaif7Ja6HxA4SYpV3hR9cYRBWP9mqj2wrZHtw4Ut7x9PutF8vDrJ5B2hjM486JQxYgk5yKD1pR2nfmJZ
+[ 4] create cash mint: ok   5vLMFhh2cWepDyoVJ9kz7H62Bt1bqboV6n4D2tYvHTqPoSg9ZM1gtWzu94F1xe1Q3sHnooLQXRTEDy91uCV8AMcu
+[ 5] 3. init_roles + create_fund: ok   T5B6qMw7SnqTyFpdkQSz195uTortmunZQ7fSVZszgjbFRDYxhjzhG1PjtVRUVvPWymycXvggLMWHoT8ezfsQVbr
+[ 6] 3. init_registry: ok   2XJvLKGkkHCFFQFXnJTprziyG3CDS73PtsS9CQ6hJByYZp7bJZAXssxhZxTxJwk7WvyCjWGwa2tGCJpTCmevnQbd
+[ 7] 3. set_rules (US, GB, cap 2): ok   cbnzHQf3z8PkP3kabwwR7XGZc8SQJeJFPgQwZUwR9Wy2MqngaBQAhJobSoyLR1V1L6omMuHY3TDwVseLmgEFV1z
+[ 8] 3. set_roles: ok   2SuYxooU2HJvE1zg5fxJ3M35NbdDMLnKKQvvGbkSYeUVXF1x2SRMtBvHfxgE1FTjEjSeePgk28CXavTq572Zosjk
+[ 9] 3. launch: ok   5tXmuknXYiZT5im3CxNEckzGRsX124NtBvcmYRcthA5dUKNwKmEy8MRRo7JxR4bjxVZbSzJ2uNgx2S4WfcCJ3H8m
+[10] 4. A registers itself: ok   29sJD9gFeRqQduEV6tyje6DciSb4qLXH7Nh2NTeU6HKxLAq9DabPPuTiuEp2M8epKErF21NvgYwaF9QpAtjibHBi
+[11] 4. compliance approves and thaws A: ok   5PwxyvvW1cf3mpeyXUkFmQMV2jzZgksdQ6tc5YhSGxSdSTAfwGrECFrM5hFSDiWomejhkqftkDvrFugXQ8LgBkka
+[12] 4. B registers itself: ok   3rqJYCxg3xqSDc8KNPsJvQhvsBYu3wU7Q7RwEBKFRWoHS4CUEPFDAZziMgDARPKbevVe2tmAx6eekEBNpAWb2CBN
+[13] 4. compliance approves and thaws B: ok   76LKw4Gav4mP4PWvo9VhWt8F6ppgL5XZWLxamdqGzKw33KKJEm9orzwhmThKawTkcn6GvPmjC5yUZkLkKbtpNKw
+[14] 4. treasury registered, approved, thawed: ok   4vnU48BF5jvDre91hBNxb1W6vQeNh2kbpz5wwS1MdAskjEdH4dChCf52QDsN3yz7dyon6e85DFjojT21zu1VWMeN
+[15] 5. zero-unit A → B: ok   2SQbqmeiXic6Fa9t82E8ixUyDMuDvgfQQLyVFKnZFfKfL2TUWw2vvqNJ3c8Nf7gP9YRne3pSFHf7EizRWLTjwVj2
+[16] 6. suspend B: ok   5feuLVTUiWEFB8BXHsUDtYUJuEbCnLKzgSsHK6tswp2iKZmNiZksfprTEpn2JWCJEpTk92Xq1qeeZYCbdK9fngHC
+[17] 6. zero-unit A → B (B suspended): rejected as expected: ReceiverNotApproved
+[18] 6. reinstate B: ok   46R1PABtpUuWjGX9GFgUevuJ8C7pFR92K15jYmobEpKmmD4uHP9NpDqwCewdBfGWDmHUkUxYNemfCSqeB1rkLiXk
+[19] 6. zero-unit A → B again: ok   2X85mQzoBR6oFwG6YyoFs1aoTwkG3G1AWC7t9oXiyt2jbhQrZkfGNvF1a3JSVChWwnWZpjuZHUdPidk74gesnSJU
+[20] 7. pause: ok   ZfkeKrc43u1LxQYRaAnR83Fw88CTYgd7nttPfsXBGqGbeMdX1eE6XNtZDWENcUUQ9NnDdm6D2rE3aVcVcPRUb19
+[21] 7. zero-unit A → B (paused): rejected as expected: TransfersPaused
+[22] 7. unpause: ok   4EXgBvqt7eSdLGfUQ1oXw1Zjd7VCTGKy1SogCnpPQgp9JXBBs8iRDg3qsp8px5tyLH8eG1b95NzBMpVmN7gKEzx2
+[23] 7. zero-unit A → B after unpause: ok   KUygCvRa8AmWXNBzHvpSMgXrtDcFNhumtNLmiAGWTnSChC2v4G2d8h8wVRBmcTu6kdTh7A97H764f1qqFtHwbx2
+[24] 8. create holding account for unregistered C: ok   Bydx32HtYq1KmgDnNv66JTwreuDq3HVeHQucQtve6QxYuY7HvLAwHLPHo9ofTuoASK1bj9YjpjkGvvsuwSoawKn
+[25] 8. zero-unit A → C (unregistered): rejected as expected: AccountFrozen
+[26] 9. revoke B: ok   JHqZGp3dk7zT8cPd99a5VoHFp6nx856Wk2cutTPBr2HYMATkZQi2t2ZYjkq92jbwPTBQwDFMhcu7NBp9RE8HQtr
+[27] 9. approve B after revocation: rejected as expected: HolderRevoked
+
+Status history rebuilt from records (FR-034):
+  A FLUm9NLatA1NJuqYkZsFSx7RAABAHFzwJ76kKvWDpduz: Pending (registered) → Approved
+  B 9djqsx27CUhouUrhyAzJXt2m2aZqeQjGdUekeP15f2sm: Pending (registered) → Approved → Suspended (reason 3) → Approved (reason 3) → Revoked (reason 3)
+[28] F002-1. publish $0.99 (1 % from the $1.00 target, limit 50 bps): rejected as expected: PriceMoveTooLarge
+[29] F002-2. publish signed by A (not the fund admin): rejected as expected: Unauthorized
+[30] F002-3. compliance approves an override for $0.99: ok   3yyyo5r3yEQ91UVyrTVtQejdCuHF29cCptSRq1wrs4E3YgjngcHyBa4Z8RQD1m1mT4e1LD8Nw1sKMyrrbbf7ZWna
+[31] F002-4. publish $0.99 covering 1 day(s): ok   2M4rFAi1sVnpGJQkJyrcQ8UPWMuHRizfgEEv1aoTH5bfHj3Zriw4ssriQawg667f3VAGdokwgFirG5k42gDS4h3p
+[32] F002-5. publish again the same day: rejected as expected: PeriodNotStarted
+[33] F002-6. compliance approves an override for $0.985: ok   4eteMmtP7EiUtFSHq26EwohaUJBTmeEP93KLCHWEGbNXFF85oV2dvVK1dpu73YKYAfecqREk8NjatAK3Qa5vwKx3
+[34] F002-6. compliance withdraws it: ok   2eeYR5F8hEZQbmudPiyEfJK2977iQcmmdnzzutSFAvxyLrMKFk8ovgRjHxMGvox5VL5TUDmu1yXW4ATgr6jVJyD9
+F002-7. NavRecord 1 read back: NavRecord { version: 1, seq: 1, nav: 99000000, daily_rate_e12: 123287671, days_covered: 1, period_start_day: 20741, index_after: 123287671000000, as_of_ts: 1792087012, published_by: 5mzfp49pgVSrfCzHr2FHWtA2f2FVdVWnHRXLTis7KghT, override_used: true, bump: 255 }
+
+Price history of 9ye28Fj8Zhz8TgwGhocYckzrUfGCSoyWngKPPnKV9D1N (1 records):
+  #1   days 20741..=20741 price 99000000 rate_e12 123287671 index_after 123287671000000 (override)
+
+Fund mint: 9ye28Fj8Zhz8TgwGhocYckzrUfGCSoyWngKPPnKV9D1N
+Issuer: ANv8ZTvmR4dRVs4TCCULwLF8HT6zkUNsCLY6gMMUhRko
+Compliance: BLNkrGTxka6H6x41PXMZspyMWE9KwkoxBzcTa8L3gzRV
+Fund admin: 5mzfp49pgVSrfCzHr2FHWtA2f2FVdVWnHRXLTis7KghT
+Fund admin key: target/devnet-e2e/9ye28Fj8Zhz8TgwGhocYckzrUfGCSoyWngKPPnKV9D1N-fund-admin-keypair.json (needed by --continue; never commit it)
+Next days: devnet-e2e --continue 9ye28Fj8Zhz8TgwGhocYckzrUfGCSoyWngKPPnKV9D1N
+
+All 34 steps matched their expected outcome.

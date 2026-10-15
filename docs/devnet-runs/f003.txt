@@ -1,0 +1,46 @@
+F003 run on https://api.devnet.solana.com
+F003 end-to-end run as ANv8ZTvmR4dRVs4TCCULwLF8HT6zkUNsCLY6gMMUhRko
+[ 1] fund a test key: ok   2CcJQ2ZnVXuNvGyrEpT6FShHHyt6TnSqaEToEMNfYgUuAiJKywrafFAiMRGTKNVj1UxnLpd1BE8FLSR2PaheQgQh
+[ 2] fund a test key: ok   5bMWeBWzRYCuYrAskZKEK3kVwHGk5XHuz9Vi22HqkjJedBpJVo4tpGNKy8XmXYdG2szvqVtw8jUGPjjLjoBDbsYk
+[ 3] fund a test key: ok   3ja3brXYvvsjWDV2kQESVg3H76R2pSkHiJMUScvE1CTUPhAH6kj4VrtMx8e49mPgsxuUWWWbiZ7Tf795zBguU7Qd
+[ 4] fund a test key: ok   62nHBfJbMBp7sMTk1hY8kE3EhS8XbZDHoWqqXQ3Z81EHfYqfuEruHQMVmpyGmauM9U82uGAgy4f5SVEzdnL11D6K
+[ 5] fund a test key: ok   5r7XCaaZg4kB7q3kt2YzmHBHxpZr2dCLdgzNA6nZZx1qVvpuxkhRpqL33GkeLqhRaZqEEJyKznzPWLRnqFnetLR2
+[ 6] fund a test key: ok   4SpQ7uwPETcQutsY346v1a1fjsDTTCeKH9Ep8GaMJ7ezerSFc8c4CmFDuKUoJ9TJnk9PJdtazAmFcc2uU18tEH3z
+[ 7] F003-0. create the mock stablecoin: ok   2zS5Nu1a7kMPZsDfwt4BmCXkny15ongaC8dGMyCv3776NRVDBvVERs5Yc2LYTSDDZXJeK7P2fEuHPfox9zBgxumr
+[ 8] F003-1. init_roles + create_fund: ok   5cUKmJWJEK9WALZNANe5mKfpBuBK3iRcykbCBpa9y1wgYVNWWkTDakYLY8QAEFPmpvM7zGyyntukXgT4dMfrHea9
+[ 9] F003-1. register rules, roles, launch: ok   4EHn5TtevtZstj5CTvNVTc98K9DXFhW8F769sSw687fvwDUg511BRdAAJYumyiC5WwBJ9hMdxgasde4W5iWNtHEh
+[10] F003-1. publish $1.00: ok   21sRWKbUdbWPZQGLXSDb1WRH1keZ5DcsTUaWZ5z6rgkpWf5kBjBHr46LWAhoEuPzkhM48C2efFoUH5NGpkMqAAaT
+[11] F003-2. treasury cash account, set_cash_treasury, init_dvp: ok   4SeifpGbktc8tXvS7WA7Poa28JpmuTuemL72zfdxZ5ABDhosjCaQ93FoFt7EJdZ4Q5mbe21qkXakbfHWZmi8pqgC
+[12] F003-2. compliance registers and approves the escrow; thaw: ok   5juHQi7ESnyLdgVd3gE6mCz575jY3h2afgppyqrLjsHciNUp8fZ7C4txAUe56WNoZna5r5vkRq5riU9CF7hRfd19
+[13] F003-3. A registers itself: ok   5g8EUcxeFLXMhqDxQbB1G95vPiPFTymoGxyAKAjj5MRzB7vBvvJbjp3dBLmeHcW2XuytC3ooHMFzvJLKqaEefeF7
+[14] F003-3. compliance approves A: ok   2ezy283cpVQmbREnSyPSietgyX6o6J5ryifcLasa9qG4BFCMx1Z9TjMJayJVmykX8Th6V3wG5Z3k7ePPPLdhnMLe
+[15] F003-3. A gets $2 000: ok   4FLmDArZu9qn4CANkEZ2peX45GhBkQ4PxaevWfsbaizN5vVHqp9uy9MJh8kV7FcVX8CRCm2ChgbbD7wckz2RjxSu
+[16] F003-3. B registers itself: ok   o2CB6GGCERP78ykoVegXinySQebR1WJYv2zVVZJghiSA6QXWFZZBpbcT4Y1L7qZWcpgLei3sGHZ4rTFUaLFymeu
+[17] F003-3. compliance approves B: ok   4CfonYBWYhGvwpok6cASW8i32CAcThw7FeZdLMBbEo9CNK9W8k7CUxnmnaJ4ZMgGeKUygzfa33KE5NyoKf7GFBdK
+[18] F003-3. B gets $2 000: ok   5UskMr7Lt1xLinL9pTJgqaDvN4FhJLvzfXYNEqkfKT2B38UaaegHrCRwembqoyS4sf1py4jF3WD5ZvgFhiYDBzqy
+[19] F003-3. treasury gets $1 000: ok   4DLpbffvnaWdyRdTMuCSRFLmLCMj3wpxakSPNA8Xs9DPivA1h2MUGKH74UcuYEgdC3cFDpaUe1ZDwGGSfG1yZWau
+[20] F003-4. A creates a subscription for 1 000 units: ok   YimuwtWq6CeyX2RCDrEgWCPBe3C8k1xxRzXjrS9is9etenUpG2VcStBPkRoPhLk3MgeumMgwB2E3NHSW1cLPYCt
+[21] F003-4. transfer agent affirms: ok   5eSmWqSq193fsZPWPAqnWJCnp1aMKfYoQHJov8DWYN31ZbzWgT6UjDfxgFpoiWYqiQwrruDC5Qe5CWU4QmAXB8GT
+[22] F003-4. A's durable nonce account: ok   4pNiX3NEBeMeECrSeVWCfKM9TUoAgZMUBXGPbQikisCphvyJJyYkNbahtXffmj8tgSHjdhVNxLBo83GEWAZKEgWK
+F003-4. funding prepared; waiting 130 s (past any recent blockhash) before signing…
+[23] F003-4. A signs and submits the prepared funding: ok   4ZGdmTQnhDQL7rk37XcEEEJAYMTPkg76upRbCPRUh4b1UaHTrQfYSek5aEcMM9weTSM8NBppr6v2RxENCQW8Zbim
+[24] F003-4. keeper settles: ok   22oHt983bptrFZZJjcxXHGngNQPkRLdNUWKXNpquaUZuWxVAJeELYhvLw85atuBL6ZNc9ZFnMgHWh5qS1vkCKYYD
+[25] F003-5. B creates a secondary (expires in 60 s): ok   4USg4X6KJ2yhHHWKgL2CTi9zEyfqwweJUhFs5kAF4EFqnj1L3vpEe1uMRr7ZnQvHZpyzTkDYx9N6k1L346Et1ZR7
+[26] F003-5. A funds its units: ok   3NscgiksRFqyLPchk2NsQserUya8E4qn1N3QTypZ6VPL5VRGeQdv8UWQLqhgabGBDVqahf5UGKCXaAxXmQthjYTU
+[27] F003-5. keeper expires it and returns A's units: ok   DR8HSTMe6C4evjqRnGRJiMDwGNrQn4Z8Po2u22MWZPXUV7XftTWRMyFpMvHR4i4uX1Gwi5DkehDGr6eZXwHJT36
+[28] F003-6. A creates a redemption for 400 units: ok   2AMsG35jKbcFnEZs45Z2C2GCdbeLy6dgebaSvj2nonTDNqJuKsNHmRYfmKu2fddtvmeZJ9FipjSd5nHawbAmwjpk
+[29] F003-6. A funds its units: ok   57mM2SGD54QfzGbXLVAQXG9sppVX5MfW9P1fCyJL5Pv32hBFqxJgukqf5qaBVeuoBK4sP8LczWJSFyyaWKdgjvTo
+[30] F003-6. transfer agent funds the cash from the treasury: ok   3TjafKUHMveKeSUhENDyNPBGNuKT7Gj33xmkYVocJHU2CH7bLrjnDViYgxquJuZ4hcdJ1vyqHiuPcPk1AzdEzq2
+[31] F003-6. settle today (no units at the day's start): rejected as expected: RedemptionLimitExceeded
+
+Balances (units, cash):
+  A: 600 units, $1000
+  B: 0 units, $2000
+  treasury: 0 units, $1600
+  units outstanding: 1000
+
+Fund mint: 4eWHMKzNZcNHYVjr8sKohPsPUMd3rL8WCqrjmjKJWgjk
+Cash mint: 4KF91Bodan4m2pEptDf6HTEuQe2Vkyvbc9nU46TELbsv
+Next UTC day: devnet-e2e --feature f003 --continue 4eWHMKzNZcNHYVjr8sKohPsPUMd3rL8WCqrjmjKJWgjk
+
+All 31 steps matched their expected outcome.
