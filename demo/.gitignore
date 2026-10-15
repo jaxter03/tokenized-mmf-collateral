@@ -1,0 +1,5 @@
+target/
+.ledger/
+node_modules/
+app/.demo-state.json
+*.log
