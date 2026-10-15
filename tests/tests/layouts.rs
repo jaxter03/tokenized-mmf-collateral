@@ -1,9 +1,10 @@
-//! T019 (F001), T008 (F002), T011 (F003): account layouts are fixed, and the read-only views in
+//! T019 (F001), T008 (F002), T011 (F003), T010 (F004): account layouts are fixed, and the read-only views in
 //! `mmf_common::views` decode program-serialized accounts to the same values (guards against
 //! layout drift, F001 research R12).
 
 use anchor_lang::prelude::Pubkey;
 use anchor_lang::{AccountSerialize, Discriminator, Space};
+use collateral::{CollateralCall, Pledge, PledgeAgreement};
 use compliance_hook::{HolderState, Registry};
 use dvp_settlement::{DvpConfig, SettlementInstruction};
 use fund::{FundState, FundTerms, NavRecord};
@@ -128,6 +129,8 @@ fn fund_state_layout_and_view() {
             accrual_index: fs.accrual_index,
             cash_mint: fs.terms.cash_mint,
             nav: 100_000_000,
+            // F004: collateral reads the publish time for its price age.
+            nav_ts: fs.nav_ts,
             nav_seq: 3,
             nav_period_end_day: 20_741,
             units_outstanding: 2_000_000_000_000,
@@ -378,4 +381,101 @@ fn settlement_instruction_layout_and_view() {
             bump,
         }
     );
+}
+
+/// F004 (data-model.md): the three collateral accounts have their final sizes, start with the
+/// discriminator and `version`, and end with `bump` then 64 reserved bytes.
+#[test]
+fn collateral_account_layouts() {
+    let agreement = PledgeAgreement {
+        version: PledgeAgreement::VERSION,
+        fund_state: Pubkey::new_unique(),
+        giver: Pubkey::new_unique(),
+        taker: Pubkey::new_unique(),
+        nonce: 1,
+        mode: 0,
+        income_to: 0,
+        haircut_bps: 200,
+        max_nav_age_secs: 93_600,
+        call_cure_secs: 14_400,
+        enforcement_grace_secs: 7_200,
+        min_transfer_value: 10_000_000_000,
+        concentration_cap_units: 5_000_000_000_000,
+        taker_may_call_unilaterally: true,
+        agreement_hash: [7; 32],
+        status: 1,
+        giver_signed: true,
+        taker_signed: true,
+        pledged_units: 1_020_408_163_266,
+        required_value: 1_000_000_000_000,
+        pledge_count: 2,
+        call_count: 2,
+        created_ts: 1,
+        activated_ts: 2,
+        pending_raise_value: 0,
+        pending_raise_ref: [0; 32],
+        pending_raise_ts: 0,
+        exposure_ref: [9; 32],
+        exposure_updated_ts: 3,
+        called_outstanding: 0,
+        open_delivery_calls: 0,
+        met_below_seq: 2,
+        open_return_call: Pubkey::default(),
+        bump: 253,
+        _reserved: RESERVED,
+    };
+    let d = bytes(&agreement);
+    assert_eq!(d.len(), 432);
+    assert_frame::<PledgeAgreement>(&d, PledgeAgreement::DISCRIMINATOR, 1);
+    assert_eq!(d[d.len() - 65], 253, "bump before the reserved bytes");
+    assert_eq!(&d[d.len() - 64..], &RESERVED);
+
+    let pledge = Pledge {
+        version: Pledge::VERSION,
+        agreement: Pubkey::new_unique(),
+        seq: 1,
+        pledge_ref: [1; 32],
+        units: 1_020_408_163_266,
+        mode: 0,
+        posted_at: 4,
+        nav_seq_at_post: 1,
+        released_units: 0,
+        enforced_units: 0,
+        status: 0,
+        closed_at: 0,
+        bump: 252,
+        _reserved: RESERVED,
+    };
+    let d = bytes(&pledge);
+    assert_eq!(d.len(), 196);
+    assert_frame::<Pledge>(&d, Pledge::DISCRIMINATOR, 1);
+    assert_eq!(d[d.len() - 65], 252);
+    assert_eq!(pledge.remaining(), 1_020_408_163_266);
+
+    let call = CollateralCall {
+        version: CollateralCall::VERSION,
+        agreement: Pubkey::new_unique(),
+        seq: 1,
+        kind: 0,
+        value_delta: 1_000_000_000_000,
+        units_required: 1_020_408_163_266,
+        nav_seq: 1,
+        issued_at: 5,
+        cure_deadline_ts: 14_405,
+        enforce_after_ts: 21_605,
+        status: 0,
+        enforced_units: 0,
+        enforced_value: 0,
+        external_ref: [2; 32],
+        units_released: 0,
+        dispute_ref: [0; 32],
+        disputed_at: 0,
+        closed_at: 0,
+        bump: 251,
+        _reserved: RESERVED,
+    };
+    let d = bytes(&call);
+    assert_eq!(d.len(), 268);
+    assert_frame::<CollateralCall>(&d, CollateralCall::DISCRIMINATOR, 1);
+    assert_eq!(d[d.len() - 65], 251);
 }

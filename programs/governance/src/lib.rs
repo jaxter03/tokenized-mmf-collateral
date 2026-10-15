@@ -118,4 +118,19 @@ pub mod governance {
     ) -> Result<()> {
         instructions::reject_settlement::handle_reject_settlement(ctx, reason, case_ref_hash)
     }
+
+    /// Compliance ends a dispute on a collateral delivery call: reopen or cancel it (F004).
+    pub fn resolve_call_dispute(
+        ctx: Context<ResolveCallDispute>,
+        outcome: u8,
+        reason: u8,
+        case_ref_hash: [u8; 32],
+    ) -> Result<()> {
+        instructions::resolve_call_dispute::handle_resolve_call_dispute(
+            ctx,
+            outcome,
+            reason,
+            case_ref_hash,
+        )
+    }
 }

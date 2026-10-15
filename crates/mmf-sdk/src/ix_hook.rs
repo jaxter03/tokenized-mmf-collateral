@@ -293,3 +293,27 @@ pub fn accrue(
         data: compliance_hook::instruction::Accrue { post_balance }.data(),
     }
 }
+
+/// `set_lien(change)` with every account given (F004). `collateral` is the only real caller (by
+/// CPI, signed by its `["hook-caller"]` PDA); tests use this builder to show that anything else is
+/// refused. `caller_signs` marks `hook_caller` as a signer.
+pub fn set_lien(
+    hook_caller: &Pubkey,
+    caller_signs: bool,
+    registry: &Pubkey,
+    holder_state: &Pubkey,
+    holding_account: &Pubkey,
+    change: compliance_hook::LienChange,
+) -> Instruction {
+    use anchor_lang::prelude::AccountMeta;
+    Instruction {
+        program_id: COMPLIANCE_HOOK_PROGRAM_ID,
+        accounts: vec![
+            AccountMeta::new_readonly(*hook_caller, caller_signs),
+            AccountMeta::new_readonly(*registry, false),
+            AccountMeta::new(*holder_state, false),
+            AccountMeta::new_readonly(*holding_account, false),
+        ],
+        data: compliance_hook::instruction::SetLien { change }.data(),
+    }
+}

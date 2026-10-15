@@ -114,3 +114,20 @@ pub struct Accrued {
     pub slot: u64,
     pub unix_ts: i64,
 }
+
+/// `set_lien` changed a holder's locked units (F004). `emit!`, like `Accrued`: the instruction is
+/// reached only by CPI from `collateral`.
+#[event]
+pub struct LienSet {
+    pub fund: Pubkey,
+    pub owner: Pubkey,
+    pub lock: u64,
+    pub unlock: u64,
+    pub opened: u16,
+    pub closed: u16,
+    /// Locked units after the change.
+    pub pledged_amount: u64,
+    pub active_liens: u16,
+    pub slot: u64,
+    pub unix_ts: i64,
+}

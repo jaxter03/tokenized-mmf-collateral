@@ -2,6 +2,7 @@
 
 pub mod accrual;
 pub mod cash;
+pub mod collateral;
 pub mod enums;
 pub mod ids;
 pub mod iso3166;

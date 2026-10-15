@@ -1,0 +1,29 @@
+[package]
+name = "collateral"
+version = "0.1.0"
+description = "Collateral agreements, margin calls and lien pledges of fund units"
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "collateral"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+anchor-lang = { version = "=1.1.2", features = ["event-cpi"] }
+mmf-common = { path = "../../crates/mmf-common" }
+compliance_hook = { path = "../compliance_hook", features = ["cpi", "no-entrypoint"] }
+
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

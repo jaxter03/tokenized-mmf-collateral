@@ -261,3 +261,120 @@ fn settlement_cost_does_not_grow_with_holders_or_open_instructions() {
         "settlement cost must not depend on holders or open instructions"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// F004 T071: SC-007 (pledge, call and release cost doesn't grow with holders or agreements;
+// publish cost unchanged by agreements)
+// ---------------------------------------------------------------------------------------------
+
+/// Collateral steps divide `u128` products whose size changes from cycle to cycle, and SBF's
+/// software division costs a few dozen units more or less with the operands (49 CU seen between
+/// runs, in either direction). Growth with holders or agreements would cost at least one more
+/// address-derivation round (~1 500 CU), so a 100-unit band still proves SC-007.
+const COLLATERAL_JITTER_CU: u64 = 100;
+
+/// A reference whose PDA under `agreement` with `seed` has bump 255, so creating that account
+/// costs one address-derivation round at either scale.
+fn ref_with_bump_255(seed: &[u8], agreement: &Pubkey, from: u32) -> ([u8; 32], u32) {
+    let mut n = from;
+    loop {
+        let mut r = [0u8; 32];
+        r[..4].copy_from_slice(&n.to_le_bytes());
+        r[31] = 0xAB;
+        let (_, bump) = Pubkey::find_program_address(
+            &[seed, agreement.as_ref(), &r],
+            &mmf_common::ids::COLLATERAL_PROGRAM_ID,
+        );
+        if bump == 255 {
+            return (r, n + 1);
+        }
+        n += 1;
+    }
+}
+
+/// One pledge, one return call and one release against it by the same giver and taker on the
+/// same agreement; returns their CU. The return call is then cancelled, so every cycle starts
+/// from the same shape of state.
+fn collateral_cycle(h: &mut Harness, c: &fixtures::CollatCtx, next: &mut u32) -> (u64, u64, u64) {
+    use mmf_common::seeds;
+    use tests::collateral::{cancel, issue, pledge, release_on};
+    let agreement = c.agreement();
+    let (p, n) = ref_with_bump_255(seeds::PLEDGE, &agreement, *next);
+    let (r, n) = ref_with_bump_255(seeds::CALL, &agreement, n);
+    *next = n;
+    let pledge_cu = pledge(h, c, &c.giver, 100_000_000_000, p)
+        .expect("pledge")
+        .compute_units_consumed;
+    let issue_cu = issue(h, c, &c.giver, 1, r)
+        .expect("return call")
+        .compute_units_consumed;
+    let release_cu = release_on(h, &c.agr, &c.taker, p, Some(r), 1)
+        .expect("release")
+        .compute_units_consumed;
+    cancel(h, c, &c.giver, r).expect("cancel the return call");
+    (pledge_cu, issue_cu, release_cu)
+}
+
+#[test]
+#[ignore = "slow: registers 10 000 holders and 300 agreements; run in release"]
+fn collateral_cost_does_not_grow_with_holders_or_agreements() {
+    use fixtures::SETTLE_DAY;
+    use tests::collateral::{propose, sign};
+    let mut h = Harness::new();
+    let c = fixtures::collateral_ready_fund(&mut h);
+    register_many(&mut h, &c, SMALL - 4);
+
+    // Publish A/B snapshot (as above): the same record, seq 2, published again at the end.
+    let fs_key = c.fund_state();
+    let fs_snapshot = h.account(&fs_key).unwrap();
+    let record = pda::nav_record(&fs_key, 2).0;
+    let ix = mmf_sdk::ix_fund::publish_daily(
+        &c.fund_admin.pubkey(),
+        &h.payer.pubkey(),
+        &c.m(),
+        2,
+        100_000_000,
+        123_287_671,
+        1,
+    );
+    clock::set_utc_day(&mut h.svm, SETTLE_DAY + 1, 15 * 3_600);
+    let small_pub = fund_cu(&h.send(std::slice::from_ref(&ix), &[&c.fund_admin]).unwrap());
+
+    let mut next = 0;
+    collateral_cycle(&mut h, &c, &mut next); // warm-up: first lien, first call
+    let small = collateral_cycle(&mut h, &c, &mut next);
+
+    register_many(&mut h, &c, LARGE - SMALL);
+    for nonce in 2..=300u64 {
+        let args = fixtures::worked_terms(&c.giver.pubkey(), &c.taker.pubkey(), nonce);
+        propose(&mut h, &c.m(), &c.taker, args).expect("propose");
+        let a = mmf_sdk::ix_collateral::Agr { nonce, ..c.agr };
+        sign(&mut h, &c.giver, &a).expect("sign");
+    }
+    let large = collateral_cycle(&mut h, &c, &mut next);
+
+    h.svm.set_account(fs_key, fs_snapshot).unwrap();
+    h.svm.set_account(record, Default::default()).unwrap();
+    clock::set_utc_day(&mut h.svm, SETTLE_DAY + 1, 15 * 3_600);
+    let large_pub = fund_cu(&h.send(&[ix], &[&c.fund_admin]).unwrap());
+
+    println!(
+        "pledge / return call / release CU: {small:?} with {SMALL} holders and 1 agreement, \
+         {large:?} with {LARGE} holders and 300 agreements; publish {small_pub} / {large_pub}"
+    );
+    for (name, s, l) in [
+        ("pledge", small.0, large.0),
+        ("issue_call", small.1, large.1),
+        ("release", small.2, large.2),
+    ] {
+        assert!(
+            s.abs_diff(l) <= COLLATERAL_JITTER_CU,
+            "{name} cost must not depend on holders or agreements: {s} vs {l}"
+        );
+        assert!(l <= 80_000, "{name} used {l} CU");
+    }
+    assert_eq!(
+        small_pub, large_pub,
+        "publish cost must not depend on agreements"
+    );
+}

@@ -50,7 +50,9 @@ mod offsets {
     pub const FUND_CASH_MINT: usize = FUND_ROLE_REGISTRY + 32 + 12;
     pub const FUND_STATUS: usize = FUND_ROLE_REGISTRY + 32 + FUND_TERMS_LEN;
     pub const FUND_NAV: usize = FUND_STATUS + 1;
-    pub const FUND_NAV_SEQ: usize = FUND_NAV + 8 + 8; // after nav_ts
+    /// Unix time of the latest publish, after `nav` (F002; read by collateral, F004).
+    pub const FUND_NAV_TS: usize = FUND_NAV + 8;
+    pub const FUND_NAV_SEQ: usize = FUND_NAV_TS + 8;
     /// After `status`, `nav u64`, `nav_ts i64` and `nav_seq u64` (F002).
     pub const FUND_ACCRUAL_INDEX: usize = FUND_STATUS + 1 + 8 + 8 + 8;
     /// After `accrual_index u128` and `daily_rate_e12 u64` (F003).
@@ -154,6 +156,8 @@ pub struct FundStateView {
     pub cash_mint: Pubkey,
     /// Latest published price, 8 dp; 0 before the first publish (F002).
     pub nav: u64,
+    /// Unix time of the latest publish; 0 before the first (F002). Collateral's price age (F004).
+    pub nav_ts: i64,
     /// Seq of the latest price record; 0 = none (F002).
     pub nav_seq: u64,
     /// Last UTC day covered by any publish; 0 = none (F002).
@@ -189,6 +193,11 @@ impl FundStateView {
             ),
             cash_mint: key_at(d, offsets::FUND_CASH_MINT),
             nav: u64_at(d, offsets::FUND_NAV),
+            nav_ts: i64::from_le_bytes(
+                d[offsets::FUND_NAV_TS..offsets::FUND_NAV_TS + 8]
+                    .try_into()
+                    .expect("8 bytes"),
+            ),
             nav_seq: u64_at(d, offsets::FUND_NAV_SEQ),
             nav_period_end_day: u32_at(d, offsets::FUND_NAV_PERIOD_END_DAY),
             units_outstanding: u64_at(d, offsets::FUND_UNITS_OUTSTANDING),

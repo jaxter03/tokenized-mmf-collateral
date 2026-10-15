@@ -61,7 +61,7 @@ fn now() -> i64 {
 
 impl Run {
     /// Signs a message prepared earlier with `signers` and submits it unchanged.
-    fn send_prepared(
+    pub(crate) fn send_prepared(
         &mut self,
         label: &str,
         message: Message,

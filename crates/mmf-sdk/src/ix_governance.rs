@@ -272,3 +272,37 @@ pub fn reject_settlement(
         .data(),
     }
 }
+
+/// `resolve_call_dispute`: signed by compliance (F004). `outcome` 0 reopens the call, 5 cancels
+/// it.
+pub fn resolve_call_dispute(
+    compliance: &Pubkey,
+    mint: &Pubkey,
+    agreement: &Pubkey,
+    call: &Pubkey,
+    outcome: u8,
+    reason: u8,
+    case_ref_hash: [u8; 32],
+) -> Instruction {
+    let fund_state = pda::fund_state(mint).0;
+    let accounts = governance::accounts::ResolveCallDispute {
+        compliance: *compliance,
+        role_registry: pda::role_registry(&fund_state).0,
+        fund_state,
+        agreement: *agreement,
+        call: *call,
+        collateral_caller: pda::collateral_caller().0,
+        collateral_event_authority: pda::event_authority(&mmf_common::ids::COLLATERAL_PROGRAM_ID).0,
+        collateral_program: mmf_common::ids::COLLATERAL_PROGRAM_ID,
+    };
+    Instruction {
+        program_id: GOVERNANCE_PROGRAM_ID,
+        accounts: accounts.to_account_metas(None),
+        data: governance::instruction::ResolveCallDispute {
+            outcome,
+            reason,
+            case_ref_hash,
+        }
+        .data(),
+    }
+}

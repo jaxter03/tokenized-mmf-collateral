@@ -13,7 +13,7 @@ pub mod statement;
 pub use errors::HookError;
 pub use hook::*;
 pub use instructions::*;
-pub use state::{HolderState, Registry};
+pub use state::{HolderState, LienChange, Registry};
 
 declare_id!("A2R9A9xmCpicyUAYixJZr63oBPmKSR95CxxLoSPQfqtM");
 
@@ -87,6 +87,12 @@ pub mod compliance_hook {
     /// `fund` only (signer = its FundState PDA): settle interest before a mint or burn (F003).
     pub fn accrue(ctx: Context<Accrue>, post_balance: u64) -> Result<()> {
         instructions::accrue::handle_accrue(ctx, post_balance)
+    }
+
+    /// `collateral` only (signer = its `["hook-caller"]` PDA): change a holder's locked units
+    /// (F004).
+    pub fn set_lien(ctx: Context<SetLien>, change: LienChange) -> Result<()> {
+        instructions::set_lien::handle_set_lien(ctx, change)
     }
 
     /// Token-2022 transfer hook entry point.

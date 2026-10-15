@@ -62,6 +62,7 @@ impl Harness {
             (ids::COMPLIANCE_HOOK_PROGRAM_ID, "compliance_hook.so"),
             (ids::GOVERNANCE_PROGRAM_ID, "governance.so"),
             (ids::DVP_SETTLEMENT_PROGRAM_ID, "dvp_settlement.so"),
+            (ids::COLLATERAL_PROGRAM_ID, "collateral.so"),
         ] {
             svm.add_program_from_file(id, deploy.join(name))
                 .unwrap_or_else(|e| panic!("load {name} (run `anchor build` first): {e:?}"));

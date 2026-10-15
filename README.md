@@ -5,10 +5,10 @@ used as collateral. The fund's token enforces its own rules: only approved, KYC-
 institutions can hold it, and every compliance action is on-chain and on record.
 
 Built feature by feature with [Spec Kit](https://github.com/github/spec-kit). **F001 — fund
-launch, roles and holder onboarding** and **F002 — daily price and interest accrual** are merged;
-**F003 — subscription, redemption and transfer settlement** is implemented on its branch.
-F004–F008 (collateral, enforcement, distributions, governance, operator tooling) follow in order;
-see [docs/speckit-inputs.md](docs/speckit-inputs.md).
+launch, roles and holder onboarding**, **F002 — daily price and interest accrual** and **F003 —
+subscription, redemption and transfer settlement** are merged; **F004 — collateral agreements,
+margin calls and pledges** is implemented on its branch. F005–F008 (enforcement, distributions,
+governance, operator tooling) follow in order; see [docs/speckit-inputs.md](docs/speckit-inputs.md).
 
 ## What F001 does
 
@@ -88,6 +88,42 @@ stateDiagram-v2
     Rejected --> [*]: return_leg
 ```
 
+## What F004 does
+
+A holder pledges fund units to a counterparty as margin without moving them, and the pledge
+follows the exposure. The units stay in the giver's account and keep earning interest; the
+token's own transfer rules stop them leaving.
+
+- **Agree**: the giver or the taker proposes the enforceable terms of their legal collateral
+  agreement (haircut, time to meet a call, grace period, minimum transfer amount, pledge limit,
+  maximum price age, the legal document's fingerprint, whether the taker may raise exposure
+  alone); it is Active once the other party signs. Both must be approved investors.
+- **Call**: the taker records its exposure. When the collateral value (pledged units × the latest
+  price × (1 − haircut), rounded down) falls short by more than the minimum transfer amount, a
+  delivery call opens in the same step with a deadline and an enforce-after time. The agreement
+  tracks the part of the shortfall already demanded, so a later rise gets its own call.
+- **Pledge**: the giver locks units. `collateral` asks the hook's `set_lien` to raise the
+  holder's locked units, and the hook checks the balance covers them. From then on the hook
+  refuses any transfer — direct, by a delegate, or into settlement escrow — that would leave the
+  balance below the lock. When a step finds coverage zero or more, every open call is met.
+- **Release, substitute, dispute**: when exposure falls the giver opens a return call and the taker
+  (or the keeper, against that call) unlocks the excess, never below cover. The giver can swap a
+  pledge for an equal or larger one in one step, and dispute a call; compliance resolves disputes
+  through governance.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Open: exposure raise (auto) / issue_call
+    Open --> Met: a step at a fresh price finds coverage ≥ 0
+    Open --> Disputed: giver disputes
+    Disputed --> Open: giver withdraws / compliance reopens
+    Disputed --> Met: coverage ≥ 0
+    Open --> Cancelled: taker cancels
+    Disputed --> Cancelled: taker cancels / compliance cancels
+    Met --> [*]
+    Cancelled --> [*]
+```
+
 The specifications, plans and designs are in [specs/](specs/); the rules every feature follows
 are in the [constitution](.specify/memory/constitution.md) and
 [docs/shared-model.md](docs/shared-model.md).
@@ -96,9 +132,11 @@ are in the [constitution](.specify/memory/constitution.md) and
 
 ### Programs, accounts and authorities
 
-Four Anchor programs share one Token-2022 mint (the diagram shows F001's three; F003's
+Five Anchor programs share one Token-2022 mint (the diagram shows F001's three; F003's
 `dvp_settlement` owns the escrow and asks `fund` to mint and burn, see
-[specs/003-dvp-settlement/plan.md](specs/003-dvp-settlement/plan.md)). Every authority over the mint is a program PDA, so
+[specs/003-dvp-settlement/plan.md](specs/003-dvp-settlement/plan.md); F004's `collateral` owns
+agreements, pledges and calls and changes locked units only through the hook's `set_lien`, see
+[specs/004-collateral-pledges/plan.md](specs/004-collateral-pledges/plan.md)). Every authority over the mint is a program PDA, so
 no person's key can mint, freeze or reconfigure the token.
 
 ```mermaid
@@ -183,7 +221,9 @@ flowchart TD
     E -->|yes| X4["TransfersPaused"]
     E -->|no| F{"Sender Approved,<br/>KYC unexpired?"}
     F -->|no| X5["SenderNotApproved"]
-    F -->|yes| G{"Receiver Approved, KYC unexpired,<br/>class and country allowed?"}
+    F -->|yes| L{"F004: balance after the transfer<br/>below the sender's locked units?"}
+    L -->|yes| X8["PledgedUnitsLocked"]
+    L -->|no| G{"Receiver Approved, KYC unexpired,<br/>class and country allowed?"}
     G -->|no| X6["ReceiverNotApproved"]
     G -->|yes| H{"New investor holder while<br/>the cap is reached?"}
     H -->|yes| X7["HolderCapReached"]
@@ -211,9 +251,9 @@ holder's full status history can be rebuilt from those events alone.
 
 ## Tests
 
-**278 tests pass in the LiteSVM suite, plus 45 shared-crate and SDK unit tests** (4 more —
-the scale tests and a long property run — are `#[ignore]`d and run in release).
-- Every rule has a rejection test asserting the exact error; all 113 error variants are covered.
+**375 tests pass in the LiteSVM suite, plus 72 program, shared-crate and SDK unit tests** (6 more
+— the scale tests and long property runs — are `#[ignore]`d and run in release).
+- Every rule has a rejection test asserting the exact error; all 160 error variants are covered.
 - 128 randomized F001 operation sequences, now with publishes interleaved, are checked against a
   reference model.
 - F002 suites: `f002_publish`, `f002_override` and `f002_accrual`. The spec's own test is in
@@ -232,11 +272,23 @@ the scale tests and a long property run — are `#[ignore]`d and run in release)
 - `dvp_prop`: randomized settlement sequences (creates, funding, settles, cancels, expiries,
   rejections, returns, suspensions, pauses, publishes, clock moves) against an independent model;
   outcomes, including which error comes first, and every balance must agree after every step.
+- F004 suites: `f004_agreement`, `f004_exposure`, `f004_calls`, `f004_pledge`, `f004_lock` (every
+  way a locked unit could leave — hand-built transfers, delegates, settlement funding, a second
+  pledge — is refused), `f004_lien`, `f004_release`, `f004_substitute`, `f004_dispute` (incl. a
+  2-of-3 Squads compliance vault), `f004_status`, `f004_interest` (locked units earn exactly what
+  unlocked units earn), `f004_slow_signers` and `f004_rebuild`. The spec's own tests: a $1M call
+  met by one pledge of 1 020 408.163266 units with no balance anywhere changing, and the excess
+  returned exactly when exposure falls to $400 000.
+- `collateral_prop`: randomized collateral sequences (exposure, calls, pledges, releases,
+  substitutions, cancels, disputes, transfers, price moves, clock moves, suspensions) against an
+  independent model; outcomes and every lock, agreement and call status must agree after every
+  step, and invariants I1, I2, I15 and I16 hold on chain.
 - Scale tests, run in release. The hook's cost and a publish's cost are identical with 10 or
   10 000 holders. A settlement's cost doesn't change with the number of holders or with how many
   publishes have passed since the holder's last one; it varies by 1–2 compute units with the
   amounts involved, and the test allows a 16-unit band. A subscription's and a redemption's
-  settlement cost the same with 10 or 10 000 holders and 1 or 1 000 open instructions.
+  settlement cost the same with 10 or 10 000 holders and 1 or 1 000 open instructions. A pledge,
+  a call and a release cost the same with 10 or 10 000 holders and 1 or 300 agreements.
 
 ![F001 program tests passing on LiteSVM](docs/images/tests-litesvm.png)
 
@@ -264,13 +316,17 @@ programs/
   fund/             fund terms, status, the Token-2022 mint, daily price records (create_fund,
                     launch, publish_daily, set_/clear_nav_override)
   compliance_hook/  holder register, onboarding, and the transfer hook (incl. interest settlement)
-  governance/       roles, compliance actions, price overrides, settlement rejection
+  governance/       roles, compliance actions, price overrides, settlement rejection, dispute
+                    resolution
   dvp_settlement/   escrowed settlement of subscriptions, redemptions and secondary transfers
                     (init_dvp, create_instruction, affirm_and_fund, settle, cancel, expire,
                     reject, return_leg)
+  collateral/       agreements, margin calls and lien pledges (propose/sign_agreement,
+                    update/confirm_exposure, issue_call, check_coverage, pledge, release,
+                    substitute, cancel_call, dispute/withdraw/resolve)
 crates/
   mmf-common/       program ids, seeds, enums, ISO 3166 table, KYC statement format, account
-                    views, settlement formulas, cash-token checks
+                    views, settlement and collateral formulas, cash-token checks
   mmf-sdk/          instruction builders, PDA helpers, mock KYC provider, hooked transfers,
                     durable-nonce prepared steps
 tests/              LiteSVM harness and test suites; mainnet fixtures in tests/fixtures/
@@ -287,7 +343,7 @@ Requirements: Rust 1.90 (pinned in `rust-toolchain.toml`), Anchor CLI 1.1.2 (`av
 Solana CLI 3.1.10 or newer.
 
 ```bash
-anchor build                                          # the four programs
+anchor build                                          # the five programs
 cargo test -p mmf-common                              # shared types
 cargo test -p tests                                   # LiteSVM suites, incl. randomized invariants
 cargo test -p tests --release -- --ignored            # scale (10 vs 10 000 holders) and long property runs
@@ -309,11 +365,14 @@ Commands are in the [F001](specs/001-fund-launch-onboarding/quickstart.md#devnet
 (a subscription funded through a prepared durable-nonce step, an expired secondary and its return,
 and a redemption that today's limit refuses); `--feature f003 --continue <mint>` settles that
 redemption on a later UTC day. See the
-[F003 quickstart](specs/003-dvp-settlement/quickstart.md).
+[F003 quickstart](specs/003-dvp-settlement/quickstart.md). `devnet-e2e --feature f004` runs the
+collateral flow on a new fund: a $1M call met by a pledge signed 130 s after it was prepared on a
+durable nonce, a send over the lock refused by the token, and the excess released against a
+return call. See the [F004 quickstart](specs/004-collateral-pledges/quickstart.md).
 
 ## Status
 
-F001 and F002 are merged. F003 is implemented and tested on `003-dvp-settlement`; its devnet run
-and human review gate ([review.md](specs/003-dvp-settlement/review.md)) are pending before it
-merges. Devnet deployment of the programs is still pending. Nothing here is audited — don't use it
+F001–F003 are merged. F004 is implemented and tested on `004-collateral-pledges`; its devnet
+run and human review gate ([review.md](specs/004-collateral-pledges/review.md)) are pending before
+it merges. Devnet deployment of the programs is still pending. Nothing here is audited — don't use it
 with real assets.

@@ -11,6 +11,7 @@ fund = { path = "../../programs/fund", features = ["no-entrypoint"] }
 compliance_hook = { path = "../../programs/compliance_hook", features = ["no-entrypoint"] }
 governance = { path = "../../programs/governance", features = ["no-entrypoint"] }
 dvp_settlement = { path = "../../programs/dvp_settlement", features = ["no-entrypoint"] }
+collateral = { path = "../../programs/collateral", features = ["no-entrypoint"] }
 spl-transfer-hook-interface = "2.1.0"
 solana-ed25519-program = "3.0.0"
 solana-keypair = "3.1"

@@ -73,7 +73,7 @@ mint                   Pubkey   [F001]
 governance             Pubkey   [F001]  governance program id (role checks read RoleRegistry)
 role_registry          Pubkey   [F001]
 fund_state             Pubkey   [F001]
-collateral_program     Pubkey   [F004]  only caller allowed to change locked units
+collateral_program     Pubkey   [F004]  only caller allowed to change locked units; set by `init_registry` to the collateral program id, no setter
 kyc_providers          [Pubkey; 4] [F001]
 allowed_jurisdictions  [u64; 11] [F001] 676-bit set indexed per §1 Jurisdiction; bits ≥ 676 zero
 max_holders            u32      [F001]  0 = no cap
@@ -226,63 +226,84 @@ Sides: the transfer agent acts for the Fund (seller side of a subscription, buye
 
 ### 4.4 `collateral` [F004, F005]
 
-**PledgeAgreement**: PDA `["agreement", fund_state, giver, taker, nonce]`
+**PledgeAgreement**: PDA `["agreement", fund_state, giver, taker, nonce]`. Never closed. [F004]
 
 ```text
 version                     u8
 fund_state                  Pubkey
 giver                       Pubkey
 taker                       Pubkey
-nonce                       u64
+nonce                       u64     chosen by the proposer
 mode                        u8      0 Lien (only mode until backlog), 1 TitleTransfer [backlog]
 income_to                   u8      0 Giver [backlog for others]
-haircut_bps                 u16
-max_nav_age_secs            u32
-call_cure_secs              u32
+haircut_bps                 u16     < 10_000
+max_nav_age_secs            u32     > 0; price fresh iff nav_seq > 0 and now − FundState.nav_ts ≤ this
+call_cure_secs              u32     > 0
 enforcement_grace_secs      u32
-min_transfer_value          u64     cash base units
-concentration_cap_units     u64
-taker_may_call_unilaterally bool
-agreement_hash              [u8; 32]
-status                      u8      0 Proposed, 1 Active, 2 Terminating, 3 Terminated
+min_transfer_value          u64     cash base units; a shortfall or excess must be MORE than this
+concentration_cap_units     u64     pledge limit; > 0
+taker_may_call_unilaterally bool    else a raise waits for the giver's confirmation
+agreement_hash              [u8; 32] non-zero
+status                      u8      0 Proposed, 1 Active, 2 Terminating, 3 Terminated (2, 3 reserved)
 giver_signed                bool
 taker_signed                bool
-pledged_units               u64     Σ active pledge units on this agreement
+pledged_units               u64     Σ active pledge units on this agreement (I15)
 required_value              u64     current exposure, cash base units
-pledge_count                u64     next Pledge seq
-call_count                  u64     next CollateralCall seq
+pledge_count                u64     next Pledge seq (starts 1)
+call_count                  u64     next CollateralCall seq (starts 1)
 created_ts                  i64
+activated_ts                i64     [F004] 0 while Proposed
+pending_raise_value         u64     [F004] raise awaiting the giver (0 = none)
+pending_raise_ref           [u8; 32] [F004]
+pending_raise_ts            i64     [F004]
+exposure_ref                [u8; 32] [F004] reference of the exposure in force
+exposure_updated_ts         i64     [F004]
+called_outstanding          u64     [F004] part of the shortfall already demanded by unresolved delivery calls (I16)
+open_delivery_calls         u16     [F004] unresolved delivery calls with seq ≥ met_below_seq (I16)
+met_below_seq               u64     [F004] delivery calls with seq below this are Met (derived status)
+open_return_call            Pubkey  [F004] default = none; at most one
 bump                        u8
 _reserved                   [u8; 64]
 ```
 
-**Pledge**: PDA `["pledge", agreement, seq]`
+Every step that values an agreement at a fresh price first **observes** coverage:
+`S = max(0, required_value − collateral_value(pledged_units))`; `called_outstanding = min(called_outstanding, S)`;
+if `S == 0`: `met_below_seq = call_count`, `called_outstanding = 0`, `open_delivery_calls = 0`.
+A delivery call opens only for `S − called_outstanding` (> `min_transfer_value`) and sets `called_outstanding = S`. [F004]
+
+**Pledge**: PDA `["pledge", agreement, pledge_ref]` (giver-chosen, non-zero). Never closed. [F004]
 
 ```text
-version u8 · agreement Pubkey · seq u64 · units u64 · mode u8 · posted_at i64 · nav_seq_at_post u64
-released_units u64 · enforced_units u64 · status u8 (0 Active, 1 Released, 2 Enforced, 3 Substituted) · bump u8 · _reserved
+version u8 · agreement Pubkey · seq u64 · pledge_ref [u8; 32] · units u64 · mode u8 · posted_at i64 · nav_seq_at_post u64
+released_units u64 · enforced_units u64 · status u8 (0 Active, 1 Released, 2 Enforced, 3 Substituted) · closed_at i64 · bump u8 · _reserved
 ```
 
-**CollateralCall**: PDA `["call", agreement, seq]`
+**CollateralCall**: PDA `["call", agreement, external_ref]` (non-zero; unique per agreement). Never closed. [F004]
 
 ```text
 version          u8
 agreement        Pubkey
-seq              u64
+seq              u64     agreement.call_count at creation
 kind             u8      0 Delivery, 1 Return
-value_delta      u64     cash base units
-units_required   u64     at issuance, section 8 rounding
+value_delta      u64     cash base units: delivery = uncalled shortfall; return = excess
+units_required   u64     at issuance, section 8 rounding (delivery up, return down)
 nav_seq          u64
 issued_at        i64
 cure_deadline_ts i64     issued_at + call_cure_secs
-enforce_after_ts i64     cure_deadline_ts + enforcement_grace_secs
+enforce_after_ts i64     cure_deadline_ts + enforcement_grace_secs (delivery); 0 (return)
 status           u8      0 Open, 1 Met, 2 Disputed, 3 Defaulted, 4 Enforced, 5 Cancelled
 enforced_units   u64     [F005] running total for partial enforcement
 enforced_value   u64     [F005]
 external_ref     [u8; 32]
+units_released   u64     [F004] return calls: units released against it
+dispute_ref      [u8; 32] [F004]
+disputed_at      i64     [F004]
+closed_at        i64     [F004] Met (stored) or Cancelled time; 0 while unresolved
 bump             u8
 _reserved        [u8; 64]
 ```
+
+**Derived status** [F004]: a Delivery call with stored status Open or Disputed and `seq < agreement.met_below_seq` **is Met**. Every instruction that touches a call (F004 cancel/dispute, F005 `mark_defaulted`, `enforce`) applies this first; readers apply the same rule. F005 enforcement on a call is limited to both the shortfall and that call's `value_delta`.
 
 **EnforcementHold**: PDA `["hold", call]` [F005]
 
@@ -317,6 +338,8 @@ _reserved       [u8; 64]
 
 **DVP caller**: PDA `["dvp-caller"]` of governance. Signs `dvp_settlement::reject` CPIs for `reject_settlement` (compliance). Shared by every fund; governance checks the role registry is bound to the target fund. RejectSettlement accepts the F001 reasons (0, 1, 2, 3, 6). [F003]
 
+**Collateral caller**: PDA `["collateral-caller"]` of governance. Signs `collateral::resolve_dispute` CPIs for `resolve_call_dispute` (compliance). Shared by every fund; governance checks the role registry is bound to the target fund. Accepts the F001 reasons (0, 1, 2, 3, 6). [F004]
+
 **Token admin**: PDA `["token-admin", mint]` of governance. Holds the mint's transfer hook authority. Signs nothing until F007. [F001]
 
 **Delegate authority**: PDA `["delegate", mint]`. This is the mint's permanent delegate. It signs only inside `execute_enforcement` [F005] and `execute_action` for Seize or ForcedTransfer [F007].
@@ -328,7 +351,8 @@ version          u8
 seq              u64
 kind             u8   0 FreezeHolder, 1 ThawHolder, 2 SuspendHolder, 3 RevokeHolder, 4 PauseTransfers,
                       5 UnpauseTransfers, 6 Seize, 7 ForcedTransfer, 8 Enforcement, 9 EnforcementHold,
-                      10 LiftHold, 11 RejectSettlement, 12 SetRules, 13 CommitRegisterRoot, 14 NavOverride
+                      10 LiftHold, 11 RejectSettlement, 12 SetRules, 13 CommitRegisterRoot, 14 NavOverride,
+                      15 ResolveDispute [F004; record from F007]
 reason           u8   0 CourtOrder, 1 SanctionsHit, 2 LostKey, 3 OperationalError, 4 CollateralDefault,
                       5 IssuerWindDown, 6 Other   (NavOverride accepts only 3 and 6 [F002])
 case_ref_hash    [u8; 32]
@@ -378,8 +402,17 @@ version u8 · epoch u64 · slot u64 · register_root [u8; 32] · pledge_root [u8
 | `reject` | dvp_settlement | governance PDA `["dvp-caller"]` only | F003 |
 | `mint_for_subscription`, `burn_for_redemption` | fund | dvp escrow PDA `["escrow", fund_state]` only (CPI) | F003 |
 | `accrue` | compliance_hook | `FundState` PDA only (CPI) | F003 |
-| `propose/sign_agreement`, `pledge`, `release`, `substitute`, `dispute_call` | collateral | giver / taker per section 4.4 | F004 |
-| `update_exposure`, `issue_call` | collateral | taker (giver affirms unless unilateral) | F004 |
+| `propose_agreement`, `sign_agreement` | collateral | giver or taker (proposer), then the other party; both eligible | F004 |
+| `update_exposure` | collateral | taker (a raise waits for `confirm_exposure` unless `taker_may_call_unilaterally`) | F004 |
+| `confirm_exposure` | collateral | giver (exact pending value and reference) | F004 |
+| `issue_call` | collateral | taker (Delivery) / giver (Return) | F004 |
+| `check_coverage` | collateral | anyone (permissionless, state-checked: only observes coverage) | F004 |
+| `pledge`, `substitute`, `dispute_call`, `withdraw_dispute` | collateral | giver | F004 |
+| `release` | collateral | taker; or keeper, only against the open Return call, within coverage | F004 |
+| `cancel_call` | collateral | taker (Delivery) / giver (Return) | F004 |
+| `resolve_call_dispute` | governance → collateral | compliance | F004 (record from F007) |
+| `resolve_dispute` | collateral | governance PDA `["collateral-caller"]` only | F004 |
+| `set_lien` | compliance_hook | collateral PDA `["hook-caller"]` only (CPI) | F004 |
 | `mark_defaulted` | collateral | keeper (state-checked) | F005 |
 | `enforce` | collateral | taker | F005 |
 | `place_hold`, `lift_hold` | collateral | compliance | F005 |
@@ -397,7 +430,8 @@ version u8 · epoch u64 · slot u64 · register_root [u8; 32] · pledge_root [u8
 | `fund` | `compliance_hook::accrue(post_balance)` | signer = `FundState` PDA (`registry.fund_state`); pre-balance read from the holding account; F003 accepts the `Escrow` class only (F006 widens to investors) |
 | `dvp_settlement` | `fund::mint_for_subscription`, `fund::burn_for_redemption` | signer = escrow authority PDA of this fund; the `SettlementInstruction` passed is owned by dvp at its own PDA, same fund, right kind, Affirmed, same units; mint also needs the cash escrow ≥ `cash_amount` (I5); burn enforces the daily limit |
 | `governance` | `dvp_settlement::reject` | signer = governance PDA `["dvp-caller"]` [F003] |
-| `collateral` | `compliance_hook::set_lien(owner, ±units)` | signer = PDA `["hook-caller"]` of `registry.collateral_program` |
+| `collateral` | `compliance_hook::set_lien(LienChange { lock, unlock, opened, closed })` | signer = PDA `["hook-caller"]` of `registry.collateral_program` (non-default); holder record and holding account of one owner and this mint; if the lock grows, holding balance ≥ new `pledged_amount` (I2) |
+| `governance` | `collateral::resolve_dispute` | signer = governance PDA `["collateral-caller"]` [F004] |
 | `collateral` | `governance::execute_enforcement(call)` | signer = collateral PDA `["gov-caller"]`; call account owned by collateral and status Defaulted |
 | `governance` | `compliance_hook::set_status` / `set_paused` | signer = governance PDA `["hook-admin"]` |
 | `governance` | `fund::set_nav_override` / `clear_nav_override` | signer = governance PDA `["fund-caller"]` [F002] |
@@ -432,7 +466,7 @@ No other CPI edge is allowed without updating this table.
 
 `pre_src = post_src + amount`, `pre_dst = post_dst − amount`. When source and destination are the same owner, accrue once.
 
-Features insert their logic only at their step. F001 builds steps 0, 1, 3, 4, 6, 7, 9 and 10. F002 builds step 8. Step 5 lands with F004 and step 2 with F005, because neither can be exercised by a test before then (Constitution VI). A missing or foreign `HolderState` counts as not approved (steps 4 and 6). Token-2022 rejects frozen source or destination accounts (`AccountFrozen`) before the hook runs, so that check comes first in the documented order.
+Features insert their logic only at their step. F001 builds steps 0, 1, 3, 4, 6, 7, 9 and 10. F002 builds step 8. Step 5 lands with F004 and step 2 with F005, because neither can be exercised by a test before then (Constitution VI). In F004 step 5 therefore applies to every transfer; the governance-delegate bypass arrives with step 2. A missing or foreign `HolderState` counts as not approved (steps 4 and 6). Token-2022 rejects frozen source or destination accounts (`AccountFrozen`) before the hook runs, so that check comes first in the documented order.
 
 Mint and burn do not trigger the hook, so `fund` calls `compliance_hook::accrue` before every mint or burn.
 
@@ -456,6 +490,8 @@ Mint and burn do not trigger the hook, so `fund` calls `compliance_hook::accrue`
 | I10 | `Registry.holder_count == |{Investor HolderState with last_balance > 0}|`, and never below the number of Investors with an actual balance > 0 | F001 |
 | I11 | For every holder, `accrued_e18 + last_balance × (accrual_index − index_at_last_touch)` == Σ over publishes of (units held at that publish × daily_rate_e12 × 10^6 × days_covered) | F002 |
 | I12 | `FundState.accrual_index == NavRecord(nav_seq).index_after`; consecutive records' index difference == rate × 10^6 × days; periods contiguous (`period_start_day(n+1) == period_end(n) + 1`) and `nav_period_end_day == period_end(nav_seq)`; every `index_at_last_touch ≤ accrual_index` | F002 |
+| I15 | `PledgeAgreement.pledged_units == Σ (units − released − enforced)` over that agreement's Active pledges, and `≤ concentration_cap_units` | F004 |
+| I16 | `open_delivery_calls ==` number of Delivery calls with stored status Open/Disputed and `seq ≥ met_below_seq`; `called_outstanding ≤ Σ value_delta` of those calls; `called_outstanding == 0` when that number is 0 | F004 |
 
 ---
 
@@ -463,8 +499,9 @@ Mint and burn do not trigger the hook, so `fund` calls `compliance_hook::accrue`
 
 | Formula | Rounding | Why |
 |---|---|---|
-| Collateral value of units: `units × nav × (10_000 − haircut) / (10^8 × 10_000)` | down | Taker never over-counts collateral |
+| Collateral value of units: `units × nav × (10_000 − haircut) / (10^8 × 10_000)` | down, once on the agreement's total pledged units | Taker never over-counts collateral [F004: one rounding, no per-pledge sum] |
 | Units required for a value: `value × 10^8 × 10_000 / (nav × (10_000 − haircut))` | **up** | Giver always posts enough |
+| Units released for a return call's value (same formula) | down | Taker keeps enough [F004] |
 | Units taken on enforcement for a shortfall | **down**, then min(available) | Taker never takes more than owed |
 | Subscription cash for N units: `N × nav / 10^8` | up | Fund never under-paid |
 | Redemption cash for N units | down | Fund never over-pays |
@@ -473,15 +510,16 @@ Mint and burn do not trigger the hook, so `fund` calls `compliance_hook::accrue`
 | Price-move check: `abs(nav − prev) × 10_000 ≤ prev × max_nav_move_bps` (prev = last nav, or target_nav before the first publish) | exact (cross-multiplied); equal to the limit passes | No division, so no boundary rounding [F002] |
 | Redemption limit: `(redeemed_today + units) × 10_000 ≤ units_at_day_start × redemption_gate_bps` | exact (cross-multiplied); equal to the limit passes | No division [F003] |
 
-Worked check (used in tests): NAV 1.00, haircut 2 %:
-- $1,000,000 needs ceil(1,020,408.16…) = **1,020,409** units.
-- A $500,000 shortfall enforces floor(510,204.08…) = **510,204** units.
+Worked check (used in tests): NAV 1.00, haircut 2 %, at the smallest unit (6 decimals) [F004]:
+- $1,000,000 needs ceil(1,020,408.163265…) = **1,020,408.163266** units (`1_020_408_163_266` base units; 1,020,409 if counted in whole units), worth exactly $1,000,000.000000.
+- An excess of $600,000 returns floor(612,244.897959…) = **612,244.897959** units.
+- A $500,000 shortfall enforces floor(510,204.081632…) = **510,204.081632** units [F005].
 
 ---
 
 ## 9. Events (names are shared; payloads include `fund`, `slot`, `unix_ts`)
 
-`RolesInitialized`, `RolesAssigned`, `FundCreated`, `RegistryInitialized`, `RegisterRulesSet`, `FundLaunched`, `HolderRegistered`, `HolderApproved`, `HolderStatusChanged`, `TransfersPaused`, `HoldingAccountThawed`, `TransferValidated` (from F002 also carries `accrual_index`, `source_accrued_e18`, `destination_accrued_e18`), `Accrued` (compliance_hook::accrue, F003; `emit!`: owner, pre_balance, post_balance, accrual_index, accrued_e18), `NavPublished`, `NavOverrideApproved`, `NavOverrideWithdrawn`, `CashTreasurySet`, `SubscriptionMinted`, `RedemptionBurned`, `DvpInitialized`, `SettlementCreated`, `LegFunded`, `Settled`, `CancelRequested`, `CancelRequestWithdrawn`, `SettlementCancelled`, `SettlementExpired`, `SettlementRejected`, `LegReturned`, `AgreementProposed`, `AgreementActive`, `ExposureUpdated`, `CallIssued`, `CallMet`, `CallDisputed`, `CallDefaulted`, `Pledged`, `Released`, `Substituted`, `LienSet`, `HoldPlaced`, `HoldLifted`, `Enforced`, `CycleClosed`, `Distributed`, `CycleFinalised`, `ActionProposed`, `ActionExecuted`, `ActionCancelled`, `RegisterRootCommitted`, `FundWindingDown`, `FundClosed`.
+`RolesInitialized`, `RolesAssigned`, `FundCreated`, `RegistryInitialized`, `RegisterRulesSet`, `FundLaunched`, `HolderRegistered`, `HolderApproved`, `HolderStatusChanged`, `TransfersPaused`, `HoldingAccountThawed`, `TransferValidated` (from F002 also carries `accrual_index`, `source_accrued_e18`, `destination_accrued_e18`), `Accrued` (compliance_hook::accrue, F003; `emit!`: owner, pre_balance, post_balance, accrual_index, accrued_e18), `NavPublished`, `NavOverrideApproved`, `NavOverrideWithdrawn`, `CashTreasurySet`, `SubscriptionMinted`, `RedemptionBurned`, `DvpInitialized`, `SettlementCreated`, `LegFunded`, `Settled`, `CancelRequested`, `CancelRequestWithdrawn`, `SettlementCancelled`, `SettlementExpired`, `SettlementRejected`, `LegReturned`, `AgreementProposed`, `AgreementActive`, `ExposureUpdated` (outcome Applied / Pending / Confirmed; the call it opened, if any), `CallIssued`, `CoverageChecked`, `CallCancelled`, `CallDisputed`, `DisputeWithdrawn`, `DisputeResolved`, `CallDefaulted`, `Pledged`, `Released` (carries `return_call_met`), `Substituted`, `LienSet` (compliance_hook::set_lien, `emit!`) [F004: no `CallMet` event; every valuing event carries `coverage`, `nav_seq`, `called_outstanding`, `met_below_seq`], `HoldPlaced`, `HoldLifted`, `Enforced`, `CycleClosed`, `Distributed`, `CycleFinalised`, `ActionProposed`, `ActionExecuted`, `ActionCancelled`, `RegisterRootCommitted`, `FundWindingDown`, `FundClosed`.
 
 ---
 
@@ -494,6 +532,7 @@ Worked check (used in tests): NAV 1.00, haircut 2 %:
 | Holds | Governance action | `EnforcementHold` in `collateral`, recorded via `governance::record_action` | Enforcement reads the hold in its own program; governance still keeps the audit record. |
 | Distribution tracking | Receipt PDA only | Receipt PDA + `HolderState.last_paid_cycle` | Cheap check before deriving the receipt. |
 | Title transfer, netting, manufactured income | In scope (stretch) | Fields reserved, `[backlog]` | Not in F001–F008. |
+| Margin calls | `units_required` recomputed on cure; `meet_call`; substitution with taker affirm; Pledge/Call seeds by `seq` | Demanded part + derived Met (§4.4); pledge and release only; substitution to equal or larger units by the giver; seeds by party reference | A prepared pledge must not depend on the list of open calls or on a sequence number (F004 research R5, R6, R9). |
 
 ---
 
@@ -504,7 +543,7 @@ Worked check (used in tests): NAV 1.00, haircut 2 %:
 | F001 | mint + extensions, `FundState` (Setup/Open), `Registry`, `ExtraAccountMetaList` (all 5 entries), `HolderState`, `RoleRegistry` | hook steps 0, 1, 3, 4, 6, 7, 9, 10; `holder_count`, `last_balance`, `last_slot` |
 | F002 | `NavRecord` | `FundState.nav*`, `accrual_index`, `daily_rate_e12`, `nav_period_end_day`, `pending_override_nav`; `HolderState.index_at_last_touch`, `accrued_e18`; hook step 8; governance `["fund-caller"]` and the override instructions |
 | F003 | `DvpConfig`, escrow authority + its two ATAs + its `HolderState`, `SettlementInstruction` | `FundState.units_outstanding`, `redeemed_today`, `day_start_ts`, `units_at_day_start`, `cash_treasury`; `compliance_hook::accrue` (escrow class only) and the `fund → accrue` CPI before every mint and burn; Escrow class in `register_holder` / `approve_fund_account`; governance `["dvp-caller"]` and `reject_settlement` |
-| F004 | `PledgeAgreement`, `Pledge`, `CollateralCall` | `Registry.collateral_program`; `HolderState.pledged_amount`, `active_liens`; hook step 5 |
+| F004 | `PledgeAgreement`, `Pledge`, `CollateralCall` | `Registry.collateral_program` (set by `init_registry`); `HolderState.pledged_amount`, `active_liens` (only via `set_lien`); hook step 5 (no bypass until F005 step 2); governance `["collateral-caller"]` and `resolve_call_dispute` |
 | F005 | `EnforcementHold` | `CollateralCall.enforced_*`; delegate PDA signing in `execute_enforcement`; hook step 2 |
 | F006 | `DistributionCycle`, `DistributionReceipt` | `FundState.current_cycle`; `HolderState.last_paid_cycle`; `accrue` widened to Investor holders with the `holder_count` update |
 | F007 | `ActionRecord` (full), `RegisterRoot` | `RoleRegistry.timelock_secs`; `record_action` wired into F001–F006 admin paths |

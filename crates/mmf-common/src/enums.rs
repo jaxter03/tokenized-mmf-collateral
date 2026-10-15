@@ -73,6 +73,46 @@ u8_enum! {
     Leg { Units = 0, Cash = 1 }
 }
 
+u8_enum! {
+    /// `PledgeAgreement.mode` / `Pledge.mode` (shared-model §4.4). Only Lien is accepted until the
+    /// backlog. [F004]
+    PledgeMode { Lien = 0, TitleTransfer = 1 }
+}
+
+u8_enum! {
+    /// `PledgeAgreement.income_to`. Only Giver is accepted until the backlog. [F004]
+    IncomeTo { Giver = 0, Taker = 1, TakerOwesGiver = 2 }
+}
+
+u8_enum! {
+    /// `PledgeAgreement.status`. Terminating and Terminated are reserved. [F004]
+    AgreementStatus { Proposed = 0, Active = 1, Terminating = 2, Terminated = 3 }
+}
+
+u8_enum! {
+    /// `Pledge.status`. Enforced arrives with F005. [F004]
+    PledgeStatus { Active = 0, Released = 1, Enforced = 2, Substituted = 3 }
+}
+
+u8_enum! {
+    /// `CollateralCall.kind`: the taker demands more (Delivery) or the giver asks for excess back
+    /// (Return). [F004]
+    CallKind { Delivery = 0, Return = 1 }
+}
+
+u8_enum! {
+    /// `CollateralCall.status`. A Delivery call stored Open or Disputed below the agreement's
+    /// `met_below_seq` is Met (derived, `collateral::delivery_met`). Defaulted and Enforced arrive
+    /// with F005. [F004]
+    CallStatus { Open = 0, Met = 1, Disputed = 2, Defaulted = 3, Enforced = 4, Cancelled = 5 }
+}
+
+u8_enum! {
+    /// `ExposureUpdated.outcome`: applied at once, held for the giver, or confirmed by the giver.
+    /// [F004]
+    ExposureOutcome { Applied = 0, Pending = 1, Confirmed = 2 }
+}
+
 impl SettlementStatus {
     /// Not yet final: Instructed, SellerFunded, BuyerFunded or Affirmed.
     pub const fn is_open(self) -> bool {
@@ -125,6 +165,12 @@ impl ReasonCode {
     pub const fn allowed_for_reject_settlement(self) -> bool {
         self.allowed_in_f001()
     }
+
+    /// Reasons compliance may give when resolving a call dispute (F004, research R10): the F001
+    /// list.
+    pub const fn allowed_for_resolve_dispute(self) -> bool {
+        self.allowed_in_f001()
+    }
 }
 
 #[cfg(test)]
@@ -154,6 +200,36 @@ mod tests {
         assert_eq!(Side::try_from(2), Err(2));
         assert_eq!(Leg::try_from(1), Ok(Leg::Cash));
         assert_eq!(Leg::try_from(2), Err(2));
+        assert_eq!(PledgeMode::try_from(1), Ok(PledgeMode::TitleTransfer));
+        assert_eq!(PledgeMode::try_from(2), Err(2));
+        assert_eq!(IncomeTo::try_from(2), Ok(IncomeTo::TakerOwesGiver));
+        assert_eq!(IncomeTo::try_from(3), Err(3));
+        for v in 0..=3u8 {
+            assert_eq!(AgreementStatus::try_from(v).unwrap().as_u8(), v);
+            assert_eq!(PledgeStatus::try_from(v).unwrap().as_u8(), v);
+        }
+        assert_eq!(AgreementStatus::try_from(4), Err(4));
+        assert_eq!(PledgeStatus::try_from(4), Err(4));
+        assert_eq!(CallKind::try_from(1), Ok(CallKind::Return));
+        assert_eq!(CallKind::try_from(2), Err(2));
+        for v in 0..=5u8 {
+            assert_eq!(CallStatus::try_from(v).unwrap().as_u8(), v);
+        }
+        assert_eq!(CallStatus::try_from(6), Err(6));
+        assert_eq!(ExposureOutcome::try_from(2), Ok(ExposureOutcome::Confirmed));
+        assert_eq!(ExposureOutcome::try_from(3), Err(3));
+    }
+
+    #[test]
+    fn resolve_dispute_reasons() {
+        let allowed: Vec<u8> = (0..=6)
+            .filter(|v| {
+                ReasonCode::try_from(*v)
+                    .unwrap()
+                    .allowed_for_resolve_dispute()
+            })
+            .collect();
+        assert_eq!(allowed, vec![0, 1, 2, 3, 6]);
     }
 
     #[test]

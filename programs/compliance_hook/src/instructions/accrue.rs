@@ -47,6 +47,23 @@ fn holder_accounts(
     holder_state: &AccountInfo,
     holding_account: &AccountInfo,
 ) -> Result<(HolderState, u64)> {
+    let (record, balance) = owner_accounts(mint, holder_state, holding_account)?;
+    // F003 mints to and burns from the escrow only.
+    require!(
+        record.class() == Some(HolderClass::Escrow),
+        HookError::ClassNotAccrued
+    );
+    Ok((record, balance))
+}
+
+/// An owner's record and its holding account's balance: the holding account is a Token-2022
+/// account of `mint` at its owner's ATA, and the record is that owner's HolderState at its own
+/// PDA (`WrongHolder` otherwise). Shared by `accrue` and `set_lien` (F004).
+pub(crate) fn owner_accounts(
+    mint: &Pubkey,
+    holder_state: &AccountInfo,
+    holding_account: &AccountInfo,
+) -> Result<(HolderState, u64)> {
     // The owner's Token-2022 ATA for this mint.
     let holding = {
         let data = holding_account.try_borrow_data()?;
@@ -81,11 +98,6 @@ fn holder_accounts(
     )
     .map_err(|_| error!(HookError::WrongHolder))?;
     require_keys_eq!(holder_state.key(), expected, HookError::WrongHolder);
-    // F003 mints to and burns from the escrow only.
-    require!(
-        record.class() == Some(HolderClass::Escrow),
-        HookError::ClassNotAccrued
-    );
     Ok((record, holding.amount))
 }
 

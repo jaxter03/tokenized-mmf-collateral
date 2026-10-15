@@ -10,6 +10,7 @@
 //! - `devnet-e2e --continue <mint>`: on a later UTC day, publish the next record for that fund
 //!   (3 days on a Friday, else 1) and print its full price history.
 //! - `devnet-e2e --feature f003 [--continue <mint>]`: the F003 settlement run (see `f003.rs`).
+//! - `devnet-e2e --feature f004`: the F004 collateral run (see `f004.rs`).
 //!
 //! Environment:
 //! - `RPC_URL` (default `https://api.devnet.solana.com`)
@@ -17,9 +18,10 @@
 //! - `STATE_DIR` (default `target/devnet-e2e`): where the fund admin key is kept between runs.
 //!   It is named `*-keypair.json` and lives under `target/`, both ignored by git; never commit it.
 //!
-//! The programs must already be deployed at the IDs in `mmf_common::ids` (four from F003).
+//! The programs must already be deployed at the IDs in `mmf_common::ids` (five from F004).
 
 mod f003;
+mod f004;
 
 use std::process::ExitCode;
 
@@ -358,9 +360,15 @@ fn main() -> ExitCode {
         step: 0,
     };
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("--feature")
+        && args.get(1).map(String::as_str) == Some("f004")
+    {
+        println!("F004 run on {url}");
+        return f004::run(run);
+    }
     if args.first().map(String::as_str) == Some("--feature") {
         if args.get(1).map(String::as_str) != Some("f003") {
-            eprintln!("usage: devnet-e2e --feature f003 [--continue <mint>]");
+            eprintln!("usage: devnet-e2e --feature f003 [--continue <mint>] | --feature f004");
             return ExitCode::FAILURE;
         }
         if args.get(2).map(String::as_str) == Some("--continue") {

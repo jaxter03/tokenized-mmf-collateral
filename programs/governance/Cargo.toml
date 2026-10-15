@@ -26,6 +26,7 @@ mmf-common = { path = "../../crates/mmf-common" }
 compliance_hook = { path = "../compliance_hook", features = ["cpi", "no-entrypoint"] }
 fund = { path = "../fund", features = ["cpi", "no-entrypoint"] }
 dvp_settlement = { path = "../dvp_settlement", features = ["cpi", "no-entrypoint"] }
+collateral = { path = "../collateral", features = ["cpi", "no-entrypoint"] }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }
