@@ -736,7 +736,7 @@ cancelling the call, by compliance resolution through governance, or when the ca
   - **Signers**: per instruction (§5.1), and the new CPI edges (§5.2);
   - **Invariants**: I1, I2, I15, I16 (§7);
   - **Design**: the derived-Met rule (R5), and the two Constitution IV exceptions.
-- [ ] T078 Devnet run. It needs the user's go-ahead, devnet SOL and the deployed programs. Deploy
+- [ ] T078 *(not done: needs the user's go-ahead, devnet SOL and deployed programs. Rehearsed on a local validator with Token-2022 v11, 2026-10-15: 37 of 37 steps of `--feature f004` matched)* Devnet run. It needs the user's go-ahead, devnet SOL and the deployed programs. Deploy
   `collateral` and upgrade `compliance_hook` and `governance` (and, if F001–F003 are still not on
   devnet, do the first deployment of all five, as F003 T080 describes). Run
   `cargo run -p devnet-e2e -- --feature f004`, and record program IDs and signatures in
@@ -750,7 +750,11 @@ cancelling the call, by compliance resolution through governance, or when the ca
   - every F001–F003 test or helper edit (T004, T010, T016, T040, T070), each with its reason
     (Constitution XII).
 
-  A human reviewer completes T077's checklist before merge
+  A human reviewer completes T077's checklist before merge.
+  **Status 2026-10-15**: full suite green (375 + 72 tests; 6 release-only tests pass, incl. SC-007
+  and 256 collateral property cases; 160 of 160 errors covered; clippy and fmt clean). PR
+  [#4](https://github.com/jaxter03/tokenized-mmf-collateral/pull/4) is open. It is left unchecked
+  until the reviewer signs off and it merges
 
 ---
 
