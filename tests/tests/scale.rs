@@ -267,6 +267,12 @@ fn settlement_cost_does_not_grow_with_holders_or_open_instructions() {
 // publish cost unchanged by agreements)
 // ---------------------------------------------------------------------------------------------
 
+/// Collateral steps divide `u128` products whose size changes from cycle to cycle, and SBF's
+/// software division costs a few dozen units more or less with the operands (49 CU seen between
+/// runs, in either direction). Growth with holders or agreements would cost at least one more
+/// address-derivation round (~1 500 CU), so a 100-unit band still proves SC-007.
+const COLLATERAL_JITTER_CU: u64 = 100;
+
 /// A reference whose PDA under `agreement` with `seed` has bump 255, so creating that account
 /// costs one address-derivation round at either scale.
 fn ref_with_bump_255(seed: &[u8], agreement: &Pubkey, from: u32) -> ([u8; 32], u32) {
@@ -362,7 +368,7 @@ fn collateral_cost_does_not_grow_with_holders_or_agreements() {
         ("release", small.2, large.2),
     ] {
         assert!(
-            s.abs_diff(l) <= SETTLEMENT_JITTER_CU,
+            s.abs_diff(l) <= COLLATERAL_JITTER_CU,
             "{name} cost must not depend on holders or agreements: {s} vs {l}"
         );
         assert!(l <= 80_000, "{name} used {l} CU");
