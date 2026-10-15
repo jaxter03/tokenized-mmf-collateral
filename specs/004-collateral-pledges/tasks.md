@@ -694,9 +694,9 @@ cancelling the call, by compliance resolution through governance, or when the ca
   - **SC-005**: pledging a call's `units_required` at its price leaves coverage ≥ 0; releasing a
     return call's units at its price leaves coverage ≥ 0;
   - **Volume**: 64 cases by default and 256 under `--release --ignored`.
-- [ ] T070 [P] Extend `tests/tests/invariants_prop.rs` with `assert_i1_i2` after every op (holds
+- [X] T070 [P] Extend `tests/tests/invariants_prop.rs` with `assert_i1_i2` after every op (holds
   trivially with no pledges, and catches any F001–F003 path that would break it)
-- [ ] T071 [P] Extend `tests/tests/scale.rs` (SC-007, `#[ignore]`, release):
+- [X] T071 [P] Extend `tests/tests/scale.rs` (SC-007, `#[ignore]`, release):
   - **Fixed cost**: the CU of `pledge`, `release` and `issue_call` is equal (±0) with 10 vs
     10 000 holders and 1 vs 300 agreements;
   - **No new publish cost**: `publish_daily` CU is unchanged from F003.

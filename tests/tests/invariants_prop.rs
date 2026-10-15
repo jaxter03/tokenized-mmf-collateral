@@ -9,6 +9,8 @@
 //!   `last_balance` equals the holding account's balance;
 //! - `holder_count` never exceeds the cap.
 //!
+//! F004 (T070): I1 and I2 are checked after every step.
+//!
 //! F002 (T033): `Publish` operations are interleaved, so the F001 invariants are checked with the
 //! interest counter moving, and I12 (index and period continuity) is checked after every step.
 
@@ -334,6 +336,17 @@ impl World {
                 "I10: last_balance of investor {i} after {after:?}"
             );
             counted += u32::from(rec.last_balance > 0);
+            // F004 (T070): no pledge exists in these sequences, so I1 means nothing is locked;
+            // I2 holds whatever F001–F003 path ran.
+            assert_eq!(
+                (rec.pledged_amount, rec.active_liens),
+                (0, 0),
+                "I1: investor {i} after {after:?}"
+            );
+            assert!(
+                balance >= rec.pledged_amount,
+                "I2: investor {i} after {after:?}"
+            );
         }
         assert_eq!(
             reg.holder_count, counted,
