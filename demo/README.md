@@ -34,7 +34,13 @@ Run `anchor build` in `demo/` first if `target/deploy/mmf_demo.so` is missing. T
 comes from `target/deploy/mmf_demo-keypair.json`; on a new machine, run `anchor keys sync`, then
 rebuild.
 
-Use **Reset demo** in the UI to start over with a fresh fund. To check the whole story without
+The UI (`app/public/index.html`) was designed in Claude Design from
+[claude-design-prompt.md](claude-design-prompt.md). Tony, the demo assistant, opens with the setup,
+then narrates each step. **Press → (or PageDown, or a presentation clicker) to run the next step.**
+If a "mock data" tag shows in the header, the page loaded before the server was ready: refresh
+it. The earlier plain UI is still served at `http://localhost:5173/classic` as a fallback.
+
+Use **Reset** in the UI to start over with a fresh fund. To check the whole story without
 the UI, run it from the command line against the running validator:
 
 ```bash

@@ -65,8 +65,9 @@ const server = http.createServer(async (req, res) => {
     res.end(type === "application/json" ? JSON.stringify(body) : body);
   };
   try {
-    if (req.method === "GET" && (req.url === "/" || req.url === "/index.html")) {
-      return send(200, fs.readFileSync(path.join(here, "public/index.html")), "text/html; charset=utf-8");
+    const page = { "/": "index.html", "/index.html": "index.html", "/classic": "classic.html" }[req.url];
+    if (req.method === "GET" && page) {
+      return send(200, fs.readFileSync(path.join(here, "public", page)), "text/html; charset=utf-8");
     }
     if (req.method === "GET" && req.url === "/api/state") {
       return send(200, await serial(() => chain.readState()));
