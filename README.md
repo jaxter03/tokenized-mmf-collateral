@@ -10,6 +10,20 @@ subscription, redemption and transfer settlement** are merged; **F004 — collat
 margin calls and pledges** is implemented on its branch. F005–F008 (enforcement, distributions,
 governance, operator tooling) follow in order; see [docs/speckit-inputs.md](docs/speckit-inputs.md).
 
+## Devnet deployment
+
+All five programs are deployed on **devnet**, and the end-to-end tests pass there (102 of 102
+steps, [below](#passing-on-devnet)). The deploy signatures and run details are in
+[specs/004-collateral-pledges/devnet-run.md](specs/004-collateral-pledges/devnet-run.md).
+
+| Program | Devnet Program ID | Role |
+|---|---|---|
+| `fund` | [`HV75Ur4qgfHHTNwbJdpiTMkq2sA7YoynBXFtzpsZzYT5`](https://explorer.solana.com/address/HV75Ur4qgfHHTNwbJdpiTMkq2sA7YoynBXFtzpsZzYT5?cluster=devnet) | Fund and mint creation, launch, daily price and interest, mint/burn for settlement |
+| `compliance_hook` | [`A2R9A9xmCpicyUAYixJZr63oBPmKSR95CxxLoSPQfqtM`](https://explorer.solana.com/address/A2R9A9xmCpicyUAYixJZr63oBPmKSR95CxxLoSPQfqtM?cluster=devnet) | Token-2022 transfer hook: holder register, KYC check, interest settlement, pledge lock |
+| `governance` | [`8Z7an6h8k8dbq7Bxzxyh4HseyaNgTHpVzSwvcq5H9pTV`](https://explorer.solana.com/address/8Z7an6h8k8dbq7Bxzxyh4HseyaNgTHpVzSwvcq5H9pTV?cluster=devnet) | Roles, reason-coded compliance actions, price overrides, dispute resolution |
+| `dvp_settlement` | [`418DJ7wBLXAWBGA81vGLxEJTMxZMNMqrmj6t3sErck6w`](https://explorer.solana.com/address/418DJ7wBLXAWBGA81vGLxEJTMxZMNMqrmj6t3sErck6w?cluster=devnet) | Cash-for-units escrow: subscription, redemption, secondary transfer, unwinds |
+| `collateral` | [`2RGrj5Jp8PGFVNRFNbJJtZVAph9mBYEubX6QMgqup6Yi`](https://explorer.solana.com/address/2RGrj5Jp8PGFVNRFNbJJtZVAph9mBYEubX6QMgqup6Yi?cluster=devnet) | Collateral agreements, margin calls, pledges, releases, substitution, disputes |
+
 ## What F001 does
 
 - **Launch**: the issuer creates a fund and its Token-2022 mint in one instruction, sets holder
@@ -129,6 +143,13 @@ are in the [constitution](.specify/memory/constitution.md) and
 [docs/shared-model.md](docs/shared-model.md).
 
 ## Architecture
+
+![Target architecture: actors, off-chain services, business programs, control programs and tokens](docs/diagrams/01-full-architecture.png)
+
+This is the target design. Layers 3–5 are built and deployed: the five programs, the Token-2022
+fund mint and the cash mint. The off-chain services in layer 2 and the `netting` stretch goal
+come in later features. The lifecycle flow and the end-to-end sequence are in
+[docs/diagrams/](docs/diagrams/). The diagrams below show each part in detail.
 
 ### Programs, accounts and authorities
 
@@ -290,24 +311,47 @@ holder's full status history can be rebuilt from those events alone.
   settlement cost the same with 10 or 10 000 holders and 1 or 1 000 open instructions. A pledge,
   a call and a release cost the same with 10 or 10 000 holders and 1 or 300 agreements.
 
-![F001 program tests passing on LiteSVM](docs/images/tests-litesvm.png)
+### Program test suite (LiteSVM)
 
-The end-to-end script runs the full flow on a real validator (here a local
-`solana-test-validator` with the programs and the mainnet Token-2022 build loaded): 27 steps, each
-checked against its expected outcome, ending with each holder's status history rebuilt from
-on-chain records.
+![Program test suite passing on LiteSVM: 375 passed, 0 failed](docs/images/tests-litesvm.png)
 
-![F001 end-to-end run on a local validator](docs/images/e2e-localnet.png)
+### Passing on devnet
 
-The F002 steps follow on the same fund: an over-limit price rejected, an override approved, the
-override price published, a same-day publish rejected (34 steps in all). Running the script with
-`--continue <mint>` on later days publishes the next records.
+The end-to-end script runs every feature against the programs deployed on devnet. Each step is
+checked against its expected outcome, including the rejections, which must fail with the exact
+error. The run exits 0 only if all of them match. The run on 2026-10-15 matched **102 of 102
+steps**. The full logs are in [docs/devnet-runs/](docs/devnet-runs/), and every signature can be
+looked up on the explorer.
 
-Transfers on a cluster move zero units: there is no way to create units before F003, and a
-zero-unit transfer still runs every hook check. Tests that move real units run on LiteSVM, which can
-place units in an account. **Devnet deployment is pending**; the same script runs there unchanged
-once the programs are deployed. Screenshots are rendered from the captured output with
-`scripts/render_terminal.py`.
+**F001 + F002: 34 of 34.**
+- **Launch and onboarding:** a fund is launched, two institutions are onboarded, and transfers
+  are refused for a suspended holder, while paused, for an unregistered account and after
+  revocation.
+- **Status history:** each holder's status history is rebuilt from on-chain records.
+- **Daily price:** a price moving past the daily limit is refused, an override is approved, and a
+  same-day publish is refused.
+
+Transfers in this run move zero units, because no units can be created before F003. A zero-unit
+transfer still runs every hook check.
+
+![F001 and F002 end-to-end run passing on devnet](docs/images/devnet-f001-f002.png)
+
+**F003: 31 of 31.**
+- **Subscription:** funded through a durable-nonce step prepared earlier and signed later.
+- **Expired secondary:** a secondary transfer expires and its funded leg is returned.
+- **Redemption limit:** a redemption over today's limit is refused.
+
+![F003 settlement end-to-end run passing on devnet](docs/images/devnet-f003.png)
+
+**F004: 37 of 37.**
+- **The call and the pledge:** a $1M margin call is met by a pledge prepared on a durable nonce
+  and signed 130 s later, without any balance changing.
+- **The lock:** a send one unit over the lock is refused by the token itself.
+- **The release:** the excess is released against a return call when exposure falls.
+
+![F004 collateral end-to-end run passing on devnet](docs/images/devnet-f004.png)
+
+Screenshots are rendered from the captured output with `scripts/render_terminal.py`.
 
 ## Repository layout
 
@@ -358,7 +402,8 @@ and verify them is in [tests/fixtures/README.md](tests/fixtures/README.md).
 `scripts/devnet-e2e` runs the whole F001 flow and F002's first publish and override against a
 cluster, using zero-unit transfers (no units can be created before F003, and a zero-unit transfer
 still runs every hook check). `--continue <mint>` publishes the next record on a later UTC day.
-Rehearse it free on a local validator, then run it on devnet once the programs are deployed.
+Rehearse it free on a local validator. On devnet, all four runs pass against the deployed
+programs ([Devnet deployment](#devnet-deployment)).
 Commands are in the [F001](specs/001-fund-launch-onboarding/quickstart.md#devnet-run-r16) and
 [F002](specs/002-daily-price-accrual/quickstart.md#devnet-run-research-r13) quickstarts.
 `devnet-e2e --feature f003` runs settlement on a new fund with real units and a mock stablecoin
@@ -372,7 +417,9 @@ return call. See the [F004 quickstart](specs/004-collateral-pledges/quickstart.m
 
 ## Status
 
-F001–F003 are merged. F004 is implemented and tested on `004-collateral-pledges`; its devnet
-run and human review gate ([review.md](specs/004-collateral-pledges/review.md)) are pending before
-it merges. Devnet deployment of the programs is still pending. Nothing here is audited — don't use it
-with real assets.
+F001–F003 are merged. F004 is implemented and tested on `004-collateral-pledges`, and its human
+review gate ([review.md](specs/004-collateral-pledges/review.md)) is pending before it merges. All
+five programs have been on devnet since 2026-10-15, and every feature's end-to-end run passes
+there. Their upgrade authority is still the deploy wallet: the handover to a Squads vault with a
+time lock is still to do ([devnet-run.md](specs/004-collateral-pledges/devnet-run.md#still-open)).
+Nothing here is audited — don't use it with real assets.
