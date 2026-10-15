@@ -34,6 +34,8 @@ assert.equal(s.call.status, "pledged");
 assert.equal(s.alice.sharesFree, 9_200_000);
 assert.equal(s.alice.sharesOwned, 10_000_000, "pledged shares still owned (and earning)");
 assert.equal(s.bank.shortfall, 0);
+assert.equal(s.bank.mmfValue, 800_000);
+assert.equal(s.bank.totalCollateral, 6_500_000);
 step("Alice pledges 800,000 shares; the bank is covered; she still owns all 10,000,000");
 
 await expectFail(() => chain.release(), /doesn't cover/);

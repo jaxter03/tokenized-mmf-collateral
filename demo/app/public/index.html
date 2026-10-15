@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MMF Collateral Demo</title>
+<style>
+  :root {
+    --bg: #0b0f17;
+    --panel: #121826;
+    --panel-2: #182033;
+    --line: #243049;
+    --text: #e7ecf5;
+    --muted: #8b97ad;
+    --faint: #5d6880;
+    --green: #2fd18a;
+    --green-bg: rgba(47, 209, 138, 0.12);
+    --red: #ff5d5d;
+    --red-bg: rgba(255, 93, 93, 0.12);
+    --amber: #ffb547;
+    --amber-bg: rgba(255, 181, 71, 0.12);
+    --blue: #5aa9ff;
+    --blue-bg: rgba(90, 169, 255, 0.12);
+    --violet: #a58bff;
+    --radius: 14px;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 20px 24px 40px; }
+  header { display: flex; align-items: center; gap: 10px 16px; margin-bottom: 14px; flex-wrap: wrap; }
+  header h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
+  header .tag {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--amber);
+    border: 1px solid rgba(255, 181, 71, 0.35); border-radius: 999px; padding: 2px 8px;
+  }
+  header .spacer { flex: 1; }
+  button {
+    font: inherit; color: var(--text); background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 9px 14px; cursor: pointer; transition: 0.15s;
+  }
+  button:hover:not(:disabled) { border-color: #3a4a6b; background: #1e2840; }
+  button:disabled, button.primary:disabled, button.bank:disabled {
+    background: var(--panel-2); border-color: var(--line); color: var(--faint); font-weight: 500; cursor: not-allowed;
+  }
+  button.primary { background: var(--blue); border-color: var(--blue); color: #06101f; font-weight: 600; }
+  button.primary:hover:not(:disabled) { background: #7cbcff; }
+  button.bank { background: var(--amber); border-color: var(--amber); color: #1d1200; font-weight: 600; }
+  button.bank:hover:not(:disabled) { background: #ffc66e; }
+  button.ghost { background: transparent; }
+  button.busy { position: relative; color: transparent !important; }
+  button.busy::after {
+    content: ""; position: absolute; inset: 0; margin: auto; width: 16px; height: 16px;
+    border: 2px solid rgba(0,0,0,0.35); border-top-color: #000; border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .context {
+    display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center;
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 12px 16px; color: var(--muted); font-size: 14px; margin-bottom: 14px;
+  }
+  .context b { color: var(--text); font-weight: 600; }
+  .context .ok { color: var(--green); }
+  .context a { color: var(--blue); text-decoration: none; }
+
+  .steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 16px; }
+  .step {
+    display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px;
+    background: var(--panel); border: 1px solid var(--line); color: var(--faint); font-size: 13px;
+    transition: 0.25s;
+  }
+  .step .n {
+    flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+    border: 1px solid var(--line); font-size: 12px; font-weight: 700;
+  }
+  .step.done { color: var(--muted); }
+  .step.done .n { background: var(--green-bg); color: var(--green); border-color: transparent; }
+  .step.now { color: var(--text); border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-bg); }
+  .step.now .n { background: var(--blue); color: #06101f; border-color: transparent; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px 20px; display: flex; flex-direction: column; gap: 16px; min-width: 0;
+  }
+  .panel-head { display: flex; align-items: center; gap: 10px; }
+  .panel-head .icon {
+    width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: 17px;
+  }
+  .panel-head h2 { margin: 0; font-size: 16px; }
+  .panel-head .sub { color: var(--muted); font-size: 12px; }
+  .panel-head .slot { margin-left: auto; }
+  .badge {
+    font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; white-space: nowrap;
+  }
+  .badge.green { color: var(--green); background: var(--green-bg); }
+  .badge.red { color: var(--red); background: var(--red-bg); animation: pulse 1.4s ease-in-out infinite; }
+  .badge.amber { color: var(--amber); background: var(--amber-bg); }
+  .badge.blue { color: var(--blue); background: var(--blue-bg); }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(255, 93, 93, 0); } 0% { box-shadow: 0 0 0 0 rgba(255,93,93,0.45); } }
+
+  .card { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .big { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .num { font-variant-numeric: tabular-nums; }
+  .mono { font-family: var(--mono); }
+  .muted { color: var(--muted); }
+  .faint { color: var(--faint); }
+
+  .tesla-row { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
+  .chg { font-weight: 600; font-size: 15px; padding-bottom: 6px; }
+  .chg.down { color: var(--red); } .chg.up { color: var(--green); }
+  input[type=range] { width: 100%; accent-color: var(--amber); margin: 10px 0 6px; }
+  .presets { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  table.book { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.book td { padding: 6px 0; border-bottom: 1px dashed var(--line); }
+  table.book td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  table.book tr.total td { font-weight: 700; border-bottom: none; padding-top: 10px; }
+  table.book tr.mmf td { color: var(--violet); }
+
+  .health { position: relative; height: 14px; border-radius: 999px; background: #0d1320; overflow: hidden; border: 1px solid var(--line); }
+  .health .fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px; transition: width 0.35s, background 0.35s; }
+  .health .mmf { position: absolute; top: 0; bottom: 0; background: var(--violet); transition: 0.35s; }
+  .health-wrap { position: relative; padding-top: 18px; }
+  .marker { position: absolute; top: 0; transform: translateX(-50%); font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .marker::after { content: ""; position: absolute; left: 50%; top: 16px; width: 2px; height: 20px; background: var(--text); opacity: 0.7; }
+  .health-legend { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+  .alert {
+    border-radius: 12px; padding: 14px 16px; display: flex; gap: 12px; align-items: center;
+    border: 1px solid;
+  }
+  .alert.red { background: var(--red-bg); border-color: rgba(255,93,93,0.4); }
+  .alert.violet { background: rgba(165,139,255,0.10); border-color: rgba(165,139,255,0.4); }
+  .alert.green { background: var(--green-bg); border-color: rgba(47,209,138,0.4); }
+  .alert .grow { flex: 1; min-width: 0; }
+  .alert b { display: block; }
+
+  .interest .big { color: var(--green); font-size: 40px; }
+  .interest .big .tail { color: rgba(47, 209, 138, 0.55); }
+  .rate-line { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  .rate-line b { color: var(--text); font-weight: 600; }
+
+  .split { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: #0d1320; border: 1px solid var(--line); }
+  .split .free { background: var(--blue); transition: width 0.4s; }
+  .split .pledged { background: var(--violet); transition: width 0.4s; }
+  .split-legend { display: flex; gap: 18px; font-size: 13px; margin-top: 8px; flex-wrap: wrap; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .actions button { flex: 1; min-width: 180px; padding: 12px 14px; }
+
+  .activity { margin-top: 16px; }
+  .activity table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .activity td { padding: 8px 6px; border-top: 1px solid var(--line); vertical-align: middle; }
+  .activity td.t { color: var(--faint); white-space: nowrap; width: 80px; }
+  .activity td.sig { text-align: right; white-space: nowrap; }
+  .activity a { color: var(--blue); text-decoration: none; font-family: var(--mono); font-size: 12px; }
+  .chip { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+  .chip.Issuer { color: var(--muted); background: rgba(139,151,173,0.14); }
+  .chip.Alice { color: var(--blue); background: var(--blue-bg); }
+  .chip.Bank { color: var(--amber); background: var(--amber-bg); }
+  tr.fresh td { animation: flash 1.6s ease-out; }
+  @keyframes flash { from { background: rgba(90,169,255,0.18); } to { background: transparent; } }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); opacity: 0;
+    background: #1d2639; border: 1px solid var(--line); border-radius: 12px; padding: 12px 18px;
+    transition: 0.25s; pointer-events: none; max-width: 90vw; z-index: 10;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%); }
+  .toast.err { border-color: rgba(255,93,93,0.6); color: #ffd0d0; }
+
+  .loading { display: grid; place-items: center; height: 60vh; color: var(--muted); }
+
+  @media (max-width: 960px) {
+    .grid { grid-template-columns: 1fr; }
+    .steps { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 560px) {
+    .wrap { padding: 16px; }
+    .steps { grid-template-columns: 1fr; }
+    .two { grid-template-columns: 1fr; }
+    .big { font-size: 28px; }
+    .interest .big { font-size: 30px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Tokenized MMF as collateral</h1>
+    <span class="tag">Demo · local Solana validator</span>
+    <span class="spacer"></span>
+    <button class="ghost" id="reset" title="Start the story again from the beginning">↺ Reset demo</button>
+  </header>
+
+  <div id="app"><div class="loading">Connecting to the local validator…</div></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const YEAR = 365 * 24 * 60 * 60;
+const STEPS = ["Tesla falls", "Bank issues margin call", "Alice pledges MMF", "Tesla recovers", "Bank releases MMF"];
+let S = null;            // last state from the server
+let localTesla = null;   // slider value while dragging
+let clockOffset = null;  // chain time − browser time, measured once
+let seenSigs = new Set();
+let busy = false;
+
+const $ = (id) => document.getElementById(id);
+const usd = (n, d = 0) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const int = (n) => Math.round(n).toLocaleString("en-US");
+const now = () => Date.now() / 1000 + (clockOffset ?? 0);
+const short = (s) => s.slice(0, 6) + "…" + s.slice(-4);
+const explorer = (kind, id) =>
+  `https://explorer.solana.com/${kind}/${id}?cluster=custom&customUrl=${encodeURIComponent(S.rpcUrl)}`;
+
+function toast(msg, err = false) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.className = "toast show" + (err ? " err" : "");
+  clearTimeout(toast.h);
+  toast.h = setTimeout(() => (t.className = "toast" + (err ? " err" : "")), err ? 5000 : 2600);
+}
+
+async function api(path, body) {
+  const res = await fetch(path, body === undefined ? {} : {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || res.statusText);
+  return json;
+}
+
+async function act(btn, path, body, okMsg) {
+  if (busy) return;
+  busy = true;
+  btn?.classList.add("busy");
+  try {
+    accept(await api(path, body ?? {}));
+    if (okMsg) toast(okMsg);
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    busy = false;
+    btn?.classList.remove("busy");
+    render();
+  }
+}
+
+function accept(state) {
+  if (clockOffset == null) clockOffset = state.chainTime - Date.now() / 1000;
+  S = state;
+}
+
+// Bank book recomputed live from the slider so dragging feels instant.
+function book() {
+  const b = S.bank;
+  const price = localTesla ?? b.teslaPrice;
+  const teslaValue = b.teslaShares * price;
+  const total = teslaValue + b.mmfValue;
+  return {
+    ...b, teslaPrice: price, teslaValue, totalCollateral: total,
+    coveragePct: (total / b.loan) * 100,
+    shortfall: Math.max(0, b.required - total),
+    teslaAloneCovers: teslaValue >= b.required,
+  };
+}
+
+function phase() {
+  const b = book(), c = S.call;
+  if (c?.status === "open") return 2;
+  if (c?.status === "pledged") return b.teslaAloneCovers ? 4 : 3;
+  if (c?.status === "released" && b.shortfall === 0) return 5;
+  return b.shortfall > 0 ? 1 : 0;
+}
+
+function skeleton() {
+  if ($("ctx")) return;
+  $("app").innerHTML = `
+  <div class="context" id="ctx"></div>
+  <div class="steps" id="steps"></div>
+  <div class="grid">
+    <section class="panel">
+      <div class="panel-head">
+        <div class="icon" style="background:var(--amber-bg)">🏦</div>
+        <div><h2>Bank · Alice's loan</h2><div class="sub">The bank's own system (simulated, off-platform)</div></div>
+        <span class="slot" id="bankBadge"></span>
+      </div>
+      <div class="card">
+        <div class="label">Tesla (TSLA) · collateral for the loan</div>
+        <div class="tesla-row" id="teslaPrice"></div>
+        <input type="range" id="tesla" min="120" max="320" step="1">
+        <div class="presets">
+          <button data-act="drop">▼ Tesla falls to $190</button>
+          <button data-act="recover">▲ Tesla recovers to $262</button>
+        </div>
+      </div>
+      <div id="bankBody" style="display:contents"></div>
+    </section>
+    <section class="panel">
+      <div class="panel-head">
+        <div class="icon" style="background:var(--blue-bg)">◎</div>
+        <div><h2>Platform · Alice's MMF</h2><div class="sub">On-chain, tokenized fund shares</div></div>
+        <span class="slot" id="aliceBadge"></span>
+      </div>
+      <div class="card interest">
+        <div class="label">Interest earned · ticking every second</div>
+        <div class="big num" id="interest">—</div>
+        <div class="rate-line" id="rateLine"></div>
+      </div>
+      <div id="aliceBody" style="display:contents"></div>
+    </section>
+  </div>
+  <section class="panel activity">
+    <div class="panel-head" id="activityHead"></div>
+    <table id="activity"></table>
+  </section>`;
+  const slider = $("tesla");
+  slider.oninput = () => { localTesla = Number(slider.value); render(); };
+  slider.onchange = () => setTesla(Number(slider.value));
+}
+
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-act]");
+  if (!btn || btn.disabled) return;
+  ({
+    drop: () => setTesla(190),
+    recover: () => setTesla(262),
+    call: () => act(btn, "/api/margin-call", {}, "Margin call recorded on-chain"),
+    pledge: () => act(btn, "/api/pledge", {}, "MMF shares pledged to the bank"),
+    release: () => act(btn, "/api/release", {}, "Pledge released back to Alice"),
+  })[btn.dataset.act]?.();
+});
+
+function render() {
+  if (!S) return;
+  const b = book(), c = S.call, a = S.alice, f = S.fund;
+  const p = phase();
+  const rate = f.rateBps / 10_000;
+  const pledged = c?.status === "pledged" ? c.pledgedShares : 0;
+  const bought = S.activity.find((x) => x.label.startsWith("Bought"));
+  const boughtDate = new Date(a.lastAccrualTs * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+
+  // Bank status
+  let bankBadge, bankAlert = "";
+  if (b.shortfall > 0 && (!c || c.status === "released")) {
+    bankBadge = `<span class="badge red">Below margin · ${usd(b.shortfall)} short</span>`;
+  } else if (c?.status === "open") {
+    bankBadge = `<span class="badge red">Margin call open</span>`;
+  } else if (c?.status === "pledged") {
+    bankBadge = b.teslaAloneCovers
+      ? `<span class="badge green">Tesla covers loan again</span>`
+      : `<span class="badge amber">Covered by MMF pledge</span>`;
+  } else {
+    bankBadge = `<span class="badge green">Healthy</span>`;
+  }
+  if (c?.status === "open") {
+    bankAlert = `<div class="alert red"><div class="grow"><b>Margin call ${c.reference} sent to Alice</b>
+      <span class="muted">${usd(c.shortfall)} of extra collateral due · recorded on-chain</span></div></div>`;
+  } else if (c?.status === "pledged" && b.teslaAloneCovers) {
+    bankAlert = `<div class="alert green"><div class="grow"><b>Tesla alone covers the loan again</b>
+      <span class="muted">The bank can return Alice's MMF pledge</span></div></div>`;
+  } else if (c?.status === "pledged") {
+    bankAlert = `<div class="alert violet"><div class="grow"><b>Margin call met with ${int(c.pledgedShares)} MMF shares</b>
+      <span class="muted">Pledged on-chain at ${new Date(c.pledgedTs * 1000).toLocaleTimeString()}, settled in one transaction</span></div></div>`;
+  }
+
+  const scaleMax = 200;
+  const pct = (v) => Math.min(100, (v / b.loan * 100) / scaleMax * 100);
+  const teslaW = pct(b.teslaValue), mmfW = Math.min(100 - teslaW, pct(b.mmfValue));
+  const below = b.coveragePct < b.maintenancePct;
+  const chg = (b.teslaPrice / b.teslaStart - 1) * 100;
+
+  // Alice status
+  let aliceAlert = "";
+  if (c?.status === "open") {
+    aliceAlert = `<div class="alert red"><div class="grow"><b>Margin call from the bank: ${usd(c.shortfall)}</b>
+      <span class="muted">Meet it with MMF shares: no selling Tesla at the bottom, and they keep earning</span></div></div>`;
+  } else if (c?.status === "pledged") {
+    aliceAlert = `<div class="alert violet"><div class="grow"><b>${int(c.pledgedShares)} shares pledged to the bank · ${c.reference}</b>
+      <span class="muted">Interest earned on the pledged shares since pledging: </span>
+      <b class="num" id="pledgedInterest" style="display:inline;color:var(--green)"></b>
+      <span class="muted"> · still ${usd(c.pledgedShares * f.nav * rate / 365, 2)} a day to Alice, not the bank</span></div></div>`;
+  } else if (c?.status === "released") {
+    aliceAlert = `<div class="alert green"><div class="grow"><b>Pledge released · all ${int(a.sharesOwned)} shares back with Alice</b>
+      <span class="muted">They earned interest the whole time they were pledged: </span>
+      <b class="num" id="pledgedInterest" style="display:inline;color:var(--green)"></b>
+      <span class="muted"> (${usd(c.pledgedShares * f.nav * rate / 365, 2)} a day), all of it Alice's</span></div></div>`;
+  }
+
+  skeleton();
+  const set = (id, html) => { const el = $(id); if (el.innerHTML !== html) el.innerHTML = html; };
+
+  set("ctx", `
+    <span>Fund <b>${f.name}</b> · <b>${(f.rateBps / 100).toFixed(2)}%</b> a year · NAV <b>${usd(f.nav, 2)}</b></span>
+    <span>Alice <b class="ok">✓ KYC approved</b> · bought <b>${int(a.sharesOwned)}</b> shares on <b>${boughtDate}</b>
+      ${bought ? `· <a href="${explorer("tx", bought.sig)}" target="_blank">on-chain ↗</a>` : ""}</span>`);
+
+  set("steps", STEPS.map((s, i) => `<div class="step ${i < p ? "done" : i === p ? "now" : ""}">
+      <span class="n">${i < p ? "✓" : i + 1}</span><span>${s}</span></div>`).join(""));
+
+  set("bankBadge", bankBadge);
+  set("teslaPrice", `<div class="big">${usd(b.teslaPrice, 2)}</div>
+    <div class="chg ${chg < 0 ? "down" : "up"}">${chg >= 0 ? "▲" : "▼"} ${Math.abs(chg).toFixed(1)}%</div>`);
+  const slider = $("tesla");
+  if (localTesla == null && document.activeElement !== slider) slider.value = b.teslaPrice;
+
+  set("bankBody", `
+      <table class="book">
+        <tr><td>Loan outstanding</td><td>${usd(b.loan)}</td></tr>
+        <tr><td>Tesla · ${int(b.teslaShares)} shares × ${usd(b.teslaPrice, 2)}</td><td>${usd(b.teslaValue)}</td></tr>
+        ${b.mmfValue > 0 ? `<tr class="mmf"><td>MMF pledge · ${int(pledged)} shares × ${usd(f.nav, 2)}</td><td>${usd(b.mmfValue)}</td></tr>` : ""}
+        <tr class="total"><td>Collateral · required ${b.maintenancePct}% = ${usd(b.required)}</td>
+          <td style="color:${below ? "var(--red)" : "var(--green)"}">${usd(b.totalCollateral)}</td></tr>
+      </table>
+      <div>
+        <div class="health-wrap">
+          <span class="marker" style="left:${b.maintenancePct / scaleMax * 100}%">required ${b.maintenancePct}%</span>
+          <div class="health">
+            <div class="fill" style="width:${teslaW}%;background:${below ? "var(--red)" : "var(--green)"}"></div>
+            <div class="mmf" style="left:${teslaW}%;width:${mmfW}%"></div>
+          </div>
+        </div>
+        <div class="health-legend"><span>Coverage <b class="num" style="color:var(--text)">${b.coveragePct.toFixed(1)}%</b></span>
+          <span>${b.mmfValue > 0 ? '<span class="dot" style="background:var(--violet)"></span>MMF pledge' : ""}</span></div>
+      </div>
+      ${bankAlert}
+      <div class="actions">
+        <button class="bank" data-act="call" ${b.shortfall > 0 && (!c || c.status === "released") ? "" : "disabled"}>
+          Issue margin call${b.shortfall > 0 ? ` · ${usd(Math.ceil(b.shortfall))}` : ""}</button>
+        <button class="bank" data-act="release" ${c?.status === "pledged" && b.teslaAloneCovers ? "" : "disabled"}>
+          Release MMF pledge</button>
+      </div>`);
+
+  set("aliceBadge", pledged ? `<span class="badge blue">Earning while pledged</span>` : `<span class="badge green">Earning</span>`);
+  set("rateLine", `
+          <span><b>${(f.rateBps / 100).toFixed(2)}%</b> a year</span>
+          <span><b>${usd(a.sharesOwned * f.nav * rate / 365, 2)}</b> a day</span>
+          <span><b>${usd(a.sharesOwned * f.nav * rate / YEAR, 4)}</b> a second</span>
+          <span>on all <b>${int(a.sharesOwned)}</b> shares, pledged or not</span>`);
+
+  set("aliceBody", `
+      <div class="two">
+        <div class="card"><div class="label">Shares owned</div><div class="big num" style="font-size:26px">${int(a.sharesOwned)}</div>
+          <div class="muted num">${usd(a.sharesOwned * f.nav)}</div></div>
+        <div class="card"><div class="label">Pledged to bank</div><div class="big num" style="font-size:26px;color:${pledged ? "var(--violet)" : "var(--faint)"}">${int(pledged)}</div>
+          <div class="muted num">${usd(pledged * f.nav)}</div></div>
+      </div>
+      <div>
+        <div class="split">
+          <div class="free" style="width:${a.sharesFree / a.sharesOwned * 100}%"></div>
+          <div class="pledged" style="width:${pledged / a.sharesOwned * 100}%"></div>
+        </div>
+        <div class="split-legend">
+          <span><span class="dot" style="background:var(--blue)"></span>Free · ${int(a.sharesFree)}</span>
+          <span><span class="dot" style="background:var(--violet)"></span>Pledged · ${int(pledged)}</span>
+        </div>
+      </div>
+      ${aliceAlert}
+      <div class="actions">
+        <button class="primary" data-act="pledge" ${c?.status === "open" ? "" : "disabled"}>
+          Pledge ${c?.status === "open" ? int(Math.ceil(c.shortfall / f.nav)) + " MMF shares" : "MMF shares"} to the bank</button>
+      </div>`);
+
+  set("activityHead", `<h2>On-chain activity</h2><span class="sub">every step is a Solana transaction · program
+      <a href="${explorer("address", S.programId)}" target="_blank" class="mono">${short(S.programId)}</a></span>`);
+  set("activity", S.activity.map((x) => `
+      <tr class="${seenSigs.size && !seenSigs.has(x.sig) ? "fresh" : ""}">
+        <td class="t">${new Date(x.ts * 1000).toLocaleTimeString()}</td>
+        <td><span class="chip ${x.actor}">${x.actor}</span></td>
+        <td>${x.label}</td>
+        <td class="sig"><a href="${explorer("tx", x.sig)}" target="_blank">${short(x.sig)} ↗</a></td>
+      </tr>`).join(""));
+  seenSigs = new Set(S.activity.map((x) => x.sig));
+  tick();
+}
+
+async function setTesla(price) {
+  localTesla = price;
+  render();
+  try { accept(await api("/api/tesla", { price })); } catch (e) { toast(e.message, true); }
+  localTesla = null;
+  render();
+}
+
+function tick() {
+  if (!S) return;
+  const a = S.alice, rate = S.fund.rateBps / 10_000, t = now();
+  const total = a.accrued + a.sharesOwned * S.fund.nav * rate * Math.max(0, t - a.lastAccrualTs) / YEAR;
+  const s = usd(total, 4);
+  const el = $("interest");
+  if (el) el.innerHTML = s.slice(0, -2) + `<span class="tail">${s.slice(-2)}</span>`;
+  const c = S.call, pe = $("pledgedInterest");
+  if (pe && c) {
+    const end = c.status === "released" ? c.releasedTs : t;
+    pe.textContent = usd(c.pledgedShares * S.fund.nav * rate * Math.max(0, end - c.pledgedTs) / YEAR, 4);
+  }
+}
+
+(function loop() { tick(); requestAnimationFrame(loop); })();
+
+async function poll() {
+  if (!busy && localTesla == null && document.activeElement?.id !== "tesla") {
+    try { accept(await api("/api/state")); render(); } catch (e) { /* validator restarting */ }
+  }
+  setTimeout(poll, 3000);
+}
+
+$("reset").onclick = (e) => {
+  if (!confirm("Reset the demo? This launches a fresh fund and Alice buys again.")) return;
+  clockOffset = null;
+  seenSigs = new Set();
+  $("app").innerHTML = `<div class="loading">Launching a fresh fund, Alice buys…</div>`;
+  act(e.currentTarget, "/api/reset", {}, "Fresh demo ready");
+};
+
+api("/api/state").then((s) => { accept(s); render(); }).catch((e) => {
+  $("app").innerHTML = `<div class="loading">Can't reach the demo server: ${e.message}</div>`;
+});
+setTimeout(poll, 3000);
+</script>
+</body>
+</html>

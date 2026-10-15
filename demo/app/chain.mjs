@@ -184,6 +184,7 @@ export function init() {
 // ---------------------------------------------------------------------------------------------
 // The bank's simulated book (off-chain in the story).
 
+// `pledgedShares` in whole shares, `nav` in micro-dollars.
 function bankBook(pledgedShares, nav) {
   const teslaValue = SCENARIO.teslaShares * state.teslaPrice;
   const mmfValue = (pledgedShares * nav) / ONE;
@@ -312,7 +313,7 @@ export async function readState() {
     };
   }
   const nav = fund.nav.toNumber();
-  const pledged = call?.status === "pledged" ? call.pledgedShares * ONE : 0;
+  const pledged = call?.status === "pledged" ? call.pledgedShares : 0;
 
   return {
     rpcUrl: RPC_URL,
