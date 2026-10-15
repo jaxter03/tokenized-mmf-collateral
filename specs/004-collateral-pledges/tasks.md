@@ -700,7 +700,7 @@ cancelling the call, by compliance resolution through governance, or when the ca
   - **Fixed cost**: the CU of `pledge`, `release` and `issue_call` is equal (±0) with 10 vs
     10 000 holders and 1 vs 300 agreements;
   - **No new publish cost**: `publish_daily` CU is unchanged from F003.
-- [ ] T072 [P] Extend `tests/src/rebuild.rs` and add `tests/tests/f004_rebuild.rs` (SC-009,
+- [X] T072 [P] Extend `tests/src/rebuild.rs` and add `tests/tests/f004_rebuild.rs` (SC-009,
   FR-037). Rebuild from events alone:
   - every agreement's status, exposure, D and `met_below_seq`;
   - every call's status (derived Met from `met_below_seq`);
