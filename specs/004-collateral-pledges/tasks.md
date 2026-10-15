@@ -725,11 +725,11 @@ cancelling the call, by compliance resolution through governance, or when the ca
     `408_163_265_307`.
 
   Exit 0 only if every outcome matches
-- [ ] T076 [P] Update the root `README.md`:
+- [X] T076 [P] Update the root `README.md`:
   - F004 status;
   - one paragraph on how pledges lock units without moving them;
   - the new test counts.
-- [ ] T077 [P] Write `specs/004-collateral-pledges/review.md`, the human review checklist in the
+- [X] T077 [P] Write `specs/004-collateral-pledges/review.md`, the human review checklist in the
   F003 format:
   - **Money math**: the three formulas and their rounding directions (shared-model §8);
   - **Hook order**: step 5's place (§6);
