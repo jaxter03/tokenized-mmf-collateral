@@ -709,10 +709,10 @@ cancelling the call, by compliance resolution through governance, or when the ca
 
   Compare them with the on-chain accounts after a scripted sequence that covers all 13 collateral
   instructions and `set_lien`
-- [ ] T073 Run `scripts/check-error-coverage.sh`. Every `CollateralError`, the four new
+- [X] T073 Run `scripts/check-error-coverage.sh`. Every `CollateralError`, the four new
   `HookError`s and any new `GovernanceError` must be asserted by a test (SC-006). Add the missing
   tests
-- [ ] T074 [P] Run `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt --check`
+- [X] T074 [P] Run `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt --check`
   and `scripts/check-duplicate-crates.sh`, then fix the findings
 - [ ] T075 [P] Extend `scripts/devnet-e2e` with `--feature f004` (in `src/f004.rs`), following
   `src/f003.rs` and quickstart.md "Devnet run":

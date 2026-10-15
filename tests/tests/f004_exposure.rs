@@ -254,3 +254,15 @@ fn proposed_agreement_takes_no_exposure() {
         CollateralError::AgreementNotActive,
     );
 }
+
+/// Constitution VII and IX: an exposure whose call can't be priced (more units than a `u64`
+/// holds) aborts the whole step instead of opening a wrong call.
+#[test]
+fn an_exposure_too_large_to_price_fails_closed() {
+    let (mut h, c, _) = ready(Ready::Standard);
+    let res = exposure(&mut h, &c, &c.taker, u64::MAX, r(1));
+    assert_anchor_error(&res, CollateralError::Overflow);
+    let a = agreement_of(&h, &c);
+    assert_eq!((a.required_value, a.call_count), (0, 1), "nothing changed");
+    assert!(!h.exists(&c.agr.call(&r(1))));
+}
